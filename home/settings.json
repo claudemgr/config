@@ -4,10 +4,11 @@
   "language": "english",
   "cleanupPeriodDays": 60,
   "autoUpdatesChannel": "stable",
+  "plansDirectory": "./.claude/plans",
   "attribution": {
     "commit": "",
     "pr": ""
-  }
+  },
   "permissions": {
     "allow": [
       "Read(**)",
