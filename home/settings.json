@@ -1,5 +1,5 @@
 {
-  "model": "opus",
+  "model": "sonnet",
   "agent": "code-reviewer",
   "language": "english",
   "cleanupPeriodDays": 60,
