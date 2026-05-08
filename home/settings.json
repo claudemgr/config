@@ -1,4 +1,13 @@
 {
+  "model": "opus",
+  "agent": "code-reviewer",
+  "language": "english",
+  "cleanupPeriodDays": 60,
+  "autoUpdatesChannel": "stable",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
   "permissions": {
     "allow": [
       "Read(**)",
