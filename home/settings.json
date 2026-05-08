@@ -151,6 +151,7 @@
       "Bash(docker-compose:*)",
       "Bash(incus:*)",
       "Bash(git:*)",
+      "Bash(gitcommit:*)",
       "Bash(pkill:*)",
       "Bash(rm:*)",
       "Bash(rmd:*)",
@@ -189,12 +190,6 @@
       "Bash(rm * /lib64*)",
       "Bash(rm /boot*)",
       "Bash(rm * /boot*)",
-      "Bash(rm /var*)",
-      "Bash(rm * /var*)",
-      "Bash(rm /root*)",
-      "Bash(rm * /root*)",
-      "Bash(rm /opt*)",
-      "Bash(rm * /opt*)",
       "Bash(rm /dev*)",
       "Bash(rm * /dev*)",
       "Bash(rm /proc*)",
@@ -223,12 +218,6 @@
       "Bash(rmd * /lib64*)",
       "Bash(rmd /boot*)",
       "Bash(rmd * /boot*)",
-      "Bash(rmd /var*)",
-      "Bash(rmd * /var*)",
-      "Bash(rmd /root*)",
-      "Bash(rmd * /root*)",
-      "Bash(rmd /opt*)",
-      "Bash(rmd * /opt*)",
       "Bash(rmd /dev*)",
       "Bash(rmd * /dev*)",
       "Bash(rmd /proc*)",
@@ -247,8 +236,6 @@
       "Bash(chmod * /usr*)",
       "Bash(chmod * /lib*)",
       "Bash(chmod * /boot*)",
-      "Bash(chmod * /var*)",
-      "Bash(chmod * /root*)",
       "Bash(chmod * /dev*)",
       "Bash(chown * /etc*)",
       "Bash(chown * /bin*)",
@@ -256,8 +243,6 @@
       "Bash(chown * /usr*)",
       "Bash(chown * /lib*)",
       "Bash(chown * /boot*)",
-      "Bash(chown * /var*)",
-      "Bash(chown * /root*)",
       "Bash(chown * /dev*)",
       "Bash(mv * /etc*)",
       "Bash(mv * /bin*)",
@@ -288,7 +273,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FP=$(printf \"%s\" \"$INPUT\" | python3 -c \"import json,sys; print((json.load(sys.stdin).get(\\\"tool_input\\\",{}).get(\\\"file_path\\\") or \\\"\\\").lower())\"); case \"$FP\" in *.md|*.markdown|*claude*|*anthropic*) exit 0 ;; esac; CONTENT=$(printf \"%s\" \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin).get(\\\"tool_input\\\",{}); print(d.get(\\\"content\\\") or d.get(\\\"new_string\\\") or \\\"\\\")\"); if printf \"%s\" \"$CONTENT\" | grep -qi \"anthropic\\|claude\"; then echo \"BLOCKED: file content contains vendor names (Anthropic/Claude)\" >&2; exit 2; fi"
+            "command": "INPUT=$(cat); FP=$(printf \"%s\" \"$INPUT\" | python3 -c \"import json,sys; print((json.load(sys.stdin).get(\\\"tool_input\\\",{}).get(\\\"file_path\\\") or \\\"\\\").lower())\"); case \"$FP\" in *.md|*.markdown|*claude*|*anthropic*|*/.git/*|*commit_mess*|*commit_editmsg*) exit 0 ;; esac; CONTENT=$(printf \"%s\" \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin).get(\\\"tool_input\\\",{}); print(d.get(\\\"content\\\") or d.get(\\\"new_string\\\") or \\\"\\\")\"); if printf \"%s\" \"$CONTENT\" | grep -qi \"anthropic\\|claude\"; then echo \"BLOCKED: file content contains vendor names (Anthropic/Claude)\" >&2; exit 2; fi"
           }
         ]
       },
