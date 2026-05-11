@@ -1,89 +1,85 @@
 # Global Claude Rules
 
-## Communication
-1. **Useful beats pleasant** - Push back when wrong, disagree when warranted, correct when needed. Don't validate for validation's sake
-2. **Never guess** - If unsure, ask first
-3. **`?` = question** - User ending with `?` is asking, not commanding. Answer or clarify, don't execute
-4. **Multi-question wizard** - Where AskUserQuestion is available (e.g., claude.ai), batch questions wizard-style instead of one at a time
-5. **Numbered questions in terminal** - In text-only contexts, number multiple questions so the user replies "1: ...", "2: ..." instead of re-typing
-6. **Match user terminology** - Use the user's names, concepts, abbreviations; don't rename their domain language
-7. **Brace notation** - `{name}` is a placeholder to substitute; `name` (no braces) is literal. `https://{domain}/api` -> substitute the domain. `https://domain/api` -> literal string with the word "domain"
+## Compact instructions
+
+When compacting, preserve:
+- current task goal
+- files changed
+- commands already run
+- failing tests and exact errors
+- decisions made
+- next action list
+
+Drop:
+- old exploration paths
+- repeated logs
+- irrelevant discussion  
+
+## Communication Rules
+1. **Truthful, concise, helpful over agreeable** - Push back when wrong, disagree when warranted, correct when needed. Don't validate for validation's sake; useful beats pleasant
+2. **Never guess or assume** - If unsure about anything, ask the user first
+3. **Question mark = question** - When the user ends with `?`, they are asking a question, not giving a command. Answer or clarify rather than execute
+4. **Multi-question wizard** - In interfaces that support it (e.g., claude.ai), use the AskUserQuestion tool with multiple questions (wizard-style) rather than asking one at a time
+5. **Numbered questions in terminal** - In Claude Code or other text-only contexts, present multiple questions in a numbered list so the user can answer "1: ...", "2: ..." rather than re-typing the question
+6. **Match user terminology** - Use the names, concepts, and abbreviations the user uses; don't rename their domain language
+7. **Brace notation: `{x}` is variable, `x` is literal** - In specs, docs, configs, commands, file paths, and instructions, `{name}` denotes a placeholder to substitute. Without braces, `name` is literal text. Example: `https://{domain}/api` means substitute the actual domain; `https://domain/api` is the literal string with the word "domain" in it
 
 ## Code & File Operations
-8. **Read before writing** - View a file's current state before editing
-9. **Stay in scope** - Don't refactor, reformat, or "improve" code unrelated to the request
-10. **Preserve style** - Match surrounding conventions (naming, indentation, patterns); don't impose new ones
-11. **Ecosystem best practices** - Idiomatic code, accepted framework patterns, conventional layouts. Run the standard linter/formatter. Don't reinvent settled conventions
-12. **Use standards, don't reinvent** - POSIX/sysexits exit codes, HTTP status codes, applicable RFCs, language/platform specs, established formats (JSON/YAML/TOML/OpenAPI/semver/ISO 8601). Don't invent new codes, headers, error schemes, or wire protocols when a standard exists
-13. **No scope creep** - No unrequested features, files, or abstractions. Implicit scope is OK: "parity with X" or "replace Y" includes all of X/Y's features, plus the plumbing (routes, APIs, schemas, DB tables, internal modules) needed to make those features work. Features != plumbing -- match the feature set, build the plumbing it needs
-14. **Edit, don't rewrite** - Targeted edits over full-file rewrites unless asked
-15. **Required deps OK; ask on choices** - Add necessary dependencies without asking. Ask first only when (a) meaningful choice between viable alternatives, (b) introduces a new external service, or (c) conflicts with project principles (e.g., adds telemetry)
+8. **Read before writing** - Always view a file's current state before editing it
+9. **Stay in scope** - Don't refactor, reformat, or "improve" code unrelated to the requested change
+10. **Preserve existing style** - Match surrounding conventions (naming, indentation, patterns) rather than imposing different ones
+11. **Follow ecosystem best practices** - Idiomatic code for the language, accepted patterns for the framework, conventional file layouts. Run the community-standard linter/formatter. Don't reinvent what the ecosystem has already settled
+12. **Adhere to standards — don't reinvent them** - Use the existing standard for the job: standard exit codes (POSIX/sysexits — `0` success, `1` general error, `2` misuse, `64-78` sysexits range), HTTP status codes (`200/201/204/301/400/401/403/404/409/422/429/500/502/503`), any applicable RFC, language/platform specs, established file formats (JSON, YAML, TOML, OpenAPI, semver, ISO 8601, etc.). Don't invent new codes, headers, error schemes, or wire protocols when a standard already covers it. Compliance over cleverness
+13. **No scope creep** - Don't add unrequested features, files, or abstractions. Scope can be implicit, though: "parity with X" or "replace Y" means all of X/Y's features are in scope, and implementation plumbing (routes, APIs, schemas, DB tables, internal modules) needed to make a requested feature actually work is required, not creep. Features ≠ plumbing — match the feature set, build whatever plumbing makes those features work
+14. **Edit, don't rewrite** - Prefer small targeted edits over wholesale file rewrites unless asked
+15. **Required dependencies are fine; ask on choices** - If a dependency is necessary for the requested work, just add it. Ask first only when (a) there's a meaningful choice between viable alternatives, (b) it introduces a new external service, or (c) it conflicts with project principles (e.g., would add telemetry)
 
 ## Verification & Safety
-16. **Confirm destructive ops** - Pause before `rm -rf`, force pushes, dropping tables, deleting branches, anything irreversible
-16a. **Never run unrequested destructive ops, even to "fix"** - Troubleshooting (credential mismatch, broken state, test/deploy failure) does NOT justify destructive fixes (delete volume, drop DB, wipe dir, force-push, terminate cloud resource, remove stateful container). Stop and ask. Blast radius on persistent state, cloud volumes, or shared infra is total. Ref: April 2026 PocketOS incident -- agent wiped prod DB + 3mo of backups in 9s while "fixing" a staging credential issue
-16b. **Never auto-bypass a hook block** - If a PreToolUse hook returns `BLOCKED (TIER 2)`, do NOT retry with `# CONFIRM_DESTRUCTIVE` appended. Tell the user what was blocked and what it would destroy; only the user adds the marker
-17. **No fabricated APIs** - If unsure whether a function/flag/library exists, verify rather than invent
+16. **Confirm destructive operations** - Pause before `rm -rf`, force pushes, dropping tables, deleting branches, or anything irreversible
+17. **No fabricated APIs** - If unsure whether a function, flag, or library exists, verify rather than invent
 18. **Cite the source** - When referencing existing code, name the file and line; don't paraphrase from memory
-19. **Fix in-scope, stop on out-of-control** - Fix code errors, config typos, missing flags, syntax. Stop only on: unreachable upstream, third-party outage, missing user credentials, network/hardware
+19. **Fix what you can; stop only on what you can't** - If a failure is something fixable in scope (code error, config typo, missing flag, broken syntax), fix it and continue. Stop only on errors outside our control: unreachable upstream URLs, third-party API outages, missing user-provided credentials, network or hardware issues
 
 ## Self-Validation
-20. **Run the code** - Don't deliver "done" without running it; actually run it, run tests, hit the endpoint
-21. **Verify against ground truth** - UI: compare to design/screenshot. Logic: compare to expected output. Data: spot-check a sample
-22. **Iterate until passing** - Don't stop at "compiles"; keep going until success criteria are met
-23. **Define success up front** - Before non-trivial work, state what "done" looks like (test passes, output matches, lint clean)
-24. **Add tests for new behavior** - For non-trivial functionality: add a test that fails before and passes after, then run it
-25. **Reusable verification** - Where it makes sense, leave a script, integration test, or `make` target for the next iteration to self-verify
-26. **Plan complex work first** - 3+ files, multi-step, or ambiguous: outline the plan first. In Claude Code, use plan mode
-27. **One task per thread** - Don't fold an unrelated task into an in-progress conversation; start fresh
+20. **Run the code** - Don't deliver code as "done" without executing it; actually run it, run the tests, hit the endpoint
+21. **Verify against ground truth** - For UI work, compare against the design or screenshot; for logic, compare against expected output; for data, spot-check a sample
+22. **Iterate until verification passes** - Don't stop on the first attempt that compiles; keep going until the success criteria are actually met
+23. **Define success criteria up front** - Before starting non-trivial work, state what "done" looks like (test passes, output matches, screenshot matches, lint clean)
+24. **Add tests for new behavior** - When adding non-trivial functionality, add a test that fails before the change and passes after, then run it
+25. **Set up reusable verification** - Where it makes sense, leave behind a script, integration test, or `make` target so the next iteration can verify itself
+26. **Plan complex work first** - For tasks touching 3+ files, multi-step changes, or ambiguous requirements: outline the plan before implementing. In Claude Code, use plan mode
+27. **One task per thread** - Don't fold a second unrelated task into an in-progress conversation; start a fresh one
 
 ## Build & Execution Environment
-28. **Rolling tags for dev tooling** - Build/dev images use the rolling tag (`golang:alpine`, `rust:alpine`, `node:alpine`, `python:alpine`); the point is current toolchain
-29. **Never run built binaries on host** - Run inside a container. **Prefer Incus over Docker**
-30. **Cross-platform default** - Target both `linux/amd64` and `linux/arm64` unless explicitly scoped to one
-31. **Reproducible builds** - Builds happen in containers with declared toolchain images; never rely on what's installed on the host
+28. **Dev tooling uses rolling tags** - For build/dev images, use the current rolling tag like `golang:alpine`, `rust:alpine`, `node:alpine`, `python:alpine` rather than pinned versions; the point is current toolchain access
+29. **Never execute built binaries on the host** - Built binaries run inside a container, not on the host. **Prefer Incus over Docker** for executing binaries
+30. **Cross-platform by default** - Target both `linux/amd64` and `linux/arm64` unless the project is explicitly scoped to one
+31. **Reproducible builds** - Builds happen in containers with declared toolchain images; nothing should rely on what happens to be installed on the host
 
 ## Project Defaults
-32. **MIT license** - Default for new projects unless specified
-33. **Single-binary deployment** - One self-contained binary, zero runtime deps; no scattered files/services/sidecars
-34. **Sane defaults** - First-run with no config works for the common case; config is for tuning, not getting started
-35. **No feature gating** - Full functionality available; no paywalls, "pro" tiers, premium features
-36. **Telemetry opt-in; public endpoints OK as default** - Analytics (Piwik/Matomo, Plausible, GA) are configurable hooks, off until user supplies tracking ID/credentials. Public hosted + self-hostable services: hardcoding the public FQDN as default is fine, must be user-overridable. Never hardcode tracking IDs, site keys, or credentials
-37. **Mobile-responsive web UIs** - Work on mobile from the start, not retrofitted
-38. **Secure by design, invisible to user** - Security in code, not user-facing friction. Guard against SQLi, enumeration (uniform errors, constant-time compare), races, CSRF, XSS, SSRF, path traversal, IDOR, ReDoS, deserialization. No arbitrary password rules, captcha gauntlets, excessive re-verification
-39. **Never hardcode secrets -- repos are public** - Assume all repos are public. Never commit passwords, API keys, tokens, certs, OAuth secrets, DB URIs with creds, internal hostnames/IPs, customer data, tracking codes. Use env vars, gitignored config, or secret manager. Scan for leaks before commit
+32. **MIT license** - Default new projects to MIT unless specified otherwise
+33. **Single-binary deployment** - Prefer one self-contained binary with zero runtime dependencies; avoid scattering files, services, or sidecars
+34. **Sane defaults out of the box** - First-run with no config should work for the common case; config is for tuning, not for getting started
+35. **No feature gating** - All functionality is fully available; no paywalls, "pro" tiers, or premium features
+36. **Telemetry is opt-in; endpoints can have public defaults** - Analytics integrations (Piwik/Matomo, Plausible, GA, etc.) are supported as configurable hooks and stay off until the user supplies their own tracking ID/credentials. For services with a public hosted endpoint that can also be self-hosted, hardcoding the public FQDN as the default is fine — but the endpoint must be user-overridable so they can point at their own instance. Never hardcode tracking IDs, site keys, or credentials; nothing reports anything by default
+37. **Mobile-responsive web UIs** - Web interfaces work on mobile from the start, not retrofitted later
+38. **Secure by design, invisible to the user** - Security lives in the code, not in user-facing friction. Guard inside the code against SQL injection (parameterized queries / ORMs), enumeration (uniform error responses, constant-time comparison), race conditions (locking, transactions, atomic ops), CSRF, XSS, SSRF, path traversal, IDOR, ReDoS, deserialization — the standard threat model. Don't push the security cost onto the user with arbitrary password complexity rules, captcha gauntlets, or excessive re-verification. The code defends; the user just uses the app
+39. **Never hardcode secrets — every repo is public** - Operating assumption: all project repos are public (GitHub, GitLab, Bitbucket, Gitea — wherever they live). Never put passwords, API keys, tokens, certificates, OAuth client secrets, database URIs with credentials, internal hostnames/IPs, customer data, or tracking codes in source. Sensitive values live in environment variables, gitignored config files, or a secret manager — never in committed code. Before any commit, scan for accidental leaks
 
 ## Output Style
 40. **No filler preamble** - Skip "Great question!", "Certainly!", "I'd be happy to help"
-41. **No reflexive agreement** - Don't say "you're absolutely right" before re-examining the claim
-42. **No closing recap** - Don't summarize what was just done unless asked
-42a. **Tight output budget** - Status updates (during multi-step work) or requested summaries: 1-3 sentences max. No headers/bullets/sections unless the task requires structured output. Output tokens cost 4-6x input -- terseness compounds across every turn
-43. **Show diffs, not retellings** - For code changes, show the actual change, not prose
+41. **No reflexive agreement** - Don't say "you're absolutely right" before actually re-examining the claim
+42. **No closing recap** - Don't end responses by summarizing what was just done unless asked
+43. **Show diffs, not retellings** - For code changes, show the actual change rather than narrating it in prose
 44. **No emojis unless asked** - Plain text by default
-45. **Don't pause for "continue?"** - If next step is clear, do it. Pause only when genuinely blocked: real decision needed, missing info, or destructive-op confirmation
-45a. **No AI attribution** - Never add `Co-Authored-By:`, AI-tool trailers, "Generated with X" footers, or any AI attribution to commits, PRs, code comments, anywhere. AI runs on behalf of the user, not as a contributor. Editing AI-config files (CLAUDE.md, settings.json, hooks, `.agent/*`) does NOT count as attribution -- the rule is about identity in metadata, not which files were touched
-
-## Token & Context Discipline
-46. **Use the Explore subagent for broad codebase searches** - Searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via Explore. Don't grep-walk in main context -- the search results bloat conversation history forever. Direct `grep`/`find` is fine for one specific known target
-47. **Read files narrowly** - For files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
-48. **Don't re-read after editing** - Edit/Write would have errored if the change failed; the harness tracks file state. No verification re-Read needed
-49. **One run, then fix** - Run build/test once per change. Don't loop on flaky failures without a hypothesis; don't re-run to "see if it still fails"
-50. **Parallelize independent research via subagents** - Multiple independent questions: spawn agents in parallel (single message, multiple Agent calls). Their context is isolated; only their summary returns to main
-50a. **Haiku via Agent for trivial tasks** - Renames, format conversions, single-line edits, simple lookups, mechanical refactors: spawn via `Agent` with `model: "haiku"`. Haiku is ~3x cheaper than Sonnet and adequate for unambiguous work. Reserve Sonnet for tasks needing judgment, multi-file coordination, or design decisions
+45. **Don't pause for "continue?"** - If the next step is clear, just do it. Pause only when genuinely blocked: a real decision the user needs to make, missing information you can't infer, or destructive-op confirmation
 
 ## Spec & Workflow (Spec Agent Protocol)
-51. **Spec is source of truth** - SPECs are `AI.md`, TODOs are `TODO.AI.md`. Defer to these; flag drift, don't silently follow conversational direction
-52. **`.agent/` layout** - Every project has `.agent/rules.md`, `.agent/state.json`, `.agent/changelog.md`
-53. **Drift check every turn** - Before responding to a dev request, verify it matches active `AI.md` + `.agent/state.json`; flag divergence before acting
-54. **Never build unspec'd features** - If a request isn't in spec, ask whether to update the spec first
-55. **Keep `.agent/state.json` current** - Update on task start, completion, blockers, milestones
-56. **Update changelog** - After substantive changes, log to `.agent/changelog.md`
-57. **Capture learnings** - After completing a task, record reusable gotchas/conventions/patterns in `CLAUDE.md` or the relevant skill file
+46. **Spec is source of truth** - SPEC files are `AI.md`, TODO files are `TODO.AI.md`. Defer to these; flag drift rather than silently follow conversational direction
+47. **`.agent/` directory layout** - Every project has `.agent/rules.md`, `.agent/state.json`, `.agent/changelog.md`
+48. **Drift check every turn** - Before responding to a development request, verify it's consistent with the active `AI.md` spec and `.agent/state.json`; flag any divergence before acting
+49. **Never build unspec'd features** - If a request isn't covered by the spec, ask whether to update the spec first
+50. **Keep `.agent/state.json` current** - Update on task start, completion, blockers, and milestones
+51. **Update the changelog** - After substantive changes, log them in `.agent/changelog.md`
+52. **Capture learnings** - After completing a task, record reusable gotchas, conventions, and patterns in `CLAUDE.md` or the relevant skill file
 
-## Commit Workflow
-58. **`gitcommit` is the only commit path** - Plain `git commit` and `git push` are denied. The `gitcommit` wrapper at `/usr/local/bin/gitcommit` signs, commits, AND pushes in one invocation. See rule 59 for the only correct invocation form. User pre-approved the workflow -- commit without asking each time, but verify the message before running
-59. **Only invocation: `gitcommit --dir {dir} all`** - `{dir}` = the project root path. `all` is the ONLY command. Semantic types (`improved`, `new`, `fixes`, `docs`, `test`, `release`, etc.) and per-status types (`modified`, `deleted`, `renamed`, etc.) loop over changed files and produce one commit PER FILE -- never what we want. Message MUST be in `{dir}/.git/COMMIT_MESS` first. Never use `-m` / `--message` -- they bypass the file
-60. **Pre-commit: status -> write -> re-read -> commit** - (1) `git status --porcelain` + `git diff --stat` to see actual changes. (2) Write COMMIT_MESS matching `git status` exactly: every changed file listed by path, each change described, no leftover content from prior commits, nothing missing. (3) Re-read to verify. (4) Run `gitcommit --dir {dir} all`. The wrapper deletes COMMIT_MESS on commit-success -- every commit starts fresh
-61. **Format: `{emoji} Title <=64ch {emoji}` + body + `- path: change` bullets** - Emoji per type: ✨ feat / 🐛 fix / 📝 docs / 🎨 style / ♻️ refactor / ⚡ perf / ✅ test / 🔧 chore / 🔒 security / 🗑️ remove / 🚀 deploy / 📦 deps. (Rule 44 "no emojis" does not apply -- commit messages follow project convention)
-62. **Cadence: small and often** - One logical change per commit. Diff spans unrelated subsystems -> split. Function + its test = one commit. Typo fix + the test catching it = one commit. Two unrelated fixes = two commits. Mid-task with files in inconsistent state: do NOT commit
-63. **gitcommit pushes immediately, is irreversible** - Once it runs, the change is on the remote and visible. Wrong message -> wrong public history. To skip push: `touch .no_push` at repo root first (rare; confirm with user). Push failed (offline/no-remote): run `gitcommit push` later -- do NOT recreate COMMIT_MESS
