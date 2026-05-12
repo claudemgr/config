@@ -1,6 +1,6 @@
 {
   "model": "sonnet",
-  "agent": "code-reviewer",
+  "agent": "general",
   "language": "english",
   "cleanupPeriodDays": 60,
   "autoUpdatesChannel": "stable",
