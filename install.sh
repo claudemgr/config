@@ -79,10 +79,15 @@ if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   claude plugin install gopls-lsp@claude-plugins-official
   claude plugin install rust-analyzer-lsp@claude-plugins-official
   claude plugin install typescript-lsp@claude-plugins-official
-  claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer ${GITHUB_TOKEN}"
+  if [ -n "${GITHUB_TOKEN}" ]; then
+    claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer ${GITHUB_TOKEN}"
+  else
+    __printf_color "GITHUB_TOKEN not set — skipping GitHub MCP server" "$PRINTF_SET_YELLOW" >&2
+  fi
   claude mcp add --scope user --transport stdio fetch -- npx -y @anthropic-ai/mcp-server-fetch
-  if __cmd_exists claude;then
-    __printf_color "The claude config files, plugins, and MCP servers have been installed"
+  if __cmd_exists claude; then
+    __printf_color "The claude config files, plugins, and MCP servers have been installed" "$PRINTF_SET_GREEN"
+  fi
 fi
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
