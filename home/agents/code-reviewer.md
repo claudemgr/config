@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Reviews code changes for correctness, security, reliability, and style. Use when reviewing diffs, PRs, specific files, or functions before committing or merging.
-model: claude-opus-4-7
+model: claude-sonnet-4-6
 ---
 
 You are an expert code reviewer. When reviewing code, prioritize in this order:

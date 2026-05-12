@@ -4,6 +4,19 @@ description: Files and directories that must never be created in a project repo,
 type: user
 ---
 
+## Enforcement Rule
+
+**Forbidden = flag and report, not auto-delete.**
+
+When a forbidden file or directory is found:
+1. Tell the user: what it is, why it's forbidden, and where it belongs instead (if anywhere)
+2. Wait for explicit confirmation before removing or moving anything
+3. Never silently delete — a forbidden file might contain unreplicated work
+
+The only exception: report-only files created by AI itself during the current session (`AUDIT.AI.md` when all issues are resolved, `PLAN.AI.md` scratch files, etc.) may be deleted without confirmation because AI created them and knows their contents.
+
+---
+
 ## File Naming Rules
 
 - Documentation is **always** `README.md` — no other casing or name

@@ -159,7 +159,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 - `README.md` exists and reflects current features, CLI flags, and install steps
 - `LICENSE.md` exists with correct license text; third-party attributions at the bottom
 - `IDEA.md` exists (for projects using the template system) and has all three required sections
-- No forbidden docs present: `CHANGELOG.md`, `AUDIT.md`, `COMPLIANCE.md`, `SUMMARY.md`, `NOTES.md`, `REPORT.md`, `ANALYSIS.md`
+- No forbidden docs present: `CHANGELOG.md`, `AUDIT.md`, `COMPLIANCE.md`, `SUMMARY.md`, `NOTES.md`, `REPORT.md`, `ANALYSIS.md` — flag any found; do NOT delete without user confirmation
 
 ### Code-level docs
 - Exported/public functions, types, and constants have doc comments
@@ -190,7 +190,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 ### Structure
 - Directory layout matches AI.md spec (or project CLAUDE.md spec)
-- No forbidden files or directories (`project_forbidden_files.md`)
+- No forbidden files or directories (`project_forbidden_files.md`) — flag any found; do NOT delete without user confirmation
 - No forbidden directory names in source: plural source dirs (`handlers/`, `models/`) — exception: tooling dirs (`scripts/`, `tests/`, `completions/`, `binaries/`)
 - Dockerfile in `docker/Dockerfile`, not at repo root
 - `docker-compose.yml` in `docker/`, not at repo root
@@ -249,7 +249,7 @@ For each issue found:
 | Missing doc comment | Add it |
 | README outdated | Update it |
 | Triple sync out of date | Sync `__help()` + man page + completions together |
-| Forbidden file/dir | Remove it |
+| Forbidden file/dir | Flag it: tell the user what it is, why it's forbidden, and where it belongs — do NOT delete without explicit confirmation |
 | Spec mismatch | Fix code or update IDEA.md, depending on which is wrong |
 
 **Red flags — stop and ask the user:**

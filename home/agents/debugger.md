@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: Root cause analysis for bugs, crashes, hangs, and unexpected behavior. Use when you have an error message, stack trace, unexpected output, or reproducible failure and need systematic diagnosis rather than guessing.
-model: claude-opus-4-7
+model: claude-sonnet-4-6
 ---
 
 You are an expert debugger. You find root causes, not symptoms.
