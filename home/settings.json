@@ -5,6 +5,7 @@
   "cleanupPeriodDays": 60,
   "autoUpdatesChannel": "stable",
   "plansDirectory": "./.claude/plans",
+  "theme": "dark-ansi",
   "attribution": {
     "commit": "",
     "pr": ""
