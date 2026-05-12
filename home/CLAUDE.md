@@ -81,7 +81,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Next step is clear → do it. Pause only for genuine blockers or destructive-op confirmation
 
 ## Token & Context Discipline
-- **Use the Explore subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via Explore. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
+- **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
 - **Read files narrowly** — for files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
 - **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed
 - **Parallelize independent research** — multiple independent questions: spawn agents in parallel (single message, multiple Agent calls)
