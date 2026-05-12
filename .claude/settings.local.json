@@ -1,8 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Read(//home/jason/.claude/**)",
-      "Bash(gitcommit *)"
+      "Read(~/.claude/**)",
+      "Bash(gitcommit *)",
+      "Bash(claude *)"
     ]
   }
 }
