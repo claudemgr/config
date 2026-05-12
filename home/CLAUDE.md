@@ -15,9 +15,13 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 - Match user's terminology exactly; never rename their domain language
 - `{x}` = placeholder to substitute; `x` = literal text
 
+## Spelling & Grammar
+- Always fix clear spelling and grammar errors encountered in any file being edited — typos, missing letters, doubled letters, wrong verb forms (e.g. "not install" → "not installed", "successssful" → "successful"). Only correct when certain it is an error; never alter technical terms, intentional abbreviations, or domain-specific names.
+
 ## Code & Files
 - Read current file state before any edit
 - Stay in scope — no unrequested refactors, reformats, or extras
+- **Working-set discipline** — the active working set is established when the user says "we are working on X" or names a directory/file group. It stays in force until the user explicitly redirects. Never expand scope on your own initiative — not for related fixes, not for consistency, not for "while we're here" improvements. If a related issue is spotted outside the working set, note it but don't act on it
 - Match surrounding style: naming, indentation, patterns
 - Use ecosystem idioms; run the community linter/formatter
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
@@ -31,12 +35,25 @@ All git repos are treated as public by default — even private ones. The only e
 
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
+## Cleanup
+- When cleaning up after a task, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
+- Never do a broad cleanup (e.g. `docker system prune`, `docker rmi $(docker images -q)`, `rm -rf /tmp/*`) — that destroys unrelated work
+- Identify project resources by name/label/prefix before removing anything; if uncertain, list and ask
+
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
 - **Never run unrequested destructive ops, even to "fix"** — stop and ask. (Ref: April 2026 PocketOS incident — agent wiped prod DB + 3 months of backups in 9s "fixing" a staging credential issue)
+- **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED (TIER 2)`, do NOT retry with `# CONFIRM_DESTRUCTIVE` appended. Tell the user what was blocked and what it would destroy; only the user adds the marker
 - Verify APIs/flags exist before using them; cite file:line for any code reference
 - Run code before calling it done; iterate until verification actually passes
 - Plan (use plan mode) for changes touching 3+ files or ambiguous requirements
+
+## Self-Validation
+- **Verify against ground truth** — UI: compare to design/screenshot. Logic: compare to expected output. Data: spot-check a sample
+- **Iterate until passing** — don't stop at "compiles"; keep going until success criteria are met
+- **Define success up front** — before non-trivial work, state what "done" looks like (test passes, output matches, lint clean)
+- **Add tests for new behavior** — for non-trivial functionality: add a test that fails before and passes after, then run it
+- **One run, then fix** — run build/test once per change; don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
 - Dev images: rolling tags (`golang:alpine`, `node:alpine`, etc.) — never pinned
@@ -53,10 +70,18 @@ When credentials are needed at runtime: use environment variables, mounted secre
 
 ## Output
 - No preamble, no reflexive agreement, no closing recap
+- **Tight output budget** — status updates and requested summaries: 1–3 sentences max. No headers/bullets/sections unless the task requires structured output
 - Show diffs, not prose retellings of changes
-- No emojis unless asked (exception: commit messages follow project convention)
+- No emojis in code or inline tool output unless asked
+- Emojis **are appropriate** in READMEs, documentation, and commit messages where they aid readability or navigation
 - **No AI attribution** — no `Co-Authored-By:`, AI-tool trailers, or "Generated with X" footers anywhere
 - Next step is clear → do it. Pause only for genuine blockers or destructive-op confirmation
+
+## Token & Context Discipline
+- **Use the Explore subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via Explore. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
+- **Read files narrowly** — for files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
+- **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed
+- **Parallelize independent research** — multiple independent questions: spawn agents in parallel (single message, multiple Agent calls)
 
 ## Agent Usage
 - **Haiku for trivial tasks** — renames, format conversions, single-line edits, simple lookups, mechanical refactors: spawn via `Agent` with `model: "haiku"`. Reserve Sonnet for judgment, multi-file coordination, or design decisions.
