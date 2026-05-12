@@ -71,15 +71,15 @@ if ! __cmd_exists npx; then
 fi
 if [ -d "$CLAUDE_LOCAL_REPO/.git" ]; then
   __printf_color "Updating the claude configs in $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
-  __git_local reset --hard
-  __git_local pull
+  __git_local reset --hard >/dev/null
+  __git_local pull -q
   INSTALL_SH_EXIT_STATUS=$?
 else
   if [ -d "$CLAUDE_LOCAL_REPO" ]; then
     rm -Rf "$CLAUDE_LOCAL_REPO"
   fi
   __printf_color "cloning $CLAUDE_CONFIG_REPO to $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
-  __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO"
+  __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO" -q
   INSTALL_SH_EXIT_STATUS=$?
 fi
 if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
