@@ -8,7 +8,9 @@
       "Bash(command -v gitcommit)",
       "Bash(gitcommit *)",
       "Bash(cp /home/jason/Projects/github/claudemgr/config/home/CLAUDE.md /home/jason/.claude/CLAUDE.md)",
-      "Bash(cp -r /home/jason/Projects/github/claudemgr/config/home/memory /home/jason/.claude/)"
+      "Bash(cp -r /home/jason/Projects/github/claudemgr/config/home/memory /home/jason/.claude/)",
+      "Bash(cp /home/jason/.claude/memory/sensitive_data.md /home/jason/Projects/github/claudemgr/config/home/memory/sensitive_data.md)",
+      "Bash(cp /home/jason/.claude/memory/MEMORY.md /home/jason/Projects/github/claudemgr/config/home/memory/MEMORY.md)"
     ]
   }
 }
