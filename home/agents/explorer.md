@@ -1,5 +1,5 @@
 ---
-name: explore
+name: explorer
 description: Fast read-only codebase search. Use to find files by pattern, locate symbol definitions, grep for keywords, or answer "where is X defined / which files reference Y". Do NOT use for code review, auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts and will miss content past its read window. Specify search breadth in your prompt: "quick" (single targeted lookup), "medium" (moderate exploration), or "very thorough" (multiple locations and naming conventions).
 model: haiku
 ---
