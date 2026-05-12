@@ -21,7 +21,7 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 ## Code & Files
 - Read current file state before any edit
 - Stay in scope — no unrequested refactors, reformats, or extras
-- **Working-set discipline** — the active working set is established when the user says "we are working on X" or names a directory/file group. It stays in force until the user explicitly redirects. Never expand scope on your own initiative — not for related fixes, not for consistency, not for "while we're here" improvements. If a related issue is spotted outside the working set, note it but don't act on it
+- **Working-set discipline** — the active working set is established when the user says "we are working on X" or names a directory/file group. It stays in force until the user explicitly redirects. Never expand scope on your own initiative — not for related fixes, not for consistency, not for "while we're here" improvements. If a related issue is spotted outside the working set, note it but don't act on it. Exception: spelling/grammar fixes in files already being edited are always permitted
 - Match surrounding style: naming, indentation, patterns
 - Use ecosystem idioms; run the community linter/formatter
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
@@ -35,6 +35,9 @@ All git repos are treated as public by default — even private ones. The only e
 
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
+## Project Files & Naming
+- See [project forbidden files](memory/project_forbidden_files.md) for file/directory rules including README.md, LICENSE.md naming, and what must never be created
+
 ## Cleanup
 - When cleaning up after a task, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
 - Never do a broad cleanup (e.g. `docker system prune`, `docker rmi $(docker images -q)`, `rm -rf /tmp/*`) — that destroys unrelated work
@@ -43,7 +46,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
 - **Never run unrequested destructive ops, even to "fix"** — stop and ask. (Ref: April 2026 PocketOS incident — agent wiped prod DB + 3 months of backups in 9s "fixing" a staging credential issue)
-- **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED (TIER 2)`, do NOT retry with `# CONFIRM_DESTRUCTIVE` appended. Tell the user what was blocked and what it would destroy; only the user adds the marker
+- **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, do NOT retry the same command. Tell the user what was blocked and what it would destroy; only the user decides whether to proceed
 - Verify APIs/flags exist before using them; cite file:line for any code reference
 - Run code before calling it done; iterate until verification actually passes
 - Plan (use plan mode) for changes touching 3+ files or ambiguous requirements

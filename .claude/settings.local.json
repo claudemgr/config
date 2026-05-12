@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read(//home/jason/.claude/**)"
+      "Read(//home/jason/.claude/**)",
+      "Bash(gitcommit *)"
     ]
   }
 }

@@ -98,6 +98,8 @@ Every script change requires updating all three in the same commit:
 2. `man/{script}.1`
 3. `completions/_{script}_completions.bash`
 
+**Exempt from triple sync:** hook scripts, sourced library files, and non-interactive scripts that are not user-facing commands. These do not have `__help()`, man pages, or completions.
+
 ## Testing
 
 - Syntax-check every script: `bash -n bin/scriptname`

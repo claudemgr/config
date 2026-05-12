@@ -78,6 +78,7 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 │   ├── Dockerfile.dev
 │   ├── docker-compose.yml
 │   └── rootfs/   # files ADDed into image, mirroring Linux FHS
+│       ├── etc/
 │       └── usr/local/bin/   # entrypoint.sh, etc.
 ├── AI.md
 ├── IDEA.md
@@ -85,7 +86,7 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 └── ...
 ```
 
-Temp, debug, and test output: `/tmp/{project_org}/{project_name}-XXXXXX` — never committed.
+Temp, debug, and test output: `/tmp/{project_org}/{internal_name}-XXXXXX` — never committed. (`{internal_name}` is the frozen on-disk identifier, never `{project_name}` which may change.)
 
 ## Compliance schedule (per AI.md)
 

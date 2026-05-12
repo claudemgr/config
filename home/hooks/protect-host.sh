@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202602020740-git"
+VERSION="202604281009-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -135,8 +135,9 @@ for m in re.finditer(r"(?:^|[\s;|&`(])(?:\d+|&)?>>?\s*([^\s;|&`()<>]+)", cmd):
 sys.exit(0)
 PYSCRIPT
 }
+# all redirects safe if __check_redirects exits 0
 if BAD_REDIRECT="$(__check_redirects "$CMD")"; then
-  : # all redirects safe
+  :
 else
   __block "shell redirect to host system path: $BAD_REDIRECT"
 fi
