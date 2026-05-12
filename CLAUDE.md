@@ -17,8 +17,8 @@ Before acting on this project, read in order:
 2. `IDEA.md` — project description, variables, and business logic (THE WHAT). Resolve `{placeholders}` from `## Project variables` at runtime; do not substitute them into `AI.md`.
 3. `PLAN.AI.md` — current AI implementation plan (if it exists).
 4. `TODO.AI.md` — current AI task list (if it exists).
-5. `PLAN.md` — human implementation plan (if it exists); AI may mark items done, never rewrite wholesale.
-6. `TODO.md` — human task list (if it exists); AI may mark items done, never delete or empty.
+5. `PLAN.md` — human implementation plan (if it exists); AI **must** mark items done when completed, never rewrite wholesale or delete entries.
+6. `TODO.md` — human task list (if it exists); AI **must** mark items done when completed, never delete or empty entries.
 
 **AI.md wins on any conflict with IDEA.md. Fix IDEA.md, not AI.md.**
 
@@ -26,7 +26,7 @@ Before acting on this project, read in order:
 
 - Use `TODO.AI.md` whenever working on more than 2 items.
 - Remove completed items from `TODO.AI.md` as they are finished — do not accumulate done items.
-- `TODO.md` and `PLAN.md` are human-owned: AI marks done but never deletes entries or rewrites wholesale.
+- `TODO.md` and `PLAN.md` are human-owned: AI **must** mark items done when it completes them — leaving them unmarked is misleading. Never delete entries or rewrite wholesale.
 - Update `PLAN.AI.md` when the approach changes mid-task.
 
 ## Compliance
