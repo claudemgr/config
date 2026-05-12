@@ -1,0 +1,95 @@
+#!/usr/bin/env sh
+# shellcheck shell=sh
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202605121722-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  jason@casjaysdev.pro
+# @@License          :  LICENSE.md
+# @@ReadME           :  install.sh --help
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Tuesday, May 12, 2026 17:22 EDT
+# @@File             :  install.sh
+# @@Description      :
+# @@Changelog        :  New script
+# @@TODO             :  Better documentation
+# @@Other            :
+# @@Resource         :
+# @@Terminal App     :  no
+# @@sudo/root        :  no
+# @@Template         :  shell/sh
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+APPNAME="${0##*/}"
+VERSION="202605121722-git"
+RUN_USER="${USER}"
+SET_UID="$(id -u)"
+SCRIPT_SRC_DIR="$(dirname -- "$0")"
+INSTALL_SH_CWD="${PWD}"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# colorization
+if [ -n "${NO_COLOR+x}" ] || [ "${SHOW_RAW}" = "true" ]; then
+  __printf_color() { printf '%s\n' "$1"; }
+else
+  __printf_color() { [ -t 1 ] && printf '%b%s%b\n' "${2:-$PRINTF_SET_RESET}" "$1" "$PRINTF_SET_RESET" || printf '%s\n' "$1"; }
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# check for command
+__cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+__function_exists() { case "$(type "$1" 2>/dev/null)" in *function*) return 0 ;; *) return 1 ;; esac; }
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# custom functions
+__git_clone() { git clone "$1" "$2" -q 2>/dev/null; }
+__git_local() { git -C "$CLAUDE_LOCAL_REPO" "$@" 2>/dev/null; }
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# Define variables
+PRINTF_SET_BLACK='\033[1;30m'
+PRINTF_SET_RED='\033[0;31m'
+PRINTF_SET_GREEN='\033[0;32m'
+PRINTF_SET_YELLOW='\033[1;33m'
+PRINTF_SET_BLUE='\033[1;34m'
+PRINTF_SET_PURPLE='\033[0;35m'
+PRINTF_SET_CYAN='\033[0;36m'
+PRINTF_SET_WHITE='\033[1;37m'
+PRINTF_SET_RESET='\033[0m'
+INSTALL_SH_EXIT_STATUS=0
+CLAUDE_LOCAL_REPO="$HOME/.local/dotfiles/claude"
+CLAUDE_CONFIG_REPO="https://github.com/claudemgr/config"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# Main application
+if ! __cmd_exists claude; then
+  __printf_color "claude code is not install" "$PRINTF_SET_RED" >&2
+  exit 1
+fi
+if [ -d "$CLAUDE_LOCAL_REPO/.git" ]; then
+  __printf_color "Updating the claude configs in $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
+  __git_local reset --hard
+  __git_local pull
+  INSTALL_SH_EXIT_STATUS=$?
+else
+  if [ -d "$CLAUDE_LOCAL_REPO" ]; then
+    rm -Rf "$CLAUDE_LOCAL_REPO"
+  fi
+  __printf_color "cloning $CLAUDE_CONFIG_REPO to $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
+  __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO"
+  INSTALL_SH_EXIT_STATUS=$?
+fi
+if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
+  cp -R "$CLAUDE_LOCAL_REPO/home/." "$HOME/.claude/"
+  claude plugin install gopls-lsp@claude-plugins-official
+  claude plugin install rust-analyzer-lsp@claude-plugins-official
+  claude plugin install typescript-lsp@claude-plugins-official
+  claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer ${GITHUB_TOKEN}"
+  claude mcp add --scope user --transport stdio fetch -- npx -y @anthropic-ai/mcp-server-fetch
+  if __cmd_exists claude;then
+    __printf_color "The claude config files, plugins, and MCP servers have been installed"
+fi
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# End application
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# lets exit with code
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+exit $INSTALL_SH_EXIT_STATUS
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# ex: ts=2 sw=2 et filetype=sh
