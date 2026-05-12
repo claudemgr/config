@@ -1,5 +1,8 @@
 # Claude Rules
 
+## Global Memory
+Read `~/.claude/memory/MEMORY.md` at the start of every session and load referenced files as needed.
+
 ## Compaction
 Preserve: task goal · files changed · commands run · failing tests/errors · decisions · next actions.
 Drop: old exploration paths · repeated logs · irrelevant discussion.

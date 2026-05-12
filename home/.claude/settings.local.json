@@ -6,7 +6,9 @@
       "Bash(python3 -m json.tool)",
       "Bash(python3 *)",
       "Bash(command -v gitcommit)",
-      "Bash(gitcommit *)"
+      "Bash(gitcommit *)",
+      "Bash(cp /home/jason/Projects/github/claudemgr/config/home/CLAUDE.md /home/jason/.claude/CLAUDE.md)",
+      "Bash(cp -r /home/jason/Projects/github/claudemgr/config/home/memory /home/jason/.claude/)"
     ]
   }
 }
