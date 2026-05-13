@@ -18,6 +18,18 @@
     "allow": [
       "Read(**)",
       "Write(**)",
+      "Edit(**/.git/COMMIT_MESS)",
+      "Write(**/.git/COMMIT_MESS)",
+      "Edit(**/.git/COMMIT_EDITMSG)",
+      "Write(**/.git/COMMIT_EDITMSG)",
+      "Edit(**/CLAUDE.md)",
+      "Write(**/CLAUDE.md)",
+      "Edit(**/.env)",
+      "Write(**/.env)",
+      "Edit(**/settings.json)",
+      "Write(**/settings.json)",
+      "Edit(**/settings.local.json)",
+      "Write(**/settings.local.json)",
       "WebSearch",
       "WebFetch(domain:google.com)",
       "WebFetch(domain:www.google.com)",
@@ -310,6 +322,24 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/protect-host.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
           }
         ]
       }
