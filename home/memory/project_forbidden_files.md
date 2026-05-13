@@ -37,9 +37,9 @@ The only exception: report-only files created by AI itself during the current se
 | `PULL_REQUEST_TEMPLATE.md` in root | Belongs in `.github/` |
 | `Dockerfile` in root | Belongs in `docker/Dockerfile` |
 | `docker-compose.yml` in root | Belongs in `docker/docker-compose.yml` |
-| `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary |
+| `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary. **Exception:** `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` are allowed — they are safe templates for users to copy |
 | `server.yml`, `cli.yml` | Config files are runtime-generated, never in repo |
-| `.env*` | No `.env` files in repo |
+| `.env`, `app.env`, `default.env` | Never committed — must always be in `.gitignore`. Use `.env.example` / `.env.sample` variants for committed templates |
 
 ## Forbidden Directories
 

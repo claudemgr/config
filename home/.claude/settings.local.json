@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read(//home/jason/.claude/**)",
-      "Read(//home/jason/Projects/github/claudemgr/.claude/**)",
+      "Read(/home/jason/.claude/**)",
+      "Read(/home/jason/Projects/github/claudemgr/.claude/**)",
       "Bash(python3 -m json.tool)",
       "Bash(python3 *)",
       "Bash(command -v gitcommit)",

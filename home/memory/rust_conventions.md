@@ -1,0 +1,237 @@
+---
+name: Rust conventions
+description: Build system, project layout, Makefile targets, Cargo profile, and code rules for CasjaysDev Rust projects
+type: user
+---
+
+## Project Layout
+
+```
+{project_name}/
+├── src/            # Rust source files
+├── tests/          # integration and unit tests
+├── binaries/       # compiled output — gitignored
+├── releases/       # release archives — gitignored
+├── build.rs        # build script (if needed)
+├── Cargo.toml
+├── Cargo.lock      # always committed (binary crate)
+├── Makefile
+├── release.txt     # current version string (e.g. 0.1.0)
+└── AI.md
+```
+
+## Makefile — Standard Variables
+
+```makefile
+PROJECT_NAME  := {project_name}
+ORGANIZATION  := {project_org}
+VERSION       := $(shell cat release.txt 2>/dev/null || echo "0.1.0")
+DOCKER_IMAGE  := rust:latest
+BINARIES_DIR  := ./binaries
+RELEASES_DIR  := ./releases
+```
+
+- `rust:latest` rolling tag — never pinned
+- `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
+
+## Makefile — Standard Targets
+
+| Target | What it does |
+|--------|-------------|
+| `build` | Builds all platforms inside Docker; outputs to `binaries/` |
+| `release` | Prepares release archives in `releases/` |
+| `test` | Runs `cargo test --lib --no-fail-fast` inside Docker |
+| `clean` | Removes `binaries/`, `releases/`, and `target/` |
+| `help` | Prints target list and current version |
+
+## Build Pattern
+
+All cargo invocations run inside Docker — never directly on host:
+
+```makefile
+@docker run --rm --platform linux/amd64 \
+    -v "$(PWD)":/workspace \
+    -v "$(PWD)/binaries":/output \
+    -w /workspace $(DOCKER_IMAGE) bash -c ' \
+    apt-get update -qq && \
+    apt-get install -y -qq {platform-deps} && \
+    cargo build --release && \
+    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \
+    cp target/release/$(PROJECT_NAME) /output/$(PROJECT_NAME)-{os}-{arch} && \
+    chmod 755 /output/$(PROJECT_NAME)-{os}-{arch}'
+```
+
+Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-x86_64`).
+
+## Platform Targets and Binary Naming
+
+Uses simplified OS name + GNU arch (not the full Rust target triple) for the output filename:
+
+| Rust target triple | Output binary | Notes |
+|-------------------|--------------|-------|
+| `x86_64-unknown-linux-gnu` | `{name}-linux-x86_64` | Docker Linux/amd64 |
+| `aarch64-unknown-linux-gnu` | `{name}-linux-aarch64` | Requires native ARM64 or QEMU |
+| `x86_64-pc-windows-gnu` | `{name}-windows-x86_64.exe` | MinGW cross (GTK4 not supported via MinGW) |
+| `x86_64-apple-darwin` | `{name}-macos-x86_64` | macOS host required |
+| `aarch64-apple-darwin` | `{name}-macos-aarch64` | macOS host required |
+| `x86_64-unknown-freebsd` | `{name}-freebsd-x86_64` | FreeBSD host required |
+
+Schema: **`{project_name}-{os}-{arch}`** where:
+- OS: `linux` / `macos` / `windows` / `freebsd` (simplified — never the full triple)
+- Arch: `x86_64` / `aarch64` (GNU arch terms — not Go's `amd64`/`arm64`)
+- Windows appends `.exe`
+
+**Rust uses `macos`, Go uses `darwin`** — they differ deliberately; each follows its own ecosystem's convention.
+
+macOS and FreeBSD cross-compilation from Linux is generally not supported — document as skipped with a note in the Makefile output.
+
+## Test Target Pattern
+
+```makefile
+test:
+	@docker run --rm -v "$(PWD)":/workspace -w /workspace $(DOCKER_IMAGE) bash -c \
+		'cargo test --lib --no-fail-fast'
+```
+
+Always inside Docker. Never `cargo test` directly on host.
+
+## Cargo.toml — Release Profile (NON-NEGOTIABLE)
+
+```toml
+[profile.release]
+opt-level     = "z"   # optimize for size
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"
+```
+
+Always optimize for size (`opt-level = "z"`), always strip, always LTO — for release builds only. Dev/debug builds use Cargo defaults (no stripping, debug symbols preserved).
+
+## Cargo.toml — Package Fields
+
+```toml
+[package]
+name        = "{project_name}"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["{project_org}"]
+license     = "MIT"
+description = "..."
+repository  = "https://github.com/{project_org}/{project_name}"
+```
+
+Edition is always `2021`. Cargo.lock is always committed for binary crates.
+
+## Exit Codes
+
+Use standard POSIX / sysexits codes via `std::process::exit(N)` — never invent custom schemes. Key codes:
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General runtime error |
+| `2` | Bad arguments / misuse |
+| `64` | EX_USAGE — wrong usage |
+| `65` | EX_DATAERR — bad input data |
+| `66` | EX_NOINPUT — input file not found |
+| `69` | EX_UNAVAILABLE — service unavailable |
+| `70` | EX_SOFTWARE — internal error |
+| `74` | EX_IOERR — I/O error |
+| `75` | EX_TEMPFAIL — temporary, caller may retry |
+| `77` | EX_NOPERM — insufficient permissions |
+| `78` | EX_CONFIG — configuration error |
+
+`--help` and `--version` always exit `0`. Signal exits are `128 + signal` (SIGINT=130, SIGTERM=143). See `script_conventions.md` for the full table.
+
+For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2` on parse errors automatically — do not override this. Use `std::process::ExitCode` (stable since 1.61) over `std::process::exit()` where possible to allow destructors to run.
+
+## CLI Flags — Standard Interface
+
+### Standard flags (all Rust TUI/CLI binaries)
+
+| Flag | Short | Values | Behavior |
+|------|-------|--------|----------|
+| `--help` | `-h` | — | Print help and exit 0 — never escalate privileges |
+| `--version` | `-v` | — | Print version and exit 0 — never escalate privileges |
+| `--debug` | — | — | Enable debug output |
+| `--color` | — | `auto` / `yes` / `no` | Control color output |
+
+- `--color auto` detects terminal capability (default); `yes` forces color; `no` disables it and removes emojis from output.
+- Both `--color auto` and `--color=auto` must work — clap handles this natively.
+- `--help` and `--version` must never require root — always exit immediately with the requested output.
+
+### NO_COLOR support
+
+Every Rust TUI/CLI binary must honor the `NO_COLOR` environment variable ([no-color.org](https://no-color.org/)):
+
+```rust
+// Color resolution order (highest precedence first):
+// 1. --color=no  or  --color=yes
+// 2. NO_COLOR env var present (any value) → disable color and emojis
+// 3. --color=auto → check atty::is(Stream::Stdout)
+fn resolve_color(flag: &str) -> bool {
+    match flag {
+        "yes" => true,
+        "no"  => false,
+        _     => { // "auto"
+            if std::env::var_os("NO_COLOR").is_some() {
+                return false;
+            }
+            atty::is(atty::Stream::Stdout)
+        }
+    }
+}
+```
+
+### Flag parsing — use `clap`
+
+Use `clap` (derive API) for all argument parsing — never hand-roll. `clap` supports `--flag=value` and `--flag value` natively; `--help` and `--version` are generated automatically.
+
+```rust
+#[derive(Parser)]
+#[command(name = env!("CARGO_PKG_NAME"), version, about, long_about = None)]
+struct Cli {
+    /// Color output: auto, yes, no
+    #[arg(long, default_value = "auto", value_parser = ["auto", "yes", "no"])]
+    color: String,
+
+    /// Enable debug output
+    #[arg(long)]
+    debug: bool,
+}
+```
+
+`clap` derive generates `-h`/`--help` and `-V`/`--version` by default. Override `-V` to `-v` with `#[command(version, short_flag = 'v')]` if needed to match the convention.
+
+## Dependency Rules
+
+- **No `*-sys` dynamic linkage** — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime
+- **No GPL/AGPL/LGPL without exception** — static linking would relicense the binary; requires explicit IDEA.md exception
+- **No `dlopen` or runtime extension loading** — unless IDEA.md defines a hardened plugin contract
+- **No CDN/network fetch on first run** — all assets embedded at build time; binary works air-gapped
+- **`ring` is pre-approved** as a C-vendored exception (crypto)
+- Prefer `rustls` over OpenSSL: `reqwest = { ..., features = ["rustls-tls"], default-features = false }`
+
+## GUI Rules
+
+GUI surfaces must support **both X11 and Wayland** as first-class backends — not one as fallback:
+- Linux: GTK4 + libadwaita (`gtk4`, `libadwaita` crates)
+- macOS: system frameworks (Cocoa/AppKit)
+- Windows: Win32 or WinUI
+
+## Static Binary Rules
+
+- Linux: musl target for fully static binary (`x86_64-unknown-linux-musl`) where no native libs needed
+- Windows: static CRT (MSVC or MinGW)
+- macOS: link against system frameworks — no dylib vendoring
+- `strip = true` in release profile handles symbol stripping
+
+## Code Rules
+
+- **No bare `cargo` on host** — all cargo invocations run inside Docker
+- **Strip release binaries** — `strip = true` in `[profile.release]` (handled by Cargo) plus an explicit `strip {binary} 2>/dev/null || true` in the Makefile after copy, for toolchains that ignore the profile flag. Debug/dev builds (`cargo build` without `--release`) are never stripped — debug symbols are preserved intentionally
+- **No `-musl` suffix** — never include `-musl` in the output binary name; schema is `{name}-{os}-{arch}` regardless of target triple (e.g. `x86_64-unknown-linux-musl` still outputs `{name}-linux-x86_64`)
+- **Rust-only source** — no C/C++ in the binary (ring is the pre-approved exception)
+- **Embed assets at build time** — use `include_bytes!`, `include_str!`, or the `built` crate; never load from filesystem at runtime
+- **No hardcoded temp paths** — use `std::env::temp_dir()` and always prefix with `{project_org}/{project_name}-XXXXXX`

@@ -16,7 +16,7 @@ These are intentionally NOT repeated here:
 | No feature gating or premium tiers | `CLAUDE.md` → Project Defaults |
 | Container-only builds | `user_execution_hierarchy.md` |
 | Cleanup: project resources only | `CLAUDE.md` → Cleanup |
-| No `.env` files, no Dockerfile in root | `project_forbidden_files.md` |
+| No `.env`/`app.env`/`default.env` committed; `.env.example`/`.env.sample` variants are allowed; no Dockerfile in root | `project_forbidden_files.md` |
 
 ---
 

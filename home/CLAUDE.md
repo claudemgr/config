@@ -83,6 +83,9 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Tool Preference
 - Always use the right tool for the job if installed: `jq` for JSON, `yq` for YAML, `bc` for math, `grep`/`sed`/`awk` for text, `git` for version control, etc.
 - Use `python3` only when no purpose-built tool can handle the task cleanly
+- **curl default:** `curl -q -LSsf {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
+- **wget default:** `wget -q {url}` — `-q` suppresses all output except errors. Only omit `-q` or add `--show-progress` when a progress bar is explicitly needed.
+- **grep default:** always `grep {flags} -- {query}` — `--` prevents a query starting with `-` being treated as a flag. Never use `egrep`, `fgrep`, or `rgrep` — use `grep -E`, `grep -F`, `grep -r` instead. This applies to every grep invocation, including in Bash tool calls.
 
 ## Token & Context Discipline
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
@@ -96,7 +99,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
 - "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
-- File sensitivity is defined by `protect-host.sh` — `.git/COMMIT_*`, `CLAUDE.md`, lock files, and build artifacts are safe to write without asking
+- Write/Edit allowlists are defined in `settings.json` `permissions.allow` — `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `settings.json`, `settings.local.json`, and `.env`/`app.env`/`default.env` paths are pre-approved. Destructive Bash ops are gated separately by `protect-host.sh`
 
 ## Commit Workflow
 `git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path — signs, stages, commits, and pushes in one invocation. Workflow is pre-approved; commit without asking, but verify the message first.
