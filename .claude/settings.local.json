@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(~/.claude/**)",
-      "Bash(gitcommit *)",
-      "Bash(claude *)"
-    ]
-  }
-}
