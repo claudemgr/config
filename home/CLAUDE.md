@@ -80,6 +80,10 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **No AI attribution** — no `Co-Authored-By:`, AI-tool trailers, or "Generated with X" footers anywhere
 - Next step is clear → do it. Pause only for genuine blockers or destructive-op confirmation
 
+## Tool Preference
+- Always use the right tool for the job if installed: `jq` for JSON, `yq` for YAML, `bc` for math, `grep`/`sed`/`awk` for text, `git` for version control, etc.
+- Use `python3` only when no purpose-built tool can handle the task cleanly
+
 ## Token & Context Discipline
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
 - **Read files narrowly** — for files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
