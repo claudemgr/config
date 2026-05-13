@@ -405,6 +405,61 @@ fi
 
 Always `grep {flags} -- {query}` — no exceptions.
 
+## Terminal Display — Alt Buffer and ANSI Escapes
+
+### Alt buffer
+
+Any script that is a TUI or acts as a TUI (interactive menus, full-screen output, progress UIs) **must** use the alternate screen buffer. This preserves the user's scrollback and restores the terminal cleanly on exit.
+
+```bash
+# Enter alt buffer + set blinking I-beam cursor
+printf '\e[?1049h\e[5 q'
+
+# Always restore on exit — use a trap so it fires even on Ctrl-C
+trap 'printf "\e[?1049l\e[0 q"' EXIT
+```
+
+- `\e[?1049h` — enter alternate screen buffer
+- `\e[?1049l` — leave alternate screen buffer (restore normal screen)
+- `\e[5 q` — blinking I-beam cursor (preferred)
+- `\e[0 q` — restore terminal default cursor on exit
+
+The `EXIT` trap must be set **before** entering the alt buffer so it fires on all exit paths including signals.
+
+Non-TUI scripts (one-shot output, batch processing, log writers) must NOT enter the alt buffer.
+
+### ANSI escapes — never tput
+
+`tput` forks a subprocess for every call — forbidden under the minimize-forks rule. Use ANSI escape sequences directly via `printf`.
+
+| tput call | ANSI equivalent |
+|-----------|----------------|
+| `tput smcup` | `printf '\e[?1049h'` |
+| `tput rmcup` | `printf '\e[?1049l'` |
+| `tput clear` | `printf '\e[2J\e[H'` |
+| `tput cup R C` | `printf '\e[%d;%dH' $((R+1)) $((C+1))'` |
+| `tput civis` | `printf '\e[?25l'` |
+| `tput cnorm` | `printf '\e[?25h'` |
+| `tput bold` | `printf '\e[1m'` |
+| `tput sgr0` | `printf '\e[0m'` |
+| `tput setaf 1` | `printf '\e[31m'` |
+| `tput setab 2` | `printf '\e[42m'` |
+
+Use `printf` — never `echo -e` (not portable) or `echo -n` for escape sequences.
+
+Color and cursor sequences must be suppressed when `NO_COLOR` is set or `--no-color` is passed — wrap them in a helper:
+
+```bash
+__ansi() {
+  # Emit ANSI escape only when color is enabled
+  if [[ -z "${NO_COLOR}" ]]; then
+    printf '%s' "$1"
+  fi
+}
+```
+
+---
+
 ## Documentation Triple Sync
 
 Every script change requires updating all three in the same commit:
