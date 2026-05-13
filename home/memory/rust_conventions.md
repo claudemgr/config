@@ -204,6 +204,79 @@ struct Cli {
 
 `clap` derive generates `-h`/`--help` and `-V`/`--version` by default. Override `-V` to `-v` with `#[command(version, short_flag = 'v')]` if needed to match the convention.
 
+## Terminal Display — Alt Buffer and Crossterm
+
+Any Rust binary that is a TUI or acts as a TUI must use the alternate screen buffer. Use `crossterm` — never write raw ANSI strings or shell out to `tput`.
+
+Add to `Cargo.toml`:
+```toml
+crossterm = "0.28"
+```
+
+### Enter / leave functions
+
+```rust
+use crossterm::{
+    cursor, execute,
+    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::io::{self, Write};
+
+fn enter_tui() -> io::Result<()> {
+    terminal::enable_raw_mode()?;
+    execute!(
+        io::stdout(),
+        EnterAlternateScreen,
+        cursor::SetCursorStyle::BlinkingBar,
+    )
+}
+
+fn leave_tui() -> io::Result<()> {
+    execute!(
+        io::stdout(),
+        LeaveAlternateScreen,
+        cursor::SetCursorStyle::DefaultUserShape,
+    )?;
+    terminal::disable_raw_mode()
+}
+```
+
+`SetCursorStyle::BlinkingBar` is the I-beam blinking cursor. `DefaultUserShape` restores the terminal's configured default on exit.
+
+### Cleanup guard
+
+Implement `Drop` so the terminal is always restored, including on panic:
+
+```rust
+struct TuiGuard;
+
+impl Drop for TuiGuard {
+    fn drop(&mut self) {
+        let _ = leave_tui();
+    }
+}
+```
+
+Call `enter_tui()` once at startup, then bind `let _guard = TuiGuard;` — the guard restores the terminal when it drops, regardless of exit path.
+
+### ratatui shortcut
+
+If using `ratatui`, use its init/restore helpers — they wrap crossterm and handle alt buffer, raw mode, and cursor automatically:
+
+```rust
+let mut terminal = ratatui::init();
+// ... run app ...
+ratatui::restore();
+```
+
+Do not manually call `enter_tui`/`leave_tui` when using ratatui — it manages setup and teardown.
+
+### NO_COLOR
+
+Suppress all terminal styling (colors, cursor changes) when `NO_COLOR` is set or `--color=no` is in effect. Check before emitting any `SetForegroundColor`, `SetAttribute`, or cursor style command. Use the `resolve_color` function from the CLI Flags section.
+
+---
+
 ## Dependency Rules
 
 - **No `*-sys` dynamic linkage** — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime

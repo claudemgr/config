@@ -219,6 +219,67 @@ Recommended for multi-command CLIs: `cobra` + `viper`. Recommended for single-co
 rootCmd.PersistentFlags().String("color", "auto", "Color output: auto, yes, no")
 ```
 
+## Terminal Display — Alt Buffer and ANSI Escapes
+
+Any Go binary that is a TUI or acts as a TUI must use the alternate screen buffer. Use raw ANSI escape sequences written to `os.Stdout` — never shell out to `tput`.
+
+### Constants
+
+```go
+const (
+    AltBufEnter   = "\033[?1049h" // enter alternate screen buffer
+    AltBufLeave   = "\033[?1049l" // leave alternate screen buffer
+    CursorBlink   = "\033[5 q"    // blinking I-beam (preferred)
+    CursorRestore = "\033[0 q"    // restore terminal default cursor
+    CursorHide    = "\033[?25l"
+    CursorShow    = "\033[?25h"
+    ClearScreen   = "\033[2J\033[H"
+)
+```
+
+### Enter / leave pattern
+
+```go
+func enterTUI() {
+    fmt.Fprint(os.Stdout, AltBufEnter+CursorBlink)
+}
+
+func leaveTUI() {
+    fmt.Fprint(os.Stdout, AltBufLeave+CursorRestore)
+}
+```
+
+Always call `leaveTUI()` via `defer` **and** from a signal handler so the terminal is restored on Ctrl-C:
+
+```go
+enterTUI()
+defer leaveTUI()
+
+sigs := make(chan os.Signal, 1)
+signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+go func() {
+    <-sigs
+    leaveTUI()
+    os.Exit(130)
+}()
+```
+
+### bubbletea shortcut
+
+If using `github.com/charmbracelet/bubbletea`, pass `tea.WithAltScreen()` — it manages alt buffer and cursor automatically:
+
+```go
+p := tea.NewProgram(model, tea.WithAltScreen())
+```
+
+Do not manually call `enterTUI`/`leaveTUI` when using bubbletea — it handles setup and teardown internally.
+
+### NO_COLOR
+
+Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `--color=no` is in effect. Use the `resolveColor` function from the CLI Flags section — do not emit any escape sequence when color is disabled.
+
+---
+
 ## Directory Naming
 
 Singular package and directory names: `handler/`, `model/`, `middleware/`, `config/` — not `handlers/`, `models/`. Exception: tooling dirs follow community convention and may be plural (`scripts/`, `tests/`, `binaries/`, `completions/`).
