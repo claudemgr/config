@@ -1,0 +1,25 @@
+## Project description
+
+claudemgr/config is the source repository for global Claude Code configuration — agents, hooks, memory files, and settings deployed to `~/.claude/` on every machine where Claude Code is used. It is the single source of truth for how Claude Code behaves across all projects and sessions. The `home/` directory mirrors `~/.claude/` exactly; `install.sh` syncs it to the live location.
+
+## Project variables
+
+project_name: config
+project_org: claudemgr
+internal_name: config
+internal_org: claudemgr
+deploy_target: ~/.claude
+source_dir: home
+
+## Business logic
+
+- `home/` mirrors `~/.claude/` exactly — every file/dir inside maps 1:1 to the deployed path
+- `home/CLAUDE.md` → `~/.claude/CLAUDE.md` — global AI instructions loaded at every session start across all projects
+- `home/memory/` → `~/.claude/memory/` — convention and standards files the AI loads for context; `MEMORY.md` is the index
+- `home/agents/` → `~/.claude/agents/` — specialized subagent definitions (frontmatter + instructions markdown)
+- `home/hooks/` → `~/.claude/hooks/` — bash scripts executed by Claude Code as PreToolUse/PostToolUse hooks
+- `home/settings.json` → `~/.claude/settings.json` — permissions (allow/deny/ask lists), hook wiring, and Claude Code behavior flags
+- `install.sh` copies `home/` to `~/.claude/` — always commit changes here before deploying
+- Deployed configuration is global: affects every Claude Code session, every project, every repo on the machine
+- No build step, no compilation — this repo is purely configuration and shell scripts
+- Changes here are high-impact: a broken hook or bad permission can block all Claude Code tool use
