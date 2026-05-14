@@ -16,6 +16,28 @@ type: user
 - If a user asks you to add something that looks like a real credential, stop and confirm intent before proceeding
 - Scanning generated code for accidental credential leakage is part of every review
 
+## Masking Sensitive Data
+
+When sharing logs, bug reports, error output, config snippets, or any text that may contain sensitive values — in a paste service, a GitHub issue, a chat message, or anywhere else — **mask values but preserve keys**. Context (what the field is) stays; the secret is replaced:
+
+```
+api-token=xxxxx
+password=xxxxx
+Authorization: Bearer xxxxx
+db_url=postgres://user:xxxxx@host/db
+STRIPE_SECRET_KEY=xxxxx
+```
+
+Rules:
+- Replace the value with `xxxxx` — five x's minimum; do not preserve length (length is information)
+- For structured formats (JSON, YAML, TOML, .env): replace the value in-place, keep the key
+- For HTTP headers: keep the scheme/prefix, replace the credential (`Bearer xxxxx`, `Basic xxxxx`)
+- For connection strings: mask only the credential portion, keep host/db for debugging context
+- Never truncate or show partial values — `sk-abc...xyz` is still a leak
+- Apply before posting anywhere: paste services, bug trackers, chat, email, screenshots
+
+This applies to all destinations — paste services, git issues, PR descriptions, team chat, everything.
+
 ## Paste Services
 
 **Paste services (pastebin.com, GitHub Gist, paste.rs, dpaste, ix.io, termbin, etc.) are treated identically to public git repos.**

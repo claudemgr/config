@@ -92,7 +92,21 @@ casci[1234]: Failed login for user admin from 192.168.1.50
 | `error.log` | Errors, warnings, panics, retries | Debug noise in production, PII |
 | `app.log` | Startup, shutdown, config reload, background jobs | Verbose per-request debug in production |
 
-**Never log:** passwords, raw tokens, API keys, session cookies, credit card numbers, SSNs, or any credential. Log a masked representation (`[REDACTED]`, `sha256:abc123`, last 4 chars) if the event itself must be recorded.
+**Never log:** passwords, raw tokens, API keys, session cookies, credit card numbers, SSNs, or any credential. When the event itself must be recorded, **mask the value but preserve the key** — context stays, secret goes:
+
+```
+api-token=xxxxx
+password=xxxxx
+Authorization: Bearer xxxxx
+db_password=xxxxx
+```
+
+Masking rules:
+- Key=value pairs: replace the value with `xxxxx` (five x's minimum; length does not leak info)
+- Header values: replace everything after the scheme/prefix (`Bearer xxxxx`, `Basic xxxxx`)
+- Last-4 acceptable only for card numbers where the last 4 are intentionally non-secret
+- Hash (`sha256:abc123…`) acceptable when the hash itself is non-sensitive and useful for correlation
+- Never truncate, never show partial values — a partial token is still a token
 
 ## Log File Location
 
