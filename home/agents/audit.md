@@ -19,10 +19,10 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 ## Pre-Flight
 
-1. Identify the project root (directory containing `AI.md` and `IDEA.md`, or the directory the user specified).
-2. Read `AI.md` if present (source of truth — never modify).
-3. Read `IDEA.md` if present (project description, variables, business logic).
-4. Read `CLAUDE.md` if present.
+1. Identify the project root (directory containing `{project_dir}/AI.md` and `{project_dir}/IDEA.md`, or the directory the user specified).
+2. Read `{project_dir}/AI.md` if present (source of truth — never modify).
+3. Read `{project_dir}/IDEA.md` if present (project description, variables, business logic).
+4. Read `{project_dir}/CLAUDE.md` if present.
 5. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. `bin/` with `#!/usr/bin/env bash` scripts → bash scripts. Multiple → apply all relevant checks.
 6. Scan the directory tree to understand the project layout before diving into individual files.
 
@@ -68,7 +68,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 ### Dependencies
 - Obvious CVEs in pinned versions (check known ranges; flag for `cargo audit` / `npm audit` / `pip-audit` if tooling exists)
-- GPL/LGPL/AGPL dependencies without a documented exception in `IDEA.md`
+- GPL/LGPL/AGPL dependencies without a documented exception in `{project_dir}/IDEA.md`
 
 ### CI/CD
 - Secrets exposed to fork pull request workflows
@@ -156,9 +156,9 @@ Normal development, file reading, and understanding the project are NOT audit tr
 **Goal: ensure everything a developer or user needs is actually written down.**
 
 ### Project-level docs
-- `README.md` exists and reflects current features, CLI flags, and install steps
-- `LICENSE.md` exists with correct license text; third-party attributions at the bottom
-- `IDEA.md` exists (for projects using the template system) and has all three required sections
+- `{project_dir}/README.md` exists and reflects current features, CLI flags, and install steps
+- `{project_dir}/LICENSE.md` exists with correct license text; third-party attributions at the bottom
+- `{project_dir}/IDEA.md` exists (for projects using the template system) and has all three required sections
 - No forbidden docs present: `CHANGELOG.md`, `AUDIT.md`, `COMPLIANCE.md`, `SUMMARY.md`, `NOTES.md`, `REPORT.md`, `ANALYSIS.md` — flag any found; do NOT delete without user confirmation
 
 ### Code-level docs
@@ -178,9 +178,9 @@ Normal development, file reading, and understanding the project are NOT audit tr
   - Hook scripts, sourced libraries, and non-interactive scripts are exempt
 
 ### Spec sync (for template-based projects)
-- Every feature in `IDEA.md` → `## Business logic` has corresponding code
-- Every significant piece of code has a corresponding entry in `IDEA.md`
-- `CLAUDE.md` is a short loader (≤20 lines), not a duplicate spec
+- Every feature in `{project_dir}/IDEA.md` → `## Business logic` has corresponding code
+- Every significant piece of code has a corresponding entry in `{project_dir}/IDEA.md`
+- `{project_dir}/CLAUDE.md` is a short loader (≤20 lines), not a duplicate spec
 
 ---
 
@@ -189,8 +189,8 @@ Normal development, file reading, and understanding the project are NOT audit tr
 **Goal: verify the project matches its own stated spec and the project rules.**
 
 ### Structure
-- Directory layout matches AI.md spec (or project CLAUDE.md spec)
-- No forbidden files or directories (`project_forbidden_files.md`) — flag any found; do NOT delete without user confirmation
+- Directory layout matches `{project_dir}/AI.md` spec (or project `{project_dir}/CLAUDE.md` spec)
+- No forbidden files or directories (`~/.claude/memory/project_forbidden_files.md`) — flag any found; do NOT delete without user confirmation
 - No forbidden directory names in source: plural source dirs (`handlers/`, `models/`) — exception: tooling dirs (`scripts/`, `tests/`, `completions/`, `binaries/`)
 - Dockerfile in `docker/Dockerfile`, not at repo root
 - `docker-compose.yml` in `docker/`, not at repo root
@@ -216,10 +216,10 @@ Normal development, file reading, and understanding the project are NOT audit tr
 ### Language-specific — Rust
 - `Cargo.toml` release profile: `lto = "fat"`, `codegen-units = 1`, `strip = "symbols"`, `panic = "abort"`
 - `rust-toolchain.toml` and `.cargo/config.toml` exist
-- No `*-sys` dynamic linkage without IDEA.md exception
+- No `*-sys` dynamic linkage without `{project_dir}/IDEA.md` exception
 - All cargo commands inside Docker
 - `deny.toml` exists; `cargo-deny check` passes
-- `LICENSE.md` regenerated when `Cargo.lock` changes
+- `{project_dir}/LICENSE.md` regenerated when `Cargo.lock` changes
 
 ### CI/CD
 - Workflows build what actually exists in the repo
@@ -256,7 +256,7 @@ For each issue found:
 - Fixing a security issue requires changing public API contracts or user-visible behavior
 - A stub/TODO implements core business logic that isn't specified anywhere
 - A dependency has a known CVE with no available fix or migration path
-- Required `IDEA.md` variables are missing and cannot be inferred
+- Required `{project_dir}/IDEA.md` variables are missing and cannot be inferred
 - Removing dead code would change externally-visible behavior
 
 ---

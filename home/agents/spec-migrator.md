@@ -196,8 +196,8 @@ If AI.md meets the criteria for its type with **project-specific content** (not 
 If AI.md is sparse, template-only, or missing critical sections: treat global rules as the supplement and offer to expand AI.md using the appropriate template.
 
 **Also check:**
-- Does IDEA.md exist and have all three required sections with real content?
-- Is CLAUDE.md just a loader, or does it still contain spec content that should have been migrated?
+- Does `{project_dir}/IDEA.md` exist and have all three required sections with real content?
+- Is `{project_dir}/CLAUDE.md` just a loader, or does it still contain spec content that should have been migrated?
 
 Report findings and offer to fix any gaps.
 
