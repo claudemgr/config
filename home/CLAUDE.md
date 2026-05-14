@@ -34,6 +34,8 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
 - Targeted edits only; full rewrites only when asked
 - Required deps: just add them. Real choice between alternatives: ask first
+- **No comments in JSON** — JSON has no comment syntax; they break parsers
+- **Singular directory names** — `handler/`, `model/`, `middleware/` not `handlers/`/`models/`; exception: tooling dirs follow community convention (`scripts/`, `tests/`, `completions/`)
 
 ## Sensitive Data
 **Never add tokens, API keys, passwords, private keys, internal hostnames, or any credentials to a git repo** unless the user explicitly instructs it or has already committed them manually.
@@ -43,6 +45,9 @@ All git repos are treated as public by default — even private ones. The only e
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
 **Paste services** (pastebin, GitHub Gist, paste.rs, etc.) are treated identically to public git repos — "private" pastes are still public. Never paste credentials, keys, internal config, or PII. Apply the same pre-flight check as a `git push` before posting anything.
+
+- **Never store tokens in plaintext** — hash with SHA-256 before storing; never log raw tokens
+- **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine
 
 ## Project Files & Naming
 - See [project conventions](memory/project_conventions.md) for AI.md/IDEA.md/CLAUDE.md roles, placeholder system, first-time setup flow, and directory layout
@@ -61,6 +66,16 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Run code before calling it done; iterate until verification actually passes
 - Plan (use plan mode) for changes touching 3+ files or ambiguous requirements
 
+**Memory Safety — these apply to every line of code in every language:**
+- `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in IDEA.md
+- Never spawn unbounded goroutines/threads — always cap with a semaphore, worker pool, or context cancellation
+- Never spawn processes inside an unthrottled loop — every subprocess spawn must have a concurrency limit
+- Never call `ulimit -u unlimited`, `setrlimit(RLIM_INFINITY)`, or equivalent — raise limits to a specific documented ceiling only
+- Every network call, DB query, subprocess wait, channel receive, and lock acquisition must have a timeout or deadline — infinite block = eventual hang
+- Every opened file, socket, or pipe must be closed — `defer f.Close()` (Go), RAII/`Drop` (Rust), `trap`/explicit close (shell)
+- Never `rm -rf "$VAR/"` without a `[ -n "$VAR" ]` guard; never `DROP TABLE` or `DELETE FROM` without a `WHERE`
+- Size-cap all untrusted input before buffering — no `ReadAll`/`read_to_string` on an unbounded network stream without a `LimitedReader`/`take()` guard
+
 ## Self-Validation
 - **Verify against ground truth** — UI: compare to design/screenshot. Logic: compare to expected output. Data: spot-check a sample
 - **Iterate until passing** — don't stop at "compiles"; keep going until success criteria are met
@@ -73,6 +88,10 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Execution hierarchy: VM > Incus > Docker > host (host only when no lower level works)
 - Target `linux/amd64` + `linux/arm64` by default
 - Builds are reproducible in containers; nothing depends on host-installed toolchain
+- **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`
+- `docker-compose.yml` must have hardcoded sane defaults and work with zero `.env` — users override by editing the file, not by creating `.env`
+- Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
+- Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `tempdir_conventions.md`
 
 ## Project Defaults
 - License: MIT · Single self-contained binary · First-run works with zero config
@@ -80,6 +99,24 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Telemetry opt-in only; never hardcode tracking IDs or site keys
 - Web UIs: mobile-responsive from day one
 - Security in code: parameterized queries, constant-time comparison, CSRF/XSS/SSRF/IDOR/path-traversal guards
+- **Password hashing: Argon2id only** — never bcrypt, never scrypt, never MD5/SHA for passwords
+
+## Language Constraints
+
+**Go:**
+- `CGO_ENABLED=0` always — pure Go, no C, no exceptions
+- No `-musl` suffix on Alpine/musl builds — omit it
+- Use project `config.ParseBool()` not `strconv.ParseBool()` (handles 40+ variations)
+- Never run `go` directly on host — always via `make dev` / `make test` / `make build` (Docker internally)
+- Never depend on host cron or systemd timers — use a built-in scheduler (`robfig/cron`, `go-co-op/gocron`, or a ticker loop)
+- Server projects: Go templates rendered server-side only — no client-side rendering
+
+**Rust:**
+- Never run `cargo` directly on host — all cargo invocations run inside Docker
+- No `*-sys` dynamic linkage — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime
+- No GPL/AGPL/LGPL dependencies without an explicit IDEA.md exception — static linking relicenses the binary
+- No `dlopen` or runtime extension loading unless IDEA.md defines a hardened plugin contract
+- No CDN or network fetch on first run — all assets embedded at build time
 
 ## Output
 - No preamble, no reflexive agreement, no closing recap
