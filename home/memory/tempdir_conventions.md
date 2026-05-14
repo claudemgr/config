@@ -39,7 +39,7 @@ ${TMPDIR:-/tmp}/{project_org}/{internal_name}-XXXXXX/
 
 ```bash
 mkdir -p "${TMPDIR:-/tmp}/${PROJECT_ORG}"
-TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECT_ORG}/${PROJECT_NAME}-XXXXXX")
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECT_ORG}/${INTERNAL_NAME}-XXXXXX")
 ```
 
 ### Go
@@ -102,8 +102,8 @@ Always use `${TMPDIR:-/tmp}` (shell) or `os.TempDir()` / `std::env::temp_dir()` 
 ls -la "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 
 # Remove all temp dirs for this project (guard both vars — empty var → rm -rf /tmp/*)
-[ -n "${PROJECT_ORG}" ] && [ -n "${PROJECT_NAME}" ] && \
-  rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/${PROJECT_NAME}-"*
+[ -n "${PROJECT_ORG}" ] && [ -n "${INTERNAL_NAME}" ] && \
+  rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/${INTERNAL_NAME}-"*
 
 # Remove entire org temp tree (only when certain nothing else uses it)
 [ -n "${PROJECT_ORG}" ] && rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/"

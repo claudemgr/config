@@ -42,8 +42,9 @@ When asked to view an image or screenshot at a URL:
 5. **Cleanup** — remove the tempdir after reading (guarded: `[ -n "$TMPDIR_PATH" ] && rm -rf "$TMPDIR_PATH"`).
 
 ```bash
-# Full example
-_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/casjaysdev/claudemgr-XXXXXX")
+# Full example — substitute {project_org}/{internal_name} from IDEA.md; never hardcode
+mkdir -p "${TMPDIR:-/tmp}/${PROJECT_ORG}"
+_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECT_ORG}/${INTERNAL_NAME}-XXXXXX")
 curl -q -LSsf "https://example.com/screenshot.png" -o "${_tmpdir}/original.png"
 convert "${_tmpdir}/original.png" -resize '1280x1280>' -quality 80 "${_tmpdir}/view.webp" 2>/dev/null \
   || ffmpeg -i "${_tmpdir}/original.png" -vf "scale='if(gt(iw,ih),1280,-1)':'if(gt(ih,iw),1280,-1)'" -quality 80 "${_tmpdir}/view.webp" 2>/dev/null \

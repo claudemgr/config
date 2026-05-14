@@ -45,10 +45,10 @@ VERSION="YYYYMMDDHHMM-git"
 
 ### Shell-specific differences
 
-| Item | bash | sh | zsh | fish | ps1 | cmd/bat |
-|------|------|----|-----|------|-----|---------|
-| shellcheck shell line | `# shellcheck shell=bash` | `# shellcheck shell=sh` | *(omit)* | *(omit)* | *(omit)* | *(omit)* |
-| shellcheck disable | `# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329` | same as bash | `# shellcheck disable=all` | *(omit entire line)* | *(omit)* | *(omit)* |
+| Item | bash | sh | zsh | fish |
+|------|------|----|-----|------|
+| shellcheck shell line | `# shellcheck shell=bash` | `# shellcheck shell=sh` | *(omit)* | *(omit)* |
+| shellcheck disable | `# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329` | same as bash | `# shellcheck disable=all` | *(omit entire line)* |
 | `APPNAME` | `"${0##*/}"` | `"${0##*/}"` | `"${0:t}"` | `(path basename (status filename))` |
 | `SCRIPT_SRC_DIR` | `"${BASH_SOURCE%/*}"` | `"$(dirname -- "$0")"` | `"${0:A:h}"` | `(path dirname (status filename))` |
 | `SET_UID` | `"${UID}"` | `"$(id -u)"` | `"${UID}"` | `(id -u)` |
@@ -57,6 +57,8 @@ VERSION="YYYYMMDDHHMM-git"
 | color escapes | `\e[` | `\033[` | `\e[` | `\e[` |
 | variables | `VAR=value` | `VAR=value` | `VAR=value` | `set -g VAR value` |
 | vim modeline filetype | `filetype=sh` | `filetype=sh` | `filetype=zsh` | `filetype=fish` |
+
+For `.ps1` and `.cmd`/`.bat` scripts: omit shellcheck lines entirely; use platform-native idioms (PowerShell cmdlets / CMD variables) per the Interpreter Detection section below.
 
 ### Standard boilerplate variables (after header)
 
@@ -300,8 +302,10 @@ fi
 **sh (POSIX):**
 ```sh
 # $0 is the interpreter name when sourced (e.g. "sh" or "-sh")
+# Use parameter expansion (no basename fork) — strip leading path; compare to bare $0
+_self="${0##*/}"
 case "$0" in
-  *"$(basename -- "$0")")
+  *"${_self}")
     # running directly — $0 matches the script name
     __main "$@"
     ;;

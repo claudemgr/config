@@ -14,7 +14,7 @@ These are intentionally NOT repeated here:
 | No plain `git commit`/`git push` | `CLAUDE.md` → Commit Workflow |
 | No hardcoded credentials/secrets | `CLAUDE.md` → Sensitive Data |
 | No feature gating or premium tiers | `CLAUDE.md` → Project Defaults |
-| Container-only builds | `user_execution_hierarchy.md` |
+| Container-only builds | `execution_hierarchy.md` |
 | Cleanup: project resources only | `CLAUDE.md` → Cleanup |
 | No `.env`/`app.env`/`default.env` committed; `.env.example`/`.env.sample` variants are allowed; no Dockerfile in root | `project_forbidden_files.md` |
 

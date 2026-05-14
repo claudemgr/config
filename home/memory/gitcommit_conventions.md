@@ -1,5 +1,5 @@
 ---
-name: gitcommit path resolution
+name: gitcommit conventions
 description: Do not hardcode the gitcommit binary path; resolve from PATH
 type: user
 ---
