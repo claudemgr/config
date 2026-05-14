@@ -15,3 +15,14 @@ type: user
 - If a config file needs a credential placeholder, use `${VAR_NAME}` or a clear placeholder, never a real value
 - If a user asks you to add something that looks like a real credential, stop and confirm intent before proceeding
 - Scanning generated code for accidental credential leakage is part of every review
+
+## Paste Services
+
+**Paste services (pastebin.com, GitHub Gist, paste.rs, dpaste, ix.io, termbin, etc.) are treated identically to public git repos.**
+
+- "Private" or "unlisted" pastes are still treated as public — obscurity is not access control
+- Never paste tokens, API keys, passwords, private keys, internal hostnames, credentials, or PII to any paste service
+- Never paste internal config, unreleased architecture details, or anything that would be sensitive if the URL leaked
+- If a user asks you to post something to a paste service: apply the same pre-flight check as a `git push` — scan for secrets first, refuse if any are found, ask for confirmation
+
+The only difference from git: pastes have no history audit trail, so a leaked secret is harder to identify and rotate.

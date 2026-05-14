@@ -42,6 +42,8 @@ All git repos are treated as public by default — even private ones. The only e
 
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
+**Paste services** (pastebin, GitHub Gist, paste.rs, etc.) are treated identically to public git repos — "private" pastes are still public. Never paste credentials, keys, internal config, or PII. Apply the same pre-flight check as a `git push` before posting anything.
+
 ## Project Files & Naming
 - See [project conventions](memory/project_conventions.md) for AI.md/IDEA.md/CLAUDE.md roles, placeholder system, first-time setup flow, and directory layout
 - See [project forbidden files](memory/project_forbidden_files.md) for file/directory rules including README.md, LICENSE.md naming, and what must never be created
@@ -94,6 +96,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **curl default:** `curl -q -LSsf {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
 - **wget default:** `wget -q {url}` — `-q` suppresses all output except errors. Only omit `-q` or add `--show-progress` when a progress bar is explicitly needed.
 - **grep default:** always `grep {flags} -- {query}` — `--` prevents a query starting with `-` being treated as a flag. Never use `egrep`, `fgrep`, or `rgrep` — use `grep -E`, `grep -F`, `grep -r` instead. This applies to every grep invocation, including in Bash tool calls.
+- **Images:** always convert before reading — max 1280px longest side, WebP target, fallback chain `convert` → `ffmpeg` → `vips` → original. URL images: curl to tempdir first, then convert, then read. See `image_conventions.md`.
 
 ## Token & Context Discipline
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target

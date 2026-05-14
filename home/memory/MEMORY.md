@@ -2,7 +2,8 @@
 
 - [Project conventions](project_conventions.md) — AI.md=HOW, IDEA.md=WHAT, CLAUDE.md=loader, TODO.AI.md=tasks; template system in claudemgr
 - [Execution hierarchy](execution_hierarchy.md) — VM>Incus>Docker>host; applies to everything including scriptmgr install scripts
-- [Sensitive data rule](sensitive_data.md) — never add credentials to any repo; all repos public by default; personal dotfiles is the only exception
+- [Sensitive data rule](sensitive_data.md) — never add credentials to any repo; all repos public by default; personal dotfiles is the only exception; paste services (pastebin/gist/etc.) treated identically to public repos
+- [Image conventions](image_conventions.md) — convert before reading (max 1280px, WebP target, fallback chain: convert→ffmpeg→vips→original); URL images: curl to tempdir→convert→read; never skip conversion
 - [gitcommit conventions](gitcommit_conventions.md) — never hardcode path; use `gitcommit` from PATH
 - [Script conventions](script_conventions.md) — shebang/extension determines interpreter (bash vs sh vs zsh vs fish vs ps1 vs cmd); header template, section separators, vim modeline, `__` function prefix, `SCRIPTNAME_` variable prefix, comments above code, no UUOC, builtins over forks, grep `--` separator, exit codes (POSIX 0/1/2 + sysexits 64–78 + signal 128+N), getopt/zparseopts/argparse, NO_COLOR, documentation triple sync (help+man+completions)
 - Lint agents: `script-lint` (bash/sh/zsh/fish), `go-lint` (Go projects), `rust-lint` (Rust projects) — invoke via Agent tool before committing
