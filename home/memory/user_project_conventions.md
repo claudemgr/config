@@ -4,6 +4,18 @@ description: Full spec for AI.md, IDEA.md, CLAUDE.md, and related files; templat
 type: user
 ---
 
+## Project root (`{project_dir}`)
+
+`{project_dir}` is resolved once at session start:
+- Inside a git repo → `git rev-parse --show-toplevel` (the git root)
+- Not a git repo → the directory Claude was launched from (`$PWD` at session start)
+
+All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absolute paths (`/…`, `~…`) are taken as-is.
+
+**Project files override global:** if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it is the source of truth for that session and supersedes any global equivalent.
+
+---
+
 ## File roles
 
 | File | Role | Mutable during work? |

@@ -18,6 +18,13 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 ## Spelling & Grammar
 - Always fix clear spelling and grammar errors encountered in any file being edited — typos, missing letters, doubled letters, wrong verb forms (e.g. "not install" → "not installed", "successssful" → "successful"). Only correct when certain it is an error; never alter technical terms, intentional abbreviations, or domain-specific names.
 
+## Working Directory & Path Resolution
+
+- **CWD is `$PWD`** — all relative paths (`AI.md`, `./src`, `./`) resolve from there
+- **Absolute paths** (`/…`, `~…`) are taken as-is; never prepend CWD to them
+- **`{project_dir}`** = `git rev-parse --show-toplevel` if inside a git repo; otherwise = the directory Claude was launched from (`$PWD` at session start)
+- **Project files override global**: if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it is the source of truth and supersedes the global `~/.claude/CLAUDE.md` equivalent for that session
+
 ## Code & Files
 - Read current file state before any edit
 - Stay in scope — no unrequested refactors, reformats, or extras
