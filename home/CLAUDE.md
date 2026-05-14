@@ -54,9 +54,11 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - See [`~/.claude/memory/project_forbidden_files.md`] for file/directory rules including README.md, LICENSE.md naming, and what must never be created
 
 ## Cleanup
-- When cleaning up after a task, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
+- **Clean up immediately** — stop and remove every container, VM, volume, network, and temp file created during a task as soon as it is no longer needed. Do not leave them running or dangling until session end — that kills the host
+- When cleaning up, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
 - Never do a broad cleanup (e.g. `docker system prune`, `docker rmi $(docker images -q)`, `rm -rf /tmp/*`) — that destroys unrelated work
 - Identify project resources by name/label/prefix before removing anything; if uncertain, list and ask
+- **Track what you start** — before spinning up any container or VM, note its name/ID; ensure it appears in the cleanup step of the same task
 
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
@@ -84,6 +86,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **One run, then fix** — run build/test once per change; don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
+- **Base image for all test/build/debug work** — always use the appropriate pre-built `casjaysdevdocker/` image for the language/stack (e.g. `casjaysdevdocker/go:latest`, `casjaysdevdocker/rust:latest`); for VM/Incus work use the appropriate Incus image. These are fully updated and tool-complete. Never spin up a raw upstream image (e.g. `alpine`, `ubuntu`, `golang`, `rust`) for ephemeral work — that produces inconsistent environments and pulls untested layers
 - Dev images: rolling tags (`golang:alpine`, `node:alpine`, etc.) — never pinned
 - Execution hierarchy: VM > Incus > Docker > host (host only when no lower level works)
 - Target `linux/amd64` + `linux/arm64` by default
