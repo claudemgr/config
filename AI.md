@@ -50,20 +50,22 @@ The global AI instruction file. Loaded by Claude Code at the start of every sess
 2. `## Compaction` — what to preserve/drop when context compacts
 3. `## Communication` — tone, truthfulness, question handling, terminology rules
 4. `## Spelling & Grammar` — fix errors in files being edited
-5. `## Code & Files` — working-set discipline, scope, style matching
-6. `## Sensitive Data` — never commit credentials; all repos public by default
-7. `## Project Files & Naming` — reference to `project_forbidden_files.md`
-8. `## Cleanup` — project-scoped cleanup only, never broad ops
-9. `## Verification & Safety` — confirm before destructive ops, never auto-bypass hooks
-10. `## Self-Validation` — verify against ground truth, iterate until passing
-11. `## Build & Execution` — rolling tags, execution hierarchy, multi-arch
-12. `## Project Defaults` — MIT license, no feature gating, telemetry opt-in only
-13. `## Output` — no preamble, tight budget, no emojis in code, no AI attribution
-14. `## Tool Preference` — right tool for the job; curl/wget/grep defaults
-15. `## Token & Context Discipline` — explorer for broad searches, read narrowly
-16. `## Agent Usage` — Haiku for trivial tasks
-17. `## Autonomy` — pre-authorized workflows, allowlists
-18. `## Commit Workflow` — gitcommit only, pre-commit sequence, message format
+5. `## Working Directory & Path Resolution` — `{project_dir}` resolution, path namespace rules
+6. `## Code & Files` — working-set discipline, scope, style matching, no JSON comments, singular dirs
+7. `## Sensitive Data` — never commit credentials; all repos public by default; masking format
+8. `## Project Files & Naming` — reference to `~/.claude/memory/project_conventions.md`
+9. `## Cleanup` — project-scoped cleanup only, never broad ops
+10. `## Verification & Safety` — confirm before destructive ops, never auto-bypass hooks; Memory Safety block (8 rules)
+11. `## Self-Validation` — verify against ground truth, iterate until passing
+12. `## Build & Execution` — rolling tags, execution hierarchy, tini chain, docker-compose zero-.env
+13. `## Project Defaults` — MIT license, no feature gating, telemetry opt-in, Argon2id only
+14. `## Language Constraints` — absolute Go rules (CGO=0, Docker-only) and Rust rules (Docker-only, no *-sys dynamic)
+15. `## Output` — no preamble, tight budget, no emojis in code, no AI attribution
+16. `## Tool Preference` — right tool for the job; curl/wget/grep defaults
+17. `## Token & Context Discipline` — explorer for broad searches, read narrowly
+18. `## Agent Usage` — Haiku for trivial tasks
+19. `## Autonomy` — pre-authorized workflows, allowlists
+20. `## Commit Workflow` — gitcommit only, pre-commit sequence, message format
 
 **Rules:**
 - This file governs all sessions globally — changes are high-impact
@@ -98,19 +100,22 @@ type: user
 | File | Covers |
 |------|--------|
 | `MEMORY.md` | Index of all memory files |
-| `script_conventions.md` | Shell script standards for all shells |
-| `go_conventions.md` | Go project layout, Makefile, build rules |
-| `rust_conventions.md` | Rust project layout, Cargo, build rules |
-| `logging_conventions.md` | Log file format, pure text, log types |
-| `dockerfile_conventions.md` | Two-stage builds, OCI labels, tini |
-| `gitignore_conventions.md` | gitignore header format, standard entries |
-| `standards_reference.md` | RFCs, HTTP codes, ISO 8601, semver, security headers |
-| `never_always_rules.md` | Cross-project NEVER/ALWAYS rules |
-| `user_project_conventions.md` | AI.md/IDEA.md/TODO.AI.md roles |
-| `project_forbidden_files.md` | Files/dirs that must never be created |
-| `sensitive_data.md` | Credential handling rules |
-| `user_execution_hierarchy.md` | VM>Incus>Docker>host |
-| `feedback_gitcommit.md` | gitcommit path resolution |
+| `project_conventions.md` | `{project_dir}/AI.md` / `IDEA.md` / `CLAUDE.md` roles, placeholder system, template system, first-time setup |
+| `execution_hierarchy.md` | VM > Incus > Docker > host; execution scope rules |
+| `sensitive_data.md` | All public destinations equal; masking format (`key=xxxxx`); pre-flight checklist |
+| `image_conventions.md` | Convert before reading (max 1280px, WebP); fallback chain; URL image workflow |
+| `gitcommit_conventions.md` | `gitcommit` path resolution; never hardcode path |
+| `script_conventions.md` | Shebang/extension → interpreter; header template; `__` prefix; NO_COLOR; exit codes; doc triple sync |
+| `project_forbidden_files.md` | Files/dirs that must never be created; README.md/LICENSE.md naming rules |
+| `standards_reference.md` | HTTP status codes, RFC 7807, ISO 8601, semver, MIME, UUID, TLS, JWT, OAuth2, pagination |
+| `gitignore_conventions.md` | Header format, standard entries, project-type additions |
+| `dockerfile_conventions.md` | Two-stage builds, OCI labels, tini entrypoint, Docker Compose rules, .dockerignore |
+| `logging_conventions.md` | Log files are pure raw text; format per type; masking in logs |
+| `tempdir_conventions.md` | Required path structure, per-language creation, guarded cleanup |
+| `cicd_conventions.md` | SHA pinning, no `pull_request_target`, branch protection, SBOM, release integrity |
+| `go_conventions.md` | Go project layout, Makefile targets, CGO=0, binary naming, module cache |
+| `rust_conventions.md` | Rust project layout, Cargo, release profile, static linking |
+| `project_type_conventions.md` | Rules by project type: server, cli, library, tui, desktop-gui, worker |
 
 **Adding a new memory file:**
 1. Create `home/memory/{topic}.md` with frontmatter
@@ -143,9 +148,27 @@ Instructions for the agent...
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| `script-lint.md` | haiku | Lint bash/sh/zsh/fish scripts |
-| `go-lint.md` | haiku | Lint Go projects |
-| `rust-lint.md` | haiku | Lint Rust projects |
+| `architect.md` | opus | System design, API design, data modeling, architectural tradeoffs |
+| `audit.md` | opus | Full project health audit — security, quality, logic, docs, spec compliance |
+| `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
+| `bootstrap.md` | sonnet | Bootstrap a project from a spec file (`{project_dir}/AI.md`); executes PART 0–6 |
+| `claude-code-guide.md` | sonnet | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
+| `code-reviewer.md` | sonnet | Review diffs, PRs, or files before committing or merging |
+| `commit-prep.md` | haiku | Prepare `COMMIT_MESS` without polluting main conversation with diff output |
+| `debugger.md` | sonnet | Root cause analysis for bugs, crashes, hangs, unexpected behavior |
+| `devops.md` | sonnet | Infrastructure, CI/CD, containers, orchestration, deployment strategies |
+| `doc-sync.md` | haiku | Sync `__help()`, man page, and completions triple after a script changes |
+| `explorer.md` | haiku | Fast read-only codebase search — files by pattern, symbol definitions, keywords |
+| `general.md` | sonnet | Catch-all for everyday tasks when no specialist agent fits |
+| `go-lint.md` | haiku | Lint Go projects for CasjaysDev convention violations |
+| `planner.md` | sonnet | Design an implementation plan before writing code; flags risks |
+| `researcher.md` | sonnet | Multi-step research spanning multiple files or requiring web + code reading |
+| `rust-lint.md` | haiku | Lint Rust projects for CasjaysDev convention violations |
+| `script-lint.md` | haiku | Lint bash/sh scripts for CasjaysDev convention violations |
+| `security-auditor.md` | opus | Threat modeling, OWASP audits, secrets scanning, auth flows, hardening |
+| `spec-migrator.md` | sonnet | Migrate SPEC.md/CLAUDE.md/AI.md to standard structure; bootstrap wizard |
+| `statusline-setup.md` | haiku | Configure Claude Code status line fields |
+| `test-writer.md` | sonnet | Write unit, integration, table-driven, and fuzz tests for existing code |
 
 ---
 
