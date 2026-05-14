@@ -1,50 +1,79 @@
 ---
 name: Sensitive data rule
-description: Never add credentials or secrets to any git repo; all repos treated as public by default
+description: Never expose credentials anywhere; masking format; all public destinations (git, pastes, bug reports, chat) treated identically
 type: user
 ---
 
-**Never add tokens, API keys, passwords, private keys, internal hostnames, or any credentials to a git repo** unless the user explicitly instructs it or has already committed them manually.
+## Universal Rule
 
-**Why:** All git repos are treated as public by default — even private ones. A leaked credential in git history is a permanent exposure risk.
+**All public destinations are equally dangerous.** Treat these identically — a credential leaked to any of them is a permanent exposure risk:
 
-**The only exception:** a personal dotfiles repo explicitly designated as private and intended to hold credentials (env files, SSH keys, global env vars, etc.). Context determines this — do not assume; if unclear, do not add and ask instead.
+| Destination | Examples |
+|-------------|---------|
+| Git repos | GitHub, GitLab, Gitea (public OR private) |
+| Paste services | pastebin.com, GitHub Gist, paste.rs, dpaste, ix.io, termbin |
+| Bug trackers | GitHub Issues, Jira, Linear, Sentry |
+| Code review | PRs, diffs, review comments |
+| Chat / email | Slack, Discord, Teams, email threads |
+| Screenshots / recordings | Any image or video that shows a terminal or config |
 
-**How to apply:**
-- When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager — never hardcode
-- If a config file needs a credential placeholder, use `${VAR_NAME}` or a clear placeholder, never a real value
-- If a user asks you to add something that looks like a real credential, stop and confirm intent before proceeding
-- Scanning generated code for accidental credential leakage is part of every review
+**"Private" is not a defense** — private repos get breached, private pastes get indexed, private channels get screenshotted. Treat all of them as fully public.
 
-## Masking Sensitive Data
+## What Is Sensitive
 
-When sharing logs, bug reports, error output, config snippets, or any text that may contain sensitive values — in a paste service, a GitHub issue, a chat message, or anywhere else — **mask values but preserve keys**. Context (what the field is) stays; the secret is replaced:
+- Tokens, API keys, personal access tokens, OAuth secrets
+- Passwords, passphrases, PINs
+- Private keys, certificates, `.pem` / `.key` files
+- Session cookies, JWTs, refresh tokens
+- Internal hostnames, IP addresses, VPN endpoints
+- Database credentials, connection strings with passwords
+- PII: names, emails, phone numbers, addresses, SSNs, card numbers
+
+## The Only Exception
+
+A **personal dotfiles repo explicitly designated as private and intended to hold credentials** (env files, SSH keys, global env vars) may contain credentials. Context determines this — do not assume; if unclear, do not add and ask instead.
+
+## Masking Format
+
+When you must share something that contains or may contain sensitive values — logs, error output, config snippets, bug reports, paste content, screenshots — **mask values but preserve keys**:
 
 ```
+# Key=value — replace value, keep key
 api-token=xxxxx
 password=xxxxx
-Authorization: Bearer xxxxx
-db_url=postgres://user:xxxxx@host/db
 STRIPE_SECRET_KEY=xxxxx
+
+# HTTP headers — keep scheme/prefix, replace credential
+Authorization: Bearer xxxxx
+Proxy-Authorization: Basic xxxxx
+
+# Connection strings — mask credential, keep host/db for debugging context
+db_url=postgres://user:xxxxx@db.internal:5432/myapp
+
+# JSON / YAML / TOML — replace value in-place, keep key
+{ "api_key": "xxxxx", "endpoint": "https://api.example.com" }
 ```
 
-Rules:
-- Replace the value with `xxxxx` — five x's minimum; do not preserve length (length is information)
-- For structured formats (JSON, YAML, TOML, .env): replace the value in-place, keep the key
-- For HTTP headers: keep the scheme/prefix, replace the credential (`Bearer xxxxx`, `Basic xxxxx`)
-- For connection strings: mask only the credential portion, keep host/db for debugging context
-- Never truncate or show partial values — `sk-abc...xyz` is still a leak
-- Apply before posting anywhere: paste services, bug trackers, chat, email, screenshots
+Masking rules:
+- Use `xxxxx` (five x's minimum); do not preserve the original length — length is information
+- Never show partial values — `sk-abc...xyz` is still a leak
+- Last-4 is acceptable only for payment card numbers where the last 4 are intentionally non-secret by PCI design
+- A hash (`sha256:abc123…`) is acceptable when the hash itself is non-sensitive and needed for correlation
+- Apply before sharing anywhere — paste services, issue trackers, chat, email, screenshots
 
-This applies to all destinations — paste services, git issues, PR descriptions, team chat, everything.
+## How to Handle Credentials at Runtime
 
-## Paste Services
+- Use environment variables, mounted secrets, or a secrets manager — never hardcode
+- Config files that need a credential: use `${VAR_NAME}` as a placeholder, never a real value
+- Scanning generated code for accidental credential leakage is part of every review
 
-**Paste services (pastebin.com, GitHub Gist, paste.rs, dpaste, ix.io, termbin, etc.) are treated identically to public git repos.**
+## Pre-flight Before Sharing
 
-- "Private" or "unlisted" pastes are still treated as public — obscurity is not access control
-- Never paste tokens, API keys, passwords, private keys, internal hostnames, credentials, or PII to any paste service
-- Never paste internal config, unreleased architecture details, or anything that would be sensitive if the URL leaked
-- If a user asks you to post something to a paste service: apply the same pre-flight check as a `git push` — scan for secrets first, refuse if any are found, ask for confirmation
+Before posting to any destination above:
 
-The only difference from git: pastes have no history audit trail, so a leaked secret is harder to identify and rotate.
+1. Scan for anything in the "What Is Sensitive" list
+2. Mask every sensitive value using the format above
+3. If you are unsure whether something is sensitive — mask it anyway
+4. If the user asks you to post something containing real credentials: stop, flag it, mask first, then post only after confirmation
+
+Paste services additionally: no history audit trail, so a leaked secret is harder to identify and rotate than in a git repo. Apply stricter scrutiny.
