@@ -189,7 +189,7 @@ Processes killed by a signal exit with `128 + {signal}`:
 | `--debug` | *(none)* | Enable debug output |
 | `--no-color` | *(none)* | Disable color output |
 
-- `-h` and `-v` are the **only** short flags defined by default. No other short flags unless explicitly specified in `IDEA.md`.
+- `-h` and `-v` are the **only** short flags defined by default. No other short flags unless explicitly specified in `{project_dir}/IDEA.md`.
 - `--debug` and `--no-color` have no short equivalents.
 - `--help` and `--version` must **never** require root/sudo — exit immediately with the requested output, regardless of privilege state.
 

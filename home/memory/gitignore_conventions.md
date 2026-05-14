@@ -134,7 +134,7 @@ docker/volumes/
 
 **Deviation from `go/TEMPLATE.md`:** The TEMPLATE says all AI config directories (including `.claude/`) are gitignored. Our rule intentionally deviates: only `.claude/settings.local.json` is ignored; the rest of `.claude/` is committed. Other AI tool dirs (`.cursor/`, `.windsurf/`, `.aider/`, `.ai/`) follow the TEMPLATE and are fully ignored. Our rule takes precedence over the TEMPLATE.
 
-**Docker Compose and `.dockerignore` rules** are in `dockerfile_conventions.md`.
+**Docker Compose and `.dockerignore` rules** are in `~/.claude/memory/dockerfile_conventions.md`.
 
 ## What is NOT ignored
 

@@ -6,11 +6,11 @@ type: user
 
 ## Core Principle
 
-**Rules follow project type, not language.** A Go desktop app and a Rust desktop app share the same desktop-gui type rules. A Rust HTTP server and a Go HTTP server share the same server type rules. Language-specific files (`go_conventions.md`, `rust_conventions.md`) answer HOW to implement; project type answers WHAT rules apply.
+**Rules follow project type, not language.** A Go desktop app and a Rust desktop app share the same desktop-gui type rules. A Rust HTTP server and a Go HTTP server share the same server type rules. Language-specific files (`~/.claude/memory/go_conventions.md`, `~/.claude/memory/rust_conventions.md`) answer HOW to implement; project type answers WHAT rules apply.
 
 ## Identifying Project Type
 
-Read `IDEA.md ## Business logic` and `## Project description` to determine type. When ambiguous, ask — never guess. A project may be more than one type (e.g. a server with a CLI management tool), in which case all applicable type rules apply.
+Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to determine type. When ambiguous, ask — never guess. A project may be more than one type (e.g. a server with a CLI management tool), in which case all applicable type rules apply.
 
 | Type | Signals in IDEA.md |
 |------|--------------------|
@@ -31,7 +31,7 @@ Applies to: HTTP servers, gRPC services, WebSocket servers, background daemons, 
 - **Timeouts everywhere** — every inbound request, outbound call, DB query, and subprocess wait must have an explicit timeout or deadline. No infinite waits.
 - **Graceful shutdown** — handle `SIGTERM` / `SIGINT`; drain in-flight requests before exit; configurable drain timeout (default 30 s).
 - **Health endpoint** — expose `GET /healthz` (or equivalent) returning `200 OK` with a JSON body; used by load balancers, Docker health checks, and Kubernetes liveness/readiness probes.
-- **Structured logging to stdout/stderr** — servers always log to stdout (access/app) and stderr (errors). Never write to files inside the container (see `logging_conventions.md`).
+- **Structured logging to stdout/stderr** — servers always log to stdout (access/app) and stderr (errors). Never write to files inside the container (see `~/.claude/memory/logging_conventions.md`).
 - **Connection limits** — cap maximum concurrent connections and in-flight requests. Reject at the limit with `503 Service Unavailable`, not hang.
 - **Backpressure** — queues and channels must be bounded. An unbounded queue is a memory leak under load.
 - **Per-request context** — propagate a context/cancellation token through the entire call chain so timeouts and shutdown cancel all downstream work.
@@ -91,7 +91,7 @@ Applies to: interactive full-screen terminal UIs.
 - **`NO_COLOR`** → disable all color and styling; fall back to plain text layout if the TUI depends on color for structure.
 - Keyboard-only navigation — no mouse requirement (mouse may be an enhancement).
 
-See `script_conventions.md`, `go_conventions.md`, and `rust_conventions.md` for language-specific implementation patterns.
+See `~/.claude/memory/script_conventions.md`, `~/.claude/memory/go_conventions.md`, and `~/.claude/memory/rust_conventions.md` for language-specific implementation patterns.
 
 ---
 
@@ -109,7 +109,7 @@ Applies to: non-interactive command-line tools invoked once per task.
 - **Idempotent when possible** — running twice should be safe; document when it is not.
 
 ### Argument parsing
-- Shell: `getopt` / `zparseopts` / `argparse` (per `script_conventions.md`)
+- Shell: `getopt` / `zparseopts` / `argparse` (per `~/.claude/memory/script_conventions.md`)
 - Go: standard `flag` package or `cobra`/`pflag`
 - Rust: `clap` (derive API)
 

@@ -149,7 +149,7 @@ Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` and
 
 ## Exit Codes
 
-Use standard POSIX / sysexits codes via `os.Exit(N)` — never invent custom schemes. Full table is in `script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
+Use standard POSIX / sysexits codes via `os.Exit(N)` — never invent custom schemes. Full table is in `~/.claude/memory/script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
 
 For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — the stdlib does not export them. Never use `log.Fatal` as a substitute for a proper exit code.
 
@@ -266,7 +266,7 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ## Directory Naming
 
-Singular package and directory names — see `never_always_rules.md` for the full rule and exceptions.
+Singular package and directory names — see `~/.claude/CLAUDE.md` → Code & Files for the full rule and exceptions.
 
 ## Module Cache
 

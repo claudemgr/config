@@ -6,7 +6,7 @@ type: user
 
 ## Location
 
-Always at `docker/Dockerfile` (and `docker/Dockerfile.dev` for dev variant). Never in the repo root — that is a forbidden location per `project_forbidden_files.md`.
+Always at `docker/Dockerfile` (and `docker/Dockerfile.dev` for dev variant). Never in the repo root — that is a forbidden location per `~/.claude/memory/project_forbidden_files.md`.
 
 ## Structure
 

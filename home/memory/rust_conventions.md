@@ -125,7 +125,7 @@ Edition is always `2021`. Cargo.lock is always committed for binary crates.
 
 ## Exit Codes
 
-Use standard POSIX / sysexits codes — never invent custom schemes. Full table is in `script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
+Use standard POSIX / sysexits codes — never invent custom schemes. Full table is in `~/.claude/memory/script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
 
 For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2` on parse errors automatically — do not override this. Use `std::process::ExitCode` (stable since 1.61) over `std::process::exit()` where possible to allow destructors to run.
 
@@ -263,8 +263,8 @@ Suppress all terminal styling (colors, cursor changes) when `NO_COLOR` is set or
 ## Dependency Rules
 
 - **No `*-sys` dynamic linkage** — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime
-- **No GPL/AGPL/LGPL without exception** — static linking would relicense the binary; requires explicit IDEA.md exception
-- **No `dlopen` or runtime extension loading** — unless IDEA.md defines a hardened plugin contract
+- **No GPL/AGPL/LGPL without exception** — static linking would relicense the binary; requires explicit `{project_dir}/IDEA.md` exception
+- **No `dlopen` or runtime extension loading** — unless `{project_dir}/IDEA.md` defines a hardened plugin contract
 - **No CDN/network fetch on first run** — all assets embedded at build time; binary works air-gapped
 - **`ring` is pre-approved** as a C-vendored exception (crypto)
 - Prefer `rustls` over OpenSSL: `reqwest = { ..., features = ["rustls-tls"], default-features = false }`

@@ -110,4 +110,4 @@ Temp, debug, and test output: `/tmp/{project_org}/{internal_name}-XXXXXX` — ne
 
 ## Language-specific implementation rules
 
-For language-specific build rules, binary naming, Makefile targets, and code conventions see the dedicated files: `go_conventions.md` and `rust_conventions.md`.
+For language-specific build rules, binary naming, Makefile targets, and code conventions see the dedicated files: `~/.claude/memory/go_conventions.md` and `~/.claude/memory/rust_conventions.md`.

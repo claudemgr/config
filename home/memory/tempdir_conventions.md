@@ -112,4 +112,4 @@ ls -la "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 ## AI-Specific Rules
 
 - **NEVER** create or modify files in the project directory during testing — all runtime output goes to the temp dir
-- For Docker Compose testing rules, see `dockerfile_conventions.md § AI Docker Compose rules`
+- For Docker Compose testing rules, see `~/.claude/memory/dockerfile_conventions.md § AI Docker Compose rules`

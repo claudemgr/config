@@ -35,7 +35,7 @@ Always fall back gracefully — the absence of a tool is not a blocking error.
 
 When asked to view an image or screenshot at a URL:
 
-1. **Create a tempdir** — follow `tempdir_conventions.md` (`{project_org}/{internal_name}-XXXXXX` pattern).
+1. **Create a tempdir** — follow `~/.claude/memory/tempdir_conventions.md` (`{project_org}/{internal_name}-XXXXXX` pattern).
 2. **curl the URL** — use curl defaults: `curl -q -LSsf {url} -o {tempdir}/original.{ext}`
 3. **Convert** — apply the fallback chain above; output to `{tempdir}/view.webp` (or `.jpg`/`.png` as determined by the chain).
 4. **Read the converted file** — use the Read tool on the converted path.

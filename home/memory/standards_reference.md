@@ -167,7 +167,7 @@ Always set on every HTTP response from a web-facing service:
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` | Force HTTPS (2 years) |
 
 - `HSTS` only on HTTPS responses — never on HTTP
-- `CSP` must be defined per project in IDEA.md — no global default (too project-specific)
+- `CSP` must be defined per project in `{project_dir}/IDEA.md` — no global default (too project-specific)
 
 ---
 
@@ -177,7 +177,7 @@ Always set on every HTTP response from a web-facing service:
 - Preferred: **TLS 1.3** only where clients support it
 - Cipher suites: follow Mozilla Intermediate or Modern profile ([ssl-config.mozilla.org](https://ssl-config.mozilla.org/))
 - Never self-signed in production — use Let's Encrypt (ACME, RFC 8555)
-- Certificate pinning: only if IDEA.md explicitly defines it
+- Certificate pinning: only if `{project_dir}/IDEA.md` explicitly defines it
 
 ---
 
