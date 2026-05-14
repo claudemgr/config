@@ -149,6 +149,16 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
 - Write/Edit allowlists are defined in `{project_dir}/.claude/settings.json` `permissions.allow` — the following `{project_dir}/`-relative paths are pre-approved: `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, and `.env`/`app.env`/`default.env`. Destructive Bash ops are gated separately by `protect-host.sh`
 
+## Task Dependency Ordering
+When executing a task list, dependency graph takes priority over label order. Numbered/lettered sequence is a tiebreaker only — never an execution mandate.
+- Scan any task list for stated dependencies ("X before Y", "requires X", "needs X first") before starting
+- Topological-sort the graph; use label order only to break ties among tasks at the same depth
+- A task is only "ready" when all its prerequisites are complete
+- If a dependency is ambiguous, ask — never assume order
+- For non-trivial graphs (3+ dependencies), document the resolved order at the top of TODO.AI.md or PLAN.AI.md
+
+**Example:** tasks 1, 2, 3 and a, b, c where c→2 and a→2: correct order is `1, a, c, 2, b, 3` — not `1, 2, 3, a, b, c`.
+
 ## Commit Workflow
 `git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path — signs, stages, commits, and pushes in one invocation. Workflow is pre-approved; commit without asking, but verify the message first.
 
