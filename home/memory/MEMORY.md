@@ -1,7 +1,7 @@
 # Memory Index
 
 - [Project conventions](project_conventions.md) — AI.md=HOW, IDEA.md=WHAT, CLAUDE.md=loader, TODO.AI.md=tasks; template system in claudemgr
-- [Execution hierarchy](execution_hierarchy.md) — VM>Incus>Docker>host; applies to everything including scriptmgr install scripts
+- [Execution hierarchy](execution_hierarchy.md) — QEMU/KVM>Incus>Docker>host; tier purpose, image selection (Docker=alpine, Incus=systemd, QEMU/KVM=full OS), cleanup rules
 - [Sensitive data rule](sensitive_data.md) — all public destinations equal (git/pastes/issues/chat/screenshots); masking: preserve key, replace value with xxxxx, never partial values; personal dotfiles is the only exception; pre-flight scan before sharing anywhere
 - [Image conventions](image_conventions.md) — convert before reading (max 1280px, WebP target, fallback chain: convert→ffmpeg→vips→original); URL images: curl to tempdir→convert→read; never skip conversion
 - [gitcommit conventions](gitcommit_conventions.md) — never hardcode path; use `gitcommit` from PATH

@@ -54,11 +54,10 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - See [`~/.claude/memory/project_forbidden_files.md`] for file/directory rules including README.md, LICENSE.md naming, and what must never be created
 
 ## Cleanup
-- **Clean up immediately** — stop and remove every container, VM, volume, network, and temp file created during a task as soon as it is no longer needed. Do not leave them running or dangling until session end — that kills the host
-- When cleaning up, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
-- Never do a broad cleanup (e.g. `docker system prune`, `docker rmi $(docker images -q)`, `rm -rf /tmp/*`) — that destroys unrelated work
-- Identify project resources by name/label/prefix before removing anything; if uncertain, list and ask
-- **Track what you start** — before spinning up any container or VM, note its name/ID; ensure it appears in the cleanup step of the same task
+- **Clean up immediately** — stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed; never leave them running until session end
+- **Track what you start** — note name/ID before spinning anything up; cleanup is part of the same task
+- Only remove project-specific resources; never broad sweeps (`docker system prune`, `rm -rf /tmp/*`)
+- Full rules: `~/.claude/memory/execution_hierarchy.md`
 
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
@@ -86,12 +85,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **One run, then fix** — run build/test once per change; don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
-- **Image selection by tier:**
-  - Docker → always official alpine variant for the stack (`golang:alpine`, `rust:alpine`, `node:alpine`, etc.) — never debian/ubuntu based
-  - Incus → distro-specific tests that require systemd or a full init system
-  - QEMU/KVM → tests that require a complete OS (kernel, firmware, hardware emulation)
-- Dev images: rolling tags (`golang:alpine`, `node:alpine`, etc.) — never pinned
-- Execution hierarchy: QEMU/KVM > Incus > Docker > host (host only when no lower level works)
+- Execution hierarchy: QEMU/KVM > Incus > Docker > host — Docker uses official alpine variants (`golang:alpine`, `rust:alpine`); Incus for systemd/distro tests; QEMU/KVM for full OS. See `~/.claude/memory/execution_hierarchy.md`
+- Dev images: rolling tags — never pinned
 - Target `linux/amd64` + `linux/arm64` by default
 - Builds are reproducible in containers; nothing depends on host-installed toolchain
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`
