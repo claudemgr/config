@@ -116,11 +116,19 @@ target/
 binaries/
 releases/
 
+# Runtime volume data — NEVER commit (see compose rules below)
+volumes/
+docker/volumes/
+
 # Claude Code local settings (allowed locally, not committed)
 .claude/settings.local.json
 ```
 
 **`.claude/` rule:** `.claude/settings.local.json` is gitignored (personal overrides). Everything else under `.claude/` — `settings.json`, `CLAUDE.md`, `plans/`, agents, hooks — is committed as part of the repo.
+
+**Volumes rule:** Compose files live in `docker/` and always use `./volumes` for bind-mount paths. `./volumes` is **relative to the compose file's location**, so it resolves to `docker/volumes/` when run from the project or `docker/` directory. In standalone deployment the compose file is downloaded to a separate directory and `./volumes` resolves there. Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never committed.
+
+**AI Docker Compose rules** (dev vs runtime, which files AI may use, temp-dir testing workflow) are defined in `claudemgr/go/TEMPLATE.md § AI Docker Compose Rules` — that is the source of truth.
 
 ## What is NOT ignored
 
@@ -160,6 +168,10 @@ default.env
 # build artifacts
 binaries/
 releases/
+
+# runtime volume data (never in image)
+volumes/
+docker/volumes/
 
 # OS files
 .DS_Store
