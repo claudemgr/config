@@ -500,3 +500,32 @@ Syntax checking is interpreter-aware — use the right tool per shebang:
   2. A direct link to the raw script URL so users can inspect it before running
 - **The shell in the pipe must match the script's interpreter** — check the shebang and use the correct shell. `curl -q -LSsf {url} | bash` for bash scripts, `curl -q -LSsf {url} | zsh` for zsh scripts, etc. Never pipe a script into a mismatched shell (e.g. piping a fish script into `bash` will break or silently misbehave)
 - Use `sudo tee` instead of redirect for privileged writes
+
+## Pipe Safety
+
+Scripts **should** be pipe-safe — safe to run via `curl … | sh` or any pipeline without hanging or misbehaving.
+
+**Rules:**
+- Never read from stdin unconditionally — always check first
+- Never prompt interactively (e.g. `read -p`) without confirming stdin is a terminal
+- Side-effect-free by default: no writes, no installs, no destructive ops before the user has had a chance to inspect (satisfied by the doc-link requirement in Security above)
+
+**Stdin detection — use `[ -t 0 ]` (POSIX, works on Linux/macOS/BSD):**
+
+```sh
+if [ -t 0 ]; then
+  # stdin is a terminal — interactive input is safe
+else
+  # stdin is a pipe or redirect — skip prompts, use defaults
+fi
+```
+
+**Cross-platform notes:**
+
+| Platform | Detection | Notes |
+|----------|-----------|-------|
+| Linux / macOS / BSD | `[ -t 0 ]` | POSIX; works in sh, bash, zsh, dash |
+| Windows (pwsh) | `[Console]::IsInputRedirected` | PowerShell only |
+| Windows (cmd) | Not reliably detectable | Avoid interactive reads in `.cmd` scripts entirely |
+
+**Scripts that accept piped input** (e.g. `cat file | script`) should auto-detect and switch modes — interactive prompts become no-ops or use flag-supplied defaults; output stays machine-readable (no color, no spinners) when stdout is not a terminal (`[ -t 1 ]`).
