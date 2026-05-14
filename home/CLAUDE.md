@@ -50,8 +50,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine
 
 ## Project Files & Naming
-- See [`~/.claude/memory/project_conventions.md`] for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
-- See [`~/.claude/memory/project_forbidden_files.md`] for file/directory rules including README.md, LICENSE.md naming, and what must never be created
+- See `~/.claude/memory/project_conventions.md` for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
+- See `~/.claude/memory/project_forbidden_files.md` for file/directory rules including README.md, LICENSE.md naming, and what must never be created
 
 ## Cleanup
 - **Clean up immediately** — stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed; never leave them running until session end

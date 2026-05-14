@@ -31,7 +31,7 @@ INSTALL_SH_CWD="${PWD}"
 if [ -n "${NO_COLOR+x}" ] || [ "${SHOW_RAW}" = "true" ]; then
   __printf_color() { printf '%s\n' "$1"; }
 else
-  __printf_color() { [ -t 1 ] && printf '%b%s%b\n' "${2:-$PRINTF_SET_RESET}" "$1" "$PRINTF_SET_RESET" || printf '%s\n' "$1"; }
+  __printf_color() { if [ -t 1 ]; then printf '%b%s%b\n' "${2:-$PRINTF_SET_RESET}" "$1" "$PRINTF_SET_RESET"; else printf '%s\n' "$1"; fi; }
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # check for command
@@ -39,8 +39,8 @@ __cmd_exists() { command -v "$1" >/dev/null 2>&1; }
 __function_exists() { case "$(type "$1" 2>/dev/null)" in *function*) return 0 ;; *) return 1 ;; esac; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # custom functions
-__git_clone() { git clone "$1" "$2" -q 2>/dev/null; }
-__git_local() { git -C "$CLAUDE_LOCAL_REPO" "$@" 2>/dev/null; }
+__git_clone() { git clone "$1" "$2" -q; }
+__git_local() { git -C "$CLAUDE_LOCAL_REPO" "$@"; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Define variables
 PRINTF_SET_BLACK='\033[1;30m'
@@ -71,19 +71,19 @@ if ! __cmd_exists npx; then
 fi
 if [ -d "$CLAUDE_LOCAL_REPO/.git" ]; then
   __printf_color "Updating the claude configs in $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
-  __git_local reset --hard >/dev/null
+  __git_local reset --hard -q
   __git_local pull -q
   INSTALL_SH_EXIT_STATUS=$?
 else
   if [ -d "$CLAUDE_LOCAL_REPO" ]; then
-    rm -Rf "$CLAUDE_LOCAL_REPO"
+    [ -n "$CLAUDE_LOCAL_REPO" ] && rm -Rf "$CLAUDE_LOCAL_REPO"
   fi
   __printf_color "cloning $CLAUDE_CONFIG_REPO to $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
   __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO"
   INSTALL_SH_EXIT_STATUS=$?
 fi
 __printf_color "Updating claude code"
-if ! \claude update >/dev/null 2>&1; then __printf_color "claude code failed to update" "$PRINTF_SET_RED"; fi
+if ! \claude update >/dev/null 2>&1; then __printf_color "claude code failed to update" "$PRINTF_SET_RED" >&2; fi
 if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   cp -R "$CLAUDE_LOCAL_REPO/home/." "$HOME/.claude/"
   find "$HOME/.claude/hooks" -name '*.sh' -exec chmod 755 {} \;

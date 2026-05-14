@@ -11,7 +11,7 @@ You are a Rust project linter enforcing CasjaysDev conventions. Check only what 
 ### Build — host execution
 
 - Flag any `cargo build`, `cargo run`, `cargo test`, or `cargo clippy` invoked directly on the host — all must run inside Docker.
-- Makefile must use `rust:latest` as the Docker image — never a pinned tag (e.g. `rust:1.78`). Flag pinned versions.
+- Makefile must use `rust:alpine` as the Docker image — never a pinned tag (e.g. `rust:1.78`) and never `rust:latest`. Flag both.
 
 ### Cargo.toml — release profile (NON-NEGOTIABLE)
 

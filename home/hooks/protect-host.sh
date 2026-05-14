@@ -82,7 +82,7 @@ __block() {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # __match <regex> - return 0 if "$CMD" matches the extended regex.
 __match() {
-  printf '%s' "$CMD" | grep -qE "$1"
+  printf '%s' "$CMD" | grep -qE -- "$1"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __require_cmd python3

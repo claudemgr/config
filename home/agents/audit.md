@@ -23,7 +23,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 2. Read `{project_dir}/AI.md` if present (source of truth — never modify).
 3. Read `{project_dir}/IDEA.md` if present (project description, variables, business logic).
 4. Read `{project_dir}/CLAUDE.md` if present.
-5. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. `bin/` with `#!/usr/bin/env bash` scripts → bash scripts. Multiple → apply all relevant checks.
+5. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. `bin/` or `scripts/` with `#!/usr/bin/env bash` scripts → bash scripts. Multiple → apply all relevant checks.
 6. Scan the directory tree to understand the project layout before diving into individual files.
 
 ---

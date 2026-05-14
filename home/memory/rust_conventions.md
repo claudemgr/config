@@ -26,12 +26,12 @@ type: user
 PROJECT_NAME  := {project_name}
 ORGANIZATION  := {project_org}
 VERSION       := $(shell cat release.txt 2>/dev/null || echo "0.1.0")
-DOCKER_IMAGE  := rust:latest
+DOCKER_IMAGE  := rust:alpine
 BINARIES_DIR  := ./binaries
 RELEASES_DIR  := ./releases
 ```
 
-- `rust:latest` rolling tag — never pinned
+- `rust:alpine` rolling tag — never pinned
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
 
 ## Makefile — Standard Targets
