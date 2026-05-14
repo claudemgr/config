@@ -52,8 +52,7 @@ These are intentionally NOT repeated here:
 
 | Rule | Detail |
 |------|--------|
-| **NEVER modify ENTRYPOINT or CMD** | All container customization goes in `entrypoint.sh` |
-| **NEVER use Makefile in CI/CD** | CI workflows use explicit commands with all env vars inlined — Makefile is for local dev only |
+| **NEVER override the ENTRYPOINT pattern** | The standard pattern is `tini → entrypoint.sh → app`. Never replace this with a bare binary or remove tini. All container startup customization goes in `entrypoint.sh` |
 | **NEVER require .env files at runtime** | `docker-compose.yml` must have hardcoded sane defaults; users can override by editing the file directly, not by creating `.env` |
 | **NEVER remove base images** | Only remove `{project_org}/{internal_name}:*` images; never remove `golang`, `alpine`, `ubuntu`, etc. *(Docker specialization of `CLAUDE.md → Cleanup`)* |
 | **NEVER touch other projects' containers/volumes** | Only stop/remove containers named after this project *(Docker specialization of `CLAUDE.md → Cleanup`)* |

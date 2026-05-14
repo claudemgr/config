@@ -108,17 +108,6 @@ Temp, debug, and test output: `/tmp/{project_org}/{internal_name}-XXXXXX` — ne
 - Before task completion: full compliance check
 - When uncertain: re-read spec, never guess
 
-## Go template specifics (claudemgr/go/TEMPLATE.md)
+## Language-specific implementation rules
 
-- CGO_ENABLED=0 always; pure Go, single static binary, Go embed for assets
-- 8 platforms: linux/darwin/windows/freebsd × amd64/arm64
-- Binary naming: `{project_name}-{os}-{arch}` (windows adds .exe)
-- Build only via Makefile (`make dev/local/build/test`); never `go build` directly on host
-
-## Rust template specifics (claudemgr/rust/TEMPLATE.md)
-
-- Rust-only source; no C/C++ in the binary (ring is pre-approved exception)
-- Single static binary: musl on Linux, static CRT on Windows, system frameworks on macOS
-- Build only inside Docker; never `cargo` directly on host
-- GUI surfaces must support BOTH X11 and Wayland as first-class backends
-- Assets embedded at build time; binary must work air-gapped
+For language-specific build rules, binary naming, Makefile targets, and code conventions see the dedicated files: `go_conventions.md` and `rust_conventions.md`.

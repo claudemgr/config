@@ -91,12 +91,7 @@ Applies to: interactive full-screen terminal UIs.
 - **`NO_COLOR`** → disable all color and styling; fall back to plain text layout if the TUI depends on color for structure.
 - Keyboard-only navigation — no mouse requirement (mouse may be an enhancement).
 
-### Implementation
-- Shell: ANSI escapes directly (never `tput` — it forks a subprocess per call).
-- Go: raw ANSI constants or `bubbletea` with `tea.WithAltScreen()`.
-- Rust: `crossterm` + `ratatui` (never raw ANSI strings in Rust).
-
-See `script_conventions.md`, `go_conventions.md`, and `rust_conventions.md` for language-specific patterns.
+See `script_conventions.md`, `go_conventions.md`, and `rust_conventions.md` for language-specific implementation patterns.
 
 ---
 

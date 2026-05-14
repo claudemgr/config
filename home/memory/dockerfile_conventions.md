@@ -120,3 +120,96 @@ ENTRYPOINT [ "tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh" ]
 - `docker/rootfs/` mirrors Linux FHS — files placed there are `COPY`'d into the image at `/`
 - `apk add --no-cache` — never without `--no-cache`
 - No secrets, credentials, or `.env` values baked into the image
+
+---
+
+## Docker Compose
+
+### File locations
+
+All compose files live in `docker/`:
+- `docker/docker-compose.yml` — production/human runtime
+- `docker/docker-compose.dev.yml` — human development
+- `docker/docker-compose.test.yml` — automated testing (the only one AI may use directly)
+
+### Volumes — path resolution
+
+Compose files always use `./volumes` for bind-mount paths. `./volumes` is **relative to the compose file's location** — so it resolves to `docker/volumes/` when the compose file lives in `docker/`. In standalone deployment the compose file is copied to a separate directory and `./volumes` resolves there.
+
+Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never committed.
+
+### AI Docker Compose rules
+
+- **NEVER** run `docker compose up` with `docker-compose.yml` or `docker-compose.dev.yml` — those are human-only
+- **NEVER** mount `./volumes/` or any project-directory path at runtime when testing
+- For automated testing: copy `docker/docker-compose.test.yml` to a temp dir and run from there — `./volumes` then resolves to `{tempdir}/volumes/`
+- **NEVER** create or modify files in the project directory during testing
+
+---
+
+## .dockerignore
+
+Same header format as `.gitignore`. Excludes everything that should not enter the Docker build context — version control, build artifacts, secrets, and local config.
+
+**Build context is always the project root** — `docker build -f docker/Dockerfile .`. The `docker/` directory contains the Dockerfile and `rootfs/`; it is **never excluded** from the build context.
+
+**Header:**
+```
+# .dockerignore created on MM/DD/YY at HH:MM
+```
+
+### Standard entries (all projects)
+
+```dockerignore
+# .dockerignore created on MM/DD/YY at HH:MM
+
+# version control
+.git/
+.gitignore
+.gitattributes
+
+# local and secret config
+.env
+app.env
+default.env
+.claude/
+
+# build artifacts
+binaries/
+releases/
+
+# runtime volume data (never in image)
+volumes/
+docker/volumes/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# docs and meta (not needed in image)
+*.md
+LICENSE*
+```
+
+### Go project additions
+
+```dockerignore
+# Go toolchain cache (mounted at build time, not baked in)
+vendor/
+```
+
+### Rust project additions
+
+```dockerignore
+# Rust build cache (rebuilt inside container)
+target/
+```
+
+### What is NEVER excluded from Docker context
+
+- `docker/` — contains the Dockerfile and `rootfs/`; always included, never excluded
+- `src/` — all source code
+- `go.mod`, `go.sum` — Go module files
+- `Cargo.toml`, `Cargo.lock` — Rust manifest and lockfile
+- `build.rs` — Rust build script
+- `release.txt` — version string read at build time

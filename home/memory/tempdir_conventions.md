@@ -101,18 +101,15 @@ Always use `${TMPDIR:-/tmp}` (shell) or `os.TempDir()` / `std::env::temp_dir()` 
 # List all temp dirs for this org
 ls -la "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 
-# Remove all temp dirs for this project
-rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/${PROJECT_NAME}-"*
+# Remove all temp dirs for this project (guard both vars — empty var → rm -rf /tmp/*)
+[ -n "${PROJECT_ORG}" ] && [ -n "${PROJECT_NAME}" ] && \
+  rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/${PROJECT_NAME}-"*
 
 # Remove entire org temp tree (only when certain nothing else uses it)
-rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
+[ -n "${PROJECT_ORG}" ] && rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 ```
 
 ## AI-Specific Rules
 
-- **NEVER** run `docker compose up` with `docker-compose.yml` or `docker-compose.dev.yml` — those are human-only
-- **NEVER** mount `./volumes/` or any project-directory path at runtime
-- For automated testing: copy `docker/docker-compose.test.yml` to a temp dir and run from there — `./volumes` then resolves to `{tempdir}/volumes/`
-- **NEVER** create or modify files in the project directory during testing
-
-Full AI Docker Compose workflow is in `claudemgr/go/TEMPLATE.md § AI Docker Compose Rules`.
+- **NEVER** create or modify files in the project directory during testing — all runtime output goes to the temp dir
+- For Docker Compose testing rules, see `dockerfile_conventions.md § AI Docker Compose rules`

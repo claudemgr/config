@@ -1,7 +1,7 @@
 ---
 name: Sensitive data rule
 description: Never add credentials or secrets to any git repo; all repos treated as public by default
-type: feedback
+type: user
 ---
 
 **Never add tokens, API keys, passwords, private keys, internal hostnames, or any credentials to a git repo** unless the user explicitly instructs it or has already committed them manually.

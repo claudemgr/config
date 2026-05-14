@@ -59,7 +59,7 @@ Example:
 
 Levels (uppercase, bracket-wrapped): `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`.
 
-### application.log / {name}.log — General structured log
+### app.log (also named `{project_name}.log` for system services) — General structured log
 
 logfmt (key=value pairs) — machine-readable, human-scannable, grep-friendly:
 

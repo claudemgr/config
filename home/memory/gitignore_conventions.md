@@ -134,9 +134,7 @@ docker/volumes/
 
 **Deviation from `go/TEMPLATE.md`:** The TEMPLATE says all AI config directories (including `.claude/`) are gitignored. Our rule intentionally deviates: only `.claude/settings.local.json` is ignored; the rest of `.claude/` is committed. Other AI tool dirs (`.cursor/`, `.windsurf/`, `.aider/`, `.ai/`) follow the TEMPLATE and are fully ignored. Our rule takes precedence over the TEMPLATE.
 
-**Volumes rule:** Compose files live in `docker/` and always use `./volumes` for bind-mount paths. `./volumes` is **relative to the compose file's location**, so it resolves to `docker/volumes/` when run from the project or `docker/` directory. In standalone deployment the compose file is downloaded to a separate directory and `./volumes` resolves there. Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never committed.
-
-**AI Docker Compose rules** (dev vs runtime, which files AI may use, temp-dir testing workflow) are defined in `claudemgr/go/TEMPLATE.md § AI Docker Compose Rules` — that is the source of truth.
+**Docker Compose and `.dockerignore` rules** are in `dockerfile_conventions.md`.
 
 ## What is NOT ignored
 
@@ -144,71 +142,3 @@ docker/volumes/
 - `!*/README*` — README files are always kept
 - `.claude/settings.json`, `.claude/CLAUDE.md`, `.claude/plans/` — committed; only `settings.local.json` is ignored
 
----
-
-## .dockerignore
-
-Same header format as `.gitignore`. Excludes everything that should not enter the Docker build context — version control, build artifacts, secrets, and local config.
-
-**Build context is always the project root** — `docker build -f docker/Dockerfile .`. The `docker/` directory contains the Dockerfile and `rootfs/`; it is **never excluded**.
-
-**Header:**
-```
-# .dockerignore created on MM/DD/YY at HH:MM
-```
-
-### Standard entries (all projects)
-
-```dockerignore
-# .dockerignore created on MM/DD/YY at HH:MM
-
-# version control
-.git/
-.gitignore
-.gitattributes
-
-# local and secret config
-.env
-app.env
-default.env
-.claude/
-
-# build artifacts
-binaries/
-releases/
-
-# runtime volume data (never in image)
-volumes/
-docker/volumes/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# docs and meta (not needed in image)
-*.md
-LICENSE*
-```
-
-### Go project additions
-
-```dockerignore
-# Go toolchain cache (mounted at build time, not baked in)
-vendor/
-```
-
-### Rust project additions
-
-```dockerignore
-# Rust build cache (rebuilt inside container)
-target/
-```
-
-### What is NEVER excluded from Docker context
-
-- `docker/` — contains the Dockerfile and `rootfs/`; always included, never excluded
-- `src/` — all source code
-- `go.mod`, `go.sum` — Go module files
-- `Cargo.toml`, `Cargo.lock` — Rust manifest and lockfile
-- `build.rs` — Rust build script
-- `release.txt` — version string read at build time

@@ -140,7 +140,7 @@ Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` and
 - **Strip release binaries** — always pass `-s -w` in LDFLAGS for `build`, `release`, and `docker` targets; `-s` strips the symbol table, `-w` strips DWARF debug info. The `dev` target (quick local build) omits `-s -w` to preserve debug symbols
 - **No `-musl` suffix** — never include `-musl` in the output binary name; the binary naming schema is `{name}-{GOOS}-{GOARCH}` regardless of libc used to build
 - **No `go build` on host** — always via `make dev`, `make build`, `make test` (Docker internally)
-- **No external cron** — use the project's built-in scheduler (see project AI.md PART 19)
+- **No external cron** — use a built-in scheduler (e.g. `robfig/cron`, `go-co-op/gocron`, or a ticker loop); never depend on host cron or systemd timers for application-level scheduling
 - **No `strconv.ParseBool()`** — use `config.ParseBool()` which handles 40+ variations
 - **No client-side rendering** — server-side Go templates only
 - **Single static binary** — `go:embed` for assets; zero runtime file deps
@@ -148,26 +148,9 @@ Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` and
 
 ## Exit Codes
 
-Use standard POSIX / sysexits codes via `os.Exit(N)` — never invent custom schemes. Key codes:
+Use standard POSIX / sysexits codes via `os.Exit(N)` — never invent custom schemes. Full table is in `script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | General runtime error |
-| `2` | Bad arguments / misuse |
-| `64` | EX_USAGE — wrong usage |
-| `65` | EX_DATAERR — bad input data |
-| `66` | EX_NOINPUT — input file not found |
-| `69` | EX_UNAVAILABLE — service unavailable |
-| `70` | EX_SOFTWARE — internal error |
-| `74` | EX_IOERR — I/O error |
-| `75` | EX_TEMPFAIL — temporary, caller may retry |
-| `77` | EX_NOPERM — insufficient permissions |
-| `78` | EX_CONFIG — configuration error |
-
-`--help` and `--version` always exit `0`. Signal exits are `128 + signal` (SIGINT=130, SIGTERM=143). See `script_conventions.md` for the full table.
-
-For Go, import `golang.org/x/sys/unix` or define the constants locally — the stdlib does not export sysexits. Never use `log.Fatal` as a substitute for a proper exit code.
+For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — the stdlib does not export them. Never use `log.Fatal` as a substitute for a proper exit code.
 
 ## CLI Flags — Standard Interface
 
@@ -282,7 +265,7 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ## Directory Naming
 
-Singular package and directory names: `handler/`, `model/`, `middleware/`, `config/` — not `handlers/`, `models/`. Exception: tooling dirs follow community convention and may be plural (`scripts/`, `tests/`, `binaries/`, `completions/`).
+Singular package and directory names — see `never_always_rules.md` for the full rule and exceptions.
 
 ## Module Cache
 

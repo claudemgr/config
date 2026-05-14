@@ -125,24 +125,7 @@ Edition is always `2021`. Cargo.lock is always committed for binary crates.
 
 ## Exit Codes
 
-Use standard POSIX / sysexits codes via `std::process::exit(N)` — never invent custom schemes. Key codes:
-
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | General runtime error |
-| `2` | Bad arguments / misuse |
-| `64` | EX_USAGE — wrong usage |
-| `65` | EX_DATAERR — bad input data |
-| `66` | EX_NOINPUT — input file not found |
-| `69` | EX_UNAVAILABLE — service unavailable |
-| `70` | EX_SOFTWARE — internal error |
-| `74` | EX_IOERR — I/O error |
-| `75` | EX_TEMPFAIL — temporary, caller may retry |
-| `77` | EX_NOPERM — insufficient permissions |
-| `78` | EX_CONFIG — configuration error |
-
-`--help` and `--version` always exit `0`. Signal exits are `128 + signal` (SIGINT=130, SIGTERM=143). See `script_conventions.md` for the full table.
+Use standard POSIX / sysexits codes — never invent custom schemes. Full table is in `script_conventions.md`. `--help` and `--version` always exit `0`; signal exits are `128 + signal` (SIGINT=130, SIGTERM=143).
 
 For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2` on parse errors automatically — do not override this. Use `std::process::ExitCode` (stable since 1.61) over `std::process::exit()` where possible to allow destructors to run.
 

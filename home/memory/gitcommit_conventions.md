@@ -1,7 +1,7 @@
 ---
 name: gitcommit path resolution
 description: Do not hardcode the gitcommit binary path; resolve from PATH
-type: feedback
+type: user
 ---
 
 Never hardcode the path to `gitcommit` (e.g., `/usr/local/bin/gitcommit`).
