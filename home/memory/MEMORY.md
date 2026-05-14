@@ -13,5 +13,6 @@
 - [Dockerfile conventions](dockerfile_conventions.md) — two-stage build, ARGs, OCI labels (static+dynamic split), tini entrypoint, rootfs overlay, chmod pattern, health check
 - [Logging conventions](logging_conventions.md) — log files are pure raw text always (no ANSI, no emojis); access.log=Apache Combined, auth.log=syslog format, error.log=ISO8601+level, app.log=logfmt; Docker→stdout/stderr; logrotate config required for system services
 - [Temp directory conventions](tempdir_conventions.md) — required path structure ({project_org}/{internal_name}-XXXXXX), per-language creation (shell/Go/Rust), OS vars, cleanup, AI rules
+- [CI/CD conventions](cicd_conventions.md) — third-party SHA pinning, no pull_request_target, branch protection, SBOM+checksums, secret scanning, Dependabot, release integrity
 - [Go conventions](go_conventions.md) — project layout (src/), Makefile targets (build/release/docker/test/dev/clean), golang:alpine rolling image, CGO_ENABLED=0, 8-platform binary naming, module cache mounts, CommitID ldflags var, ghcr.io registry
 - [Rust conventions](rust_conventions.md) — project layout, Makefile targets, rust:latest rolling image, Docker-only cargo, release profile (opt-level=z/lto/strip/panic=abort), no *-sys dynamic linkage, GTK4+Wayland, rustls over OpenSSL

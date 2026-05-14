@@ -122,9 +122,17 @@ docker/volumes/
 
 # Claude Code local settings (allowed locally, not committed)
 .claude/settings.local.json
+
+# Other AI tool config directories (always gitignored)
+.cursor/
+.windsurf/
+.aider/
+.ai/
 ```
 
 **`.claude/` rule:** `.claude/settings.local.json` is gitignored (personal overrides). Everything else under `.claude/` — `settings.json`, `CLAUDE.md`, `plans/`, agents, hooks — is committed as part of the repo.
+
+**Deviation from `go/TEMPLATE.md`:** The TEMPLATE says all AI config directories (including `.claude/`) are gitignored. Our rule intentionally deviates: only `.claude/settings.local.json` is ignored; the rest of `.claude/` is committed. Other AI tool dirs (`.cursor/`, `.windsurf/`, `.aider/`, `.ai/`) follow the TEMPLATE and are fully ignored. Our rule takes precedence over the TEMPLATE.
 
 **Volumes rule:** Compose files live in `docker/` and always use `./volumes` for bind-mount paths. `./volumes` is **relative to the compose file's location**, so it resolves to `docker/volumes/` when run from the project or `docker/` directory. In standalone deployment the compose file is downloaded to a separate directory and `./volumes` resolves there. Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never committed.
 
