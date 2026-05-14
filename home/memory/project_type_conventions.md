@@ -15,6 +15,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | Type | Signals in IDEA.md |
 |------|--------------------|
 | `server` | serves requests, listens on a port, daemon, API, webhook receiver |
+| `web` | HTML UI served by a server — browser-facing pages, forms, dashboards |
 | `desktop-gui` | windowed UI, native app, desktop application |
 | `tui` | terminal UI, interactive terminal, ncurses-style |
 | `cli` | command-line tool, one-shot invocation, scripting target |
@@ -47,6 +48,28 @@ Applies to: HTTP servers, gRPC services, WebSocket servers, background daemons, 
 - Rate-limit all public endpoints.
 - All DB queries are parameterized — no string concatenation.
 - CSRF protection on any endpoint that mutates state via a browser session.
+
+---
+
+## Type: `web`
+
+Applies to: browser-facing HTML UIs — server-rendered pages, forms, dashboards, admin panels. Always combined with `server` type; `web` adds the UI-facing rules.
+
+See `~/.claude/memory/ui_ux_conventions.md` for the full design system. Key rules:
+
+- **Server-side rendering only** — Go templates, Jinja2, ERB, etc. No React/Vue/Angular for core content.
+- **Progressive enhancement** — every page works without JavaScript; JS is an enhancement only.
+- **Mobile-first CSS** — base styles target mobile; expand with `@media (min-width: …)` breakpoints.
+- **Breakpoints:** mobile (none) · tablet (`768px`) · desktop (`1024px`) · wide (`1440px`)
+- **Dark-first theme** — ship dark mode first; light mode and `auto` (system preference) also required.
+- **Theme via CSS custom properties** — never hardcode colors inline; use `--bg`, `--fg`, `--accent` variables.
+- **WCAG 2.1 AA** — 4.5:1 contrast for normal text, 3:1 for large text; semantic HTML; keyboard navigable.
+- **Touch targets minimum 44×44 px**.
+- **No JavaScript `alert()` / `confirm()`** — use toast notifications or modal dialogs.
+- **No inline CSS or `<style>` blocks** in templates.
+- **Long strings** (IPs, tokens, hashes, UUIDs) — always apply `word-break: break-all; font-family: monospace`.
+- **Every state handled** — loading, empty, error, success each have a distinct, informative UI.
+- **No placeholder content** — no "coming soon", "Feature 1", or empty states without a meaningful message.
 
 ---
 

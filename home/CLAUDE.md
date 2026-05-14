@@ -94,6 +94,11 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
 - Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `~/.claude/memory/tempdir_conventions.md`
 
+## UI/UX
+- Any UI work — web, desktop, mobile, TUI — must be approached with designer-level intent. "It works" is not enough; aim for clarity, consistency, and delight.
+- Dark mode is the default. Every UI must support dark / light / auto (follows OS preference). Never hardcode colors — use CSS custom properties (web) or a shared theme struct (desktop/TUI).
+- For non-trivial UI tasks, invoke the `designer` agent. See `~/.claude/memory/ui_ux_conventions.md` for the full design system.
+
 ## Project Defaults
 - License: MIT · Single self-contained binary · First-run works with zero config
 - No feature gating; all functionality available to all users
