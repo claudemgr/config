@@ -79,7 +79,7 @@ else
     rm -Rf "$CLAUDE_LOCAL_REPO"
   fi
   __printf_color "cloning $CLAUDE_CONFIG_REPO to $CLAUDE_LOCAL_REPO" "$PRINTF_SET_CYAN"
-  __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO" -q
+  __git_clone "$CLAUDE_CONFIG_REPO" "$CLAUDE_LOCAL_REPO"
   INSTALL_SH_EXIT_STATUS=$?
 fi
 __printf_color "Updating claude code"
@@ -92,7 +92,7 @@ if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   \claude plugin install typescript-lsp@claude-plugins-official 2>/dev/null || true
   if [ -n "${GITHUB_TOKEN}" ]; then
     \claude mcp remove --scope user github 2>/dev/null || true
-    \claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer ${GITHUB_TOKEN}" 2>/dev/null >/dev/null|| true
+    \claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer ${GITHUB_TOKEN}" 2>/dev/null >/dev/null || true
   else
     __printf_color "GITHUB_TOKEN not set — skipping GitHub MCP server" "$PRINTF_SET_YELLOW" >&2
   fi
@@ -100,7 +100,6 @@ if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
     \claude mcp remove --scope user fetch 2>/dev/null || true
     \claude mcp add --scope user --transport stdio fetch -- npx -y @anthropic-ai/mcp-server-fetch 2>/dev/null || true
   fi
-  INSTALL_SH_EXIT_STATUS=$?
   if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
     __printf_color "The claude config files, plugins, and MCP servers have been installed" "$PRINTF_SET_GREEN"
   else
