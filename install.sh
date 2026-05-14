@@ -83,7 +83,7 @@ else
   INSTALL_SH_EXIT_STATUS=$?
 fi
 __printf_color "Updating claude code"
-if ! \claude update >/dev/null 2?&1; then __printf_color "claude code failed to update" "$PRINTF_SET_RED"; fi
+if ! \claude update >/dev/null 2>&1; then __printf_color "claude code failed to update" "$PRINTF_SET_RED"; fi
 if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   cp -R "$CLAUDE_LOCAL_REPO/home/." "$HOME/.claude/"
   find "$HOME/.claude/hooks" -name '*.sh' -exec chmod 755 {} \;
