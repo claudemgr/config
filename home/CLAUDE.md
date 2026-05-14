@@ -86,9 +86,12 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **One run, then fix** — run build/test once per change; don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
-- **Base image for all test/build/debug work** — always use the appropriate pre-built `casjaysdevdocker/` image for the language/stack (e.g. `casjaysdevdocker/go:latest`, `casjaysdevdocker/rust:latest`); for VM/Incus work use the appropriate Incus image. These are fully updated and tool-complete. Never spin up a raw upstream image (e.g. `alpine`, `ubuntu`, `golang`, `rust`) for ephemeral work — that produces inconsistent environments and pulls untested layers
+- **Image selection by tier:**
+  - Docker → always official alpine variant for the stack (`golang:alpine`, `rust:alpine`, `node:alpine`, etc.) — never debian/ubuntu based
+  - Incus → distro-specific tests that require systemd or a full init system
+  - QEMU/KVM → tests that require a complete OS (kernel, firmware, hardware emulation)
 - Dev images: rolling tags (`golang:alpine`, `node:alpine`, etc.) — never pinned
-- Execution hierarchy: VM > Incus > Docker > host (host only when no lower level works)
+- Execution hierarchy: QEMU/KVM > Incus > Docker > host (host only when no lower level works)
 - Target `linux/amd64` + `linux/arm64` by default
 - Builds are reproducible in containers; nothing depends on host-installed toolchain
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`
