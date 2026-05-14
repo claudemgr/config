@@ -50,8 +50,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine
 
 ## Project Files & Naming
-- See [project conventions](memory/project_conventions.md) for AI.md/IDEA.md/CLAUDE.md roles, placeholder system, first-time setup flow, and directory layout
-- See [project forbidden files](memory/project_forbidden_files.md) for file/directory rules including README.md, LICENSE.md naming, and what must never be created
+- See [`~/.claude/memory/project_conventions.md`] for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
+- See [`~/.claude/memory/project_forbidden_files.md`] for file/directory rules including README.md, LICENSE.md naming, and what must never be created
 
 ## Cleanup
 - When cleaning up after a task, only remove project-specific resources — containers, images, volumes, networks, and temp files created **by this project**
@@ -67,7 +67,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Plan (use plan mode) for changes touching 3+ files or ambiguous requirements
 
 **Memory Safety — these apply to every line of code in every language:**
-- `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in IDEA.md
+- `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in `{project_dir}/IDEA.md`
 - Never spawn unbounded goroutines/threads — always cap with a semaphore, worker pool, or context cancellation
 - Never spawn processes inside an unthrottled loop — every subprocess spawn must have a concurrency limit
 - Never call `ulimit -u unlimited`, `setrlimit(RLIM_INFINITY)`, or equivalent — raise limits to a specific documented ceiling only
@@ -91,7 +91,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`
 - `docker-compose.yml` must have hardcoded sane defaults and work with zero `.env` — users override by editing the file, not by creating `.env`
 - Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
-- Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `tempdir_conventions.md`
+- Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `~/.claude/memory/tempdir_conventions.md`
 
 ## Project Defaults
 - License: MIT · Single self-contained binary · First-run works with zero config
@@ -114,8 +114,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 **Rust:**
 - Never run `cargo` directly on host — all cargo invocations run inside Docker
 - No `*-sys` dynamic linkage — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime
-- No GPL/AGPL/LGPL dependencies without an explicit IDEA.md exception — static linking relicenses the binary
-- No `dlopen` or runtime extension loading unless IDEA.md defines a hardened plugin contract
+- No GPL/AGPL/LGPL dependencies without an explicit `{project_dir}/IDEA.md` exception — static linking relicenses the binary
+- No `dlopen` or runtime extension loading unless `{project_dir}/IDEA.md` defines a hardened plugin contract
 - No CDN or network fetch on first run — all assets embedded at build time
 
 ## Output
@@ -133,7 +133,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **curl default:** `curl -q -LSsf {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
 - **wget default:** `wget -q {url}` — `-q` suppresses all output except errors. Only omit `-q` or add `--show-progress` when a progress bar is explicitly needed.
 - **grep default:** always `grep {flags} -- {query}` — `--` prevents a query starting with `-` being treated as a flag. Never use `egrep`, `fgrep`, or `rgrep` — use `grep -E`, `grep -F`, `grep -r` instead. This applies to every grep invocation, including in Bash tool calls.
-- **Images:** always convert before reading — max 1280px longest side, WebP target, fallback chain `convert` → `ffmpeg` → `vips` → original. URL images: curl to tempdir first, then convert, then read. See `image_conventions.md`.
+- **Images:** always convert before reading — max 1280px longest side, WebP target, fallback chain `convert` → `ffmpeg` → `vips` → original. URL images: curl to tempdir first, then convert, then read. See `~/.claude/memory/image_conventions.md`.
 
 ## Token & Context Discipline
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
@@ -147,7 +147,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
 - "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
-- Write/Edit allowlists are defined in `settings.json` `permissions.allow` — `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `settings.json`, `settings.local.json`, and `.env`/`app.env`/`default.env` paths are pre-approved. Destructive Bash ops are gated separately by `protect-host.sh`
+- Write/Edit allowlists are defined in `{project_dir}/.claude/settings.json` `permissions.allow` — the following `{project_dir}/`-relative paths are pre-approved: `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, and `.env`/`app.env`/`default.env`. Destructive Bash ops are gated separately by `protect-host.sh`
 
 ## Commit Workflow
 `git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path — signs, stages, commits, and pushes in one invocation. Workflow is pre-approved; commit without asking, but verify the message first.
