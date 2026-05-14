@@ -100,6 +100,28 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 
 Temp, debug, and test output: `/tmp/{project_org}/{internal_name}-XXXXXX` — never committed. (`{internal_name}` is the frozen on-disk identifier, never `{project_name}` which may change.)
 
+## Task dependency ordering
+
+When a task list has dependencies, execution order must respect them before sequence order.
+
+**Rule:** resolve the dependency graph first; numbered/lettered order is a default tiebreaker only, not an execution mandate.
+
+**Example:** tasks 1, 2, 3 and a, b, c where c→2 and a→2 (c and a must complete before 2):
+
+```
+Correct order: 1, a, c, 2, b, 3   (a and c unblock 2; 1 has no deps so runs first)
+Wrong order:   1, 2, 3, a, b, c   (2 runs before its prerequisites)
+```
+
+**Rules:**
+- Before starting any task list, scan for stated dependencies ("X before Y", "requires X", "needs X first")
+- Build a mental dependency graph; topological-sort it; use label order only to break ties among tasks at the same depth
+- If a dependency is ambiguous, ask before executing — never assume order
+- Document the resolved order at the top of TODO.AI.md or PLAN.AI.md when the graph is non-trivial (3+ dependencies)
+- A task is only "ready" when all its prerequisites are in a completed state
+
+---
+
 ## Compliance schedule (per AI.md)
 
 - Session start: read AI.md completely
