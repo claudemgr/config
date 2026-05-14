@@ -134,6 +134,8 @@ releases/
 
 Same header format as `.gitignore`. Excludes everything that should not enter the Docker build context — version control, build artifacts, secrets, and local config.
 
+**Build context is always the project root** — `docker build -f docker/Dockerfile .`. The `docker/` directory contains the Dockerfile and `rootfs/`; it is **never excluded**.
+
 **Header:**
 ```
 # .dockerignore created on MM/DD/YY at HH:MM
@@ -182,10 +184,11 @@ vendor/
 target/
 ```
 
-### What is NOT excluded from Docker context
+### What is NEVER excluded from Docker context
 
-- `src/` — source code (always needed)
+- `docker/` — contains the Dockerfile and `rootfs/`; always included, never excluded
+- `src/` — all source code
 - `go.mod`, `go.sum` — Go module files
-- `Cargo.toml`, `Cargo.lock` — Rust manifest and lockfile (`Cargo.lock` is always committed for binary crates)
+- `Cargo.toml`, `Cargo.lock` — Rust manifest and lockfile
 - `build.rs` — Rust build script
-- `docker/rootfs/` — files `ADD`ed into the image
+- `release.txt` — version string read at build time
