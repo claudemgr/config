@@ -106,9 +106,86 @@ compose.default.yaml
 
 # rootfs build directory
 rootfs
+
+# Go build output
+binaries/
+releases/
+
+# Rust build output
+target/
+binaries/
+releases/
+
+# Claude Code local settings (allowed locally, not committed)
+.claude/settings.local.json
 ```
+
+**`.claude/` rule:** `.claude/settings.local.json` is gitignored (personal overrides). Everything else under `.claude/` — `settings.json`, `CLAUDE.md`, `plans/`, agents, hooks — is committed as part of the repo.
 
 ## What is NOT ignored
 
 - `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` — committed; they are safe templates
 - `!*/README*` — README files are always kept
+- `.claude/settings.json`, `.claude/CLAUDE.md`, `.claude/plans/` — committed; only `settings.local.json` is ignored
+
+---
+
+## .dockerignore
+
+Same header format as `.gitignore`. Excludes everything that should not enter the Docker build context — version control, build artifacts, secrets, and local config.
+
+**Header:**
+```
+# .dockerignore created on MM/DD/YY at HH:MM
+```
+
+### Standard entries (all projects)
+
+```dockerignore
+# .dockerignore created on MM/DD/YY at HH:MM
+
+# version control
+.git/
+.gitignore
+.gitattributes
+
+# local and secret config
+.env
+app.env
+default.env
+.claude/
+
+# build artifacts
+binaries/
+releases/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# docs and meta (not needed in image)
+*.md
+LICENSE*
+```
+
+### Go project additions
+
+```dockerignore
+# Go toolchain cache (mounted at build time, not baked in)
+vendor/
+```
+
+### Rust project additions
+
+```dockerignore
+# Rust build cache (rebuilt inside container)
+target/
+```
+
+### What is NOT excluded from Docker context
+
+- `src/` — source code (always needed)
+- `go.mod`, `go.sum` — Go module files
+- `Cargo.toml`, `Cargo.lock` — Rust manifest and lockfile (`Cargo.lock` is always committed for binary crates)
+- `build.rs` — Rust build script
+- `docker/rootfs/` — files `ADD`ed into the image
