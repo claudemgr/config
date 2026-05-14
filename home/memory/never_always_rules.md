@@ -20,6 +20,19 @@ These are intentionally NOT repeated here:
 
 ---
 
+## Memory Safety
+
+| Rule | Detail |
+|------|--------|
+| **NEVER unsafe without justification** | Rust: every `unsafe` block requires a comment at the site explaining why it is sound + an IDEA.md note. Go: `import "unsafe"` requires a documented reason in IDEA.md |
+| **NEVER unbounded goroutines/threads** | Always cap concurrent goroutines, threads, or worker pools — use semaphores, worker pools, or context cancellation. Unbound spawning is a fork-bomb in slow motion |
+| **NEVER fork bombs** | No process spawning inside an unthrottled loop. Every subprocess spawn must have an explicit concurrency limit. The canonical shell fork bomb (`:(){ :|:& };:` or equivalent) and all its variants are absolutely forbidden |
+| **NEVER remove process limits** | Never call `ulimit -u unlimited`, `ulimit -n unlimited`, `setrlimit` to RLIM_INFINITY, or equivalent. If a limit must be raised, raise it to a specific documented ceiling, not unlimited |
+| **NEVER block without a timeout** | Every network call, database query, subprocess wait, channel receive, and lock acquisition must have a timeout or deadline. Infinite block = eventual hang |
+| **NEVER leave file descriptors open** | Every opened file, socket, or pipe must be closed — use `defer f.Close()` (Go), RAII/`Drop` (Rust), or `trap`/explicit close (shell). FD leaks become resource exhaustion under load |
+| **NEVER unnamespaced destructive paths** | `rm -rf /`, `rm -rf ~`, `rm -rf $UNSET_VAR/`, `DROP TABLE`, `DELETE FROM` with no `WHERE` — always scope to the project's own named resource. Guard with `[ -n "$VAR" ]` before any `rm -rf "$VAR/"` |
+| **NEVER load untrusted input into memory unbounded** | Streams from untrusted sources must have a size cap before buffering. No `ioutil.ReadAll` / `std::io::read_to_string` on an unbounded network stream without a `LimitedReader` / `take()` guard |
+
 ## Security
 
 | Rule | Detail |
