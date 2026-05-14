@@ -43,6 +43,7 @@ All git repos are treated as public by default — even private ones. The only e
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
 ## Project Files & Naming
+- See [project conventions](memory/project_conventions.md) for AI.md/IDEA.md/CLAUDE.md roles, placeholder system, first-time setup flow, and directory layout
 - See [project forbidden files](memory/project_forbidden_files.md) for file/directory rules including README.md, LICENSE.md naming, and what must never be created
 
 ## Cleanup
@@ -106,7 +107,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
 - "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
-- Write/Edit allowlists are defined in `settings.json` `permissions.allow` — `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `settings.json`, `settings.local.json`, and `.env`/`app.env`/`default.env` paths are pre-approved. Destructive Bash ops are gated separately by `protect-host.sh`
+- Write/Edit allowlists are defined in `settings.json` `permissions.allow` — `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `settings.json`, `settings.local.json`, and `.env`/`app.env`/`default.env` paths are pre-approved. Destructive Bash ops are gated separately by `protect-host.sh`
 
 ## Commit Workflow
 `git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path — signs, stages, commits, and pushes in one invocation. Workflow is pre-approved; commit without asking, but verify the message first.

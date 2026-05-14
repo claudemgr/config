@@ -207,6 +207,8 @@ fi
 
 `--no-color` flag sets the same state as `NO_COLOR` being present. Both must be checked; either disables color and emojis in output.
 
+**Note — flag name differs by language by design:** Shell scripts use `--no-color` (a boolean on/off flag). Compiled Go and Rust binaries use `--color auto|yes|no` (a three-value enum that also covers auto-detection). Both conventions honor the `NO_COLOR` env var. Do not apply the Go/Rust `--color` pattern to shell scripts, and do not apply the shell `--no-color` pattern to compiled binaries.
+
 ### Argument parsing — use the shell's native parser
 
 **Never write a bare `while`/`case` argument loop unless no parser is available for that shell.** Use the shell-native option parser:
