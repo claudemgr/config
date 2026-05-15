@@ -123,12 +123,32 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 
 | Rule | Description |
 |------|-------------|
-| **Third-party action pinning** | External actions MUST be pinned to a full commit SHA — never float on `@main`, `@master`, or broad tags |
+| **Third-party action pinning** | External actions MUST be pinned to a full commit SHA — never float on `@main`, `@master`, or broad tags; verify runtime and maintenance status on every SHA update |
 | **No unsafe PR triggers** | Do NOT use `pull_request_target` for untrusted code execution, build, test, or artifact upload paths |
 | **Secrets never exposed to forks** | Fork PR workflows run without repo secrets, write tokens, publish steps, or deployment credentials |
 | **Secret scanning is mandatory** | Public repos run automated secret scanning on push/PR; findings are blockers, not warnings |
 | **Dependency updates are automated** | Public repos include dependency update automation for every ecosystem in use |
 | **Vulnerability scanning is mandatory** | `security.yml` MUST run the appropriate scanner(s) for every language in the repo; critical/high CVEs in direct deps are build blockers |
+
+### Third-party Action Pinning
+
+Every external action (`uses: owner/action@...`) MUST be pinned to a full commit SHA — never a mutable tag or branch:
+
+```yaml
+# Wrong — tag can silently change or be deleted
+- uses: actions/checkout@v4
+
+# Correct — SHA is immutable
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+```
+
+**When updating a pinned SHA**, verify three things:
+
+1. **Action is still maintained** — check the upstream repo is not archived, deprecated, or abandoned
+2. **Runtime is still supported** — open the action's `action.yml` at the new SHA and check `runs.using`; if it names a runtime that GitHub has deprecated or scheduled for removal, the action will silently fail after that date. Example: `node20` is removed from GitHub-hosted runners on **2026-09-16** — any action still on `node20` must be updated to a SHA where it has migrated to `node24` (all common `actions/*` and `docker/*` actions have already done so; see the Common Action Reference SHAs table below)
+3. **No supply-chain change** — skim the diff between the old and new SHA; unexpected new dependencies, changed entrypoints, or network calls added to setup steps are red flags
+
+Dependabot covers `github-actions` ecosystem updates automatically when `.github/dependabot.yml` is configured — but it only updates the SHA, not the runtime verification. The runtime check is always manual.
 
 ### Vulnerability scanning in `security.yml`
 
@@ -142,6 +162,25 @@ Run the appropriate scanner for each language present in the repo. All scanners 
 | Container images | Trivy | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
 
 See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commit checks, and the full vulnerability scanning policy.
+
+## Common Action Reference SHAs
+
+Verified node24 SHAs as of 2025-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Dependabot opens a PR — always re-verify the runtime after updating.
+
+| Action | Tag | SHA |
+|--------|-----|-----|
+| `actions/checkout` | v6.0.2 | `de0fac2e4500dabe0009e67214ff5f5447ce83dd` |
+| `actions/upload-artifact` | v7.0.1 | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
+| `actions/download-artifact` | v8.0.1 | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/cache` | v5.0.5 | `27d5ce7f107fe9357f9df03efb73ab90386fccae` |
+| `actions/setup-go` | v6.4.0 | `4a3601121dd01d1626a1e23e37211e3254c1c06c` |
+| `actions/setup-node` | v6.4.0 | `48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e` |
+| `docker/login-action` | v4.1.0 | `4907a6ddec9925e35a0a9e82d7399ccc52663121` |
+| `docker/build-push-action` | v7.1.0 | `bcafcacb16a39f128d818304e6c9c0c18556b85f` |
+| `docker/metadata-action` | v6.0.0 | `030e881283bb7a6894de51c315a6bfe6a94e05cf` |
+| `docker/setup-buildx-action` | v4.0.0 | `4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd` |
+| `docker/setup-qemu-action` | v4.0.0 | `ce360397dd3f832beb865e1373c09c0e9f86d70a` |
+| `softprops/action-gh-release` | v3.0.0 | `b4309332981a82ec1c5618f44dd2e27cc8bfbfda` |
 
 ## Branch Protection (Public Repos)
 
