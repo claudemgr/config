@@ -40,7 +40,7 @@ RELEASES_DIR  := ./releases
 |--------|-------------|
 | `build` | Builds all platforms inside Docker; outputs to `binaries/` |
 | `release` | Prepares release archives in `releases/` |
-| `test` | Runs `cargo test --lib --no-fail-fast` inside Docker |
+| `test` | Runs `cargo fmt --check`, `cargo clippy -- -D warnings`, then `cargo test --lib --no-fail-fast` inside Docker |
 | `clean` | Removes `binaries/`, `releases/`, and `target/` |
 | `help` | Prints target list and current version |
 
@@ -115,13 +115,16 @@ Always optimize for size (`opt-level = "z"`), always strip, always LTO — for r
 name        = "{project_name}"
 version     = "0.1.0"
 edition     = "2021"
+rust-version = "1.70"
 authors     = ["{project_org}"]
 license     = "MIT"
 description = "..."
 repository  = "https://github.com/{project_org}/{project_name}"
 ```
 
-Edition is always `2021`. Cargo.lock is always committed for binary crates.
+- Edition is always `2021`
+- `rust-version` (MSRV) is required; set to the oldest Rust release the code compiles against; CI must test against this version
+- `Cargo.lock` is always committed for binary crates; library crates should NOT commit `Cargo.lock` (allows consumers to use their own resolution)
 
 ## Exit Codes
 
@@ -282,6 +285,12 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 - Windows: static CRT (MSVC or MinGW)
 - macOS: link against system frameworks — no dylib vendoring
 - `strip = true` in release profile handles symbol stripping
+
+## Linting & Formatting
+
+- **`cargo fmt`** — enforced; run `cargo fmt --check` in CI; a format failure is a build failure. Commit `rustfmt.toml` at project root if non-default settings are needed.
+- **`cargo clippy`** — enforced; always run with `-D warnings` (warnings are errors); no `#[allow(...)]` suppressions without an explanatory comment
+- Never suppress a clippy lint project-wide in `Cargo.toml` without documenting the reason in `{project_dir}/IDEA.md`
 
 ## Code Rules
 

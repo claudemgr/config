@@ -40,7 +40,7 @@ VERSION="YYYYMMDDHHMM-git"
 - `@@Created` — full weekday + date + time + timezone: `Wednesday, May 13, 2026 10:58 EDT`
 - `@@Template` — template name if used; otherwise `shell/bash`, `shell/sh`, `shell/zsh`, `shell/fish`
 - There IS a separator line after the shellcheck disable line
-- `VERSION="YYYYMMDDHHMM-git"` is the literal format string — used for `--version` output
+- `VERSION="YYYYMMDDHHMM-git"` is the **literal placeholder string** — AI must write it exactly as `YYYYMMDDHHMM-git`, never substitute an actual date/time. The script itself replaces it at runtime via git hook or build step. When `--version` is called, this string is printed as-is unless replaced.
 - The `shellcheck disable` line only appears in shells shellcheck supports — see table below
 
 ### Shell-specific differences
@@ -111,6 +111,65 @@ The shebang line or file extension determines which conventions apply. Always ch
 **When there is no shebang** (e.g. a sourced library), infer from the calling context or ask.
 
 **Header is always added** to every script regardless of shell, using the correct comment character. For `.cmd`/`.bat`, replace `#` with `::` throughout the header block.
+
+## Error Handling — `set -e` and `pipefail`
+
+These modes are powerful but have subtle gotchas. Use them as follows:
+
+| Shell | Recommended | Reason |
+|-------|-------------|--------|
+| bash | `set -euo pipefail` at top of every script | `-e` exits on error, `-u` catches unset vars, `-o pipefail` catches pipe failures |
+| sh (POSIX) | `set -eu` — omit `pipefail` (not POSIX) | `pipefail` is a bashism; plain sh does not support it |
+| zsh | `set -euo pipefail` | Same as bash; zsh supports all three |
+| fish | Not needed — fish exits on errors by default | Fish error handling is built-in |
+
+Place `set -euo pipefail` (or `set -eu` for sh) immediately after the header block, before any other code.
+
+**`trap ERR` for cleanup:** always pair `set -e` with a trap for cleanup on unexpected exit:
+
+```bash
+set -euo pipefail
+
+__cleanup() {
+  # remove temp dirs, restore state, etc.
+  [ -n "${TEMP_DIR:-}" ] && rm -rf "${TEMP_DIR}"
+}
+trap '__cleanup' EXIT ERR
+```
+
+Use `EXIT` (fires on any exit including clean) for resource cleanup. Use `ERR` only for error-specific actions (e.g. printing a failure message). `EXIT` alone is sufficient for most cases.
+
+**Exceptions to `set -e`:** commands that are expected to fail must be guarded:
+```bash
+# BAD — exits script if grep finds no match (exit 1)
+grep -- "pattern" file
+
+# GOOD — guard with || true when non-zero is expected
+grep -- "pattern" file || true
+
+# GOOD — or check in an if block (set -e does not trigger inside conditions)
+if grep -q -- "pattern" file; then ...
+```
+
+## IFS Safety
+
+When splitting strings by a custom delimiter, always save and restore `IFS`:
+
+```bash
+# BAD — permanently changes IFS for the rest of the script
+IFS=':' read -ra parts <<< "${value}"
+
+# GOOD — IFS change is scoped to the read command only
+IFS=':' read -ra parts <<< "${value}"  # read is a builtin; IFS here is a command prefix, not global
+
+# GOOD — when IFS must be changed for a block, save/restore
+old_IFS="${IFS}"
+IFS=','
+# ... work with comma-split data ...
+IFS="${old_IFS}"
+```
+
+Never leave `IFS` modified globally — it causes silent splitting bugs in subsequent code that expects word-splitting behavior.
 
 ## Code Standards
 

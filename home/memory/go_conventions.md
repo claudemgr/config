@@ -39,7 +39,8 @@ COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
 	-X 'main.CommitID=$(COMMIT_ID)' \
-	-X 'main.BuildDate=$(BUILD_DATE)'
+	-X 'main.BuildDate=$(BUILD_DATE)' \
+	-X 'main.OfficialSite=$(OFFICIAL_SITE)'
 
 BINDIR    := binaries
 RELDIR    := releases
@@ -62,8 +63,8 @@ GO_DOCKER := docker run --rm \
 |--------|-------------|
 | `build` | All 8 platforms + host binary; outputs to `binaries/` |
 | `release` | Prepares release archives in `releases/` |
-| `docker` | Builds + pushes multi-arch image via `docker buildx` |
-| `test` | Runs `go test -v -cover ./...` inside Docker |
+| `docker` | Builds + pushes multi-arch image via `docker buildx --platform linux/amd64,linux/arm64 --push` |
+| `test` | Runs `go vet ./...` then `go test -v -cover ./...` inside Docker |
 | `dev` | Quick host-platform-only build into `mktemp` temp dir |
 | `clean` | Removes `binaries/` and `releases/` |
 
@@ -134,6 +135,29 @@ Never use `VCS_REF` as an alias — `CommitID` is the canonical name.
 Always `ghcr.io/{PROJECTORG}/{PROJECTNAME}` — tagged as both `:{VERSION}` and `:latest`.
 
 Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` and `--push`.
+
+## Minimum Go Version
+
+Set `go` directive in `go.mod` to the minimum required version. New projects start with the current stable release. Never set it lower than needed just to broaden compatibility — use the version that matches the features the code actually uses.
+
+```
+go 1.22
+```
+
+Update when a feature from a newer version is adopted.
+
+## Linting & Vetting
+
+- **`go vet`** runs as part of the `test` target (before `go test`); CI fails on any vet warning
+- **`golangci-lint`** is required for all projects; config lives at `{project_dir}/.golangci.yml`; CI runs it in `build.yml`; minimum enabled linters: `errcheck`, `govet`, `staticcheck`, `unused`, `gosimple`
+- Never suppress a lint warning with a `//nolint` directive without a comment explaining why
+
+## Error Handling
+
+- Wrap errors with context using `fmt.Errorf("operation: %w", err)` — always wrap, never discard
+- Sentinel errors are defined as `var ErrFoo = errors.New("foo")` at package level; use `errors.Is` / `errors.As` to check, never string comparison
+- Custom error types implement the `error` interface; use when the caller needs to inspect error fields
+- Never use `log.Fatal` as a substitute for a proper exit code — `log.Fatal` calls `os.Exit(1)` with no cleanup
 
 ## Code Rules
 

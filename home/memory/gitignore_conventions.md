@@ -51,6 +51,11 @@ ignoredirmessage
 app.env
 default.env
 
+# ignore log and temp files
+*.log
+*.tmp
+*.temp
+
 # OS generated files
 ### Linux ###
 *~
@@ -135,6 +140,31 @@ docker/volumes/
 **Deviation from `go/TEMPLATE.md`:** The TEMPLATE says all AI config directories (including `.claude/`) are gitignored. Our rule intentionally deviates: only `.claude/settings.local.json` is ignored; the rest of `.claude/` is committed. Other AI tool dirs (`.cursor/`, `.windsurf/`, `.aider/`, `.ai/`) follow the TEMPLATE and are fully ignored. Our rule takes precedence over the TEMPLATE.
 
 **Docker Compose and `.dockerignore` rules** are in `~/.claude/memory/dockerfile_conventions.md`.
+
+Add these for projects that use them:
+
+```gitignore
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+
+# Node.js / JavaScript / TypeScript
+node_modules/
+.npm/
+dist/
+.cache/
+*.tsbuildinfo
+```
 
 ## What is NOT ignored
 

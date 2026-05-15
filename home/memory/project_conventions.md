@@ -24,13 +24,15 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 | **IDEA.md** | THE WHAT — project plan. Three required sections (see below). | Yes |
 | **TODO.AI.md** | AI-owned task list. Required when working on more than 2 items. Completed items are REMOVED (not marked done and left). | Yes |
 | **TODO.md** | Human-owned task list; AI **must** mark done when completed (leaving unmarked is misleading), never delete/empty entries | Limited |
-| **PLAN.AI.md** | AI-owned implementation plan | Yes |
+| **PLAN.AI.md** | AI-owned implementation plan — delete when the work it describes is fully committed | Yes |
 | **PLAN.md** | Human-owned plan; AI **must** mark done when completed, never delete entries or rewrite wholesale | Limited |
 | **CLAUDE.md** | Short loader pointing at AI.md and IDEA.md. No project-specific spec content. | No |
 
 **If AI.md and IDEA.md conflict, AI.md wins. Fix IDEA.md.**
 
 **New project detection:** if AI.md or IDEA.md is missing → new project. Plan first: create IDEA.md, copy TEMPLATE.md as AI.md, write PLAN.AI.md and TODO.AI.md before touching code.
+
+**Partial IDEA.md:** if IDEA.md exists but is missing one or more of the three required sections, do not proceed with work — add the missing sections first. Ask the user for the missing information rather than guessing. A partial IDEA.md is treated as absent for the section(s) it is missing.
 
 ## IDEA.md required layout (exactly three top-level sections, in this order)
 

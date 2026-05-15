@@ -15,6 +15,6 @@
 - [Temp directory conventions](tempdir_conventions.md) — required path structure ({project_org}/{internal_name}-XXXXXX), per-language creation (shell/Go/Rust), OS vars, guarded cleanup, AI rules
 - [CI/CD conventions](cicd_conventions.md) — third-party SHA pinning, no pull_request_target, branch protection, SBOM+checksums, secret scanning, Dependabot, release integrity
 - [Go conventions](go_conventions.md) — project layout (src/), Makefile targets (build/release/docker/test/dev/clean), golang:alpine rolling image, CGO_ENABLED=0, 8-platform binary naming, module cache mounts, CommitID ldflags var, ghcr.io registry
-- [Rust conventions](rust_conventions.md) — project layout, Makefile targets, rust:latest rolling image, Docker-only cargo, release profile (lto/strip/panic=abort), no *-sys dynamic linkage, rustls over OpenSSL
+- [Rust conventions](rust_conventions.md) — project layout, Makefile targets, rust:alpine rolling image, Docker-only cargo, release profile (lto/strip/panic=abort), no *-sys dynamic linkage, rustls over OpenSSL
 - [UI/UX conventions](ui_ux_conventions.md) — designer mindset, dark-first theme (dark/light/auto), web (SSR, mobile-first, WCAG 2.1 AA, 44×44px touch), desktop (GUI>TUI>CLI, X11+Wayland, dark-light crate), mobile (iOS/Android/Flutter theme APIs), TUI (alternate screen, NO_COLOR), universal rules
 - [Project type conventions](project_type_conventions.md) — rules follow project TYPE not language; server/desktop-gui/tui/cli/library/worker/web each have cross-language requirements; language files answer HOW, type answers WHAT

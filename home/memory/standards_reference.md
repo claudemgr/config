@@ -264,3 +264,87 @@ Query params: `?page={n}&per_page={n}`
 - **Base64url**: URL-safe alphabet (`A-Za-z0-9-_`) without padding — for JWTs, URL tokens, filenames
 - Never use standard Base64 in URLs — always Base64url
 - **Hex**: lowercase (`deadbeef`) — never uppercase in machine interfaces; uppercase only in human-facing display if project style requires it
+
+---
+
+## Caching — HTTP Cache-Control
+
+Use `Cache-Control` on every response. Never rely on heuristic caching.
+
+| Resource type | Directive | Rationale |
+|---------------|-----------|-----------|
+| HTML pages | `no-cache` | Always revalidate; content changes with deploys |
+| API responses | `no-store` | Never cache; data is per-user or real-time |
+| Versioned static assets (JS, CSS, images with hash in URL) | `public, max-age=31536000, immutable` | Hash in URL ensures cache-busting; safe to cache forever |
+| Non-versioned static assets | `public, max-age=3600` | Revalidated hourly |
+| Auth-gated resources | `private, no-store` | Must not be stored in shared caches |
+
+Always include `Vary: Accept-Encoding` when serving compressed content.
+
+### Conditional requests — ETag / Last-Modified
+
+Support conditional requests on cacheable resources to enable 304 Not Modified responses:
+
+- `ETag`: preferred; use a hash of the response content; compare with `If-None-Match`
+- `Last-Modified`: fallback; use ISO 8601 / HTTP date format; compare with `If-Modified-Since`
+- Return `304 No Content` (no body) when the client's cached version is still valid
+- ETag takes precedence over Last-Modified when both are present
+
+---
+
+## CORS — Cross-Origin Resource Sharing
+
+- **Never use `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`** — browsers block this; it is also a security risk
+- For public APIs with no credentials: `Access-Control-Allow-Origin: *` is acceptable
+- For credentialed requests: specify the exact origin(s) explicitly; use a server-side allowlist; never reflect the `Origin` header back without validation
+- Allowed methods: specify only the methods the endpoint actually supports (`GET, POST` not `*`)
+- Allowed headers: specify only headers the endpoint reads; avoid `*` for headers
+- Preflight cache: `Access-Control-Max-Age: 86400` (24 hours) to reduce preflight round-trips
+- CORS is not a substitute for authentication — a CORS-permitted origin can still make requests; validate authorization server-side on every request
+
+---
+
+## WebSocket — RFC 6455
+
+- WebSocket upgrade is always over TLS (`wss://`) in production — never plain `ws://`
+- Authenticate the WebSocket connection at upgrade time (HTTP 101 handshake) via a short-lived token in the query string or an initial auth message — not via cookie alone (CSRF risk)
+- **Ping/Pong keepalive**: server sends a `Ping` frame every 30s; close the connection if no `Pong` is received within 10s
+- **Close codes** (RFC 6455 §7.4):
+
+  | Code | Meaning | When to send |
+  |------|---------|-------------|
+  | `1000` | Normal closure | Clean server or client shutdown |
+  | `1001` | Going away | Server restarting / client navigating away |
+  | `1008` | Policy violation | Auth failure, rate limit |
+  | `1011` | Internal error | Unhandled server error |
+  | `1012` | Service restart | Graceful server restart — client should reconnect |
+
+- Always send a Close frame before closing the TCP connection; never drop the socket without a close handshake
+- Cap message size server-side — reject (close with `1009 Message Too Big`) any frame exceeding the project-defined limit (default 1 MiB)
+- Per-connection state lives in the connection handler; never in package-level globals
+
+---
+
+## gRPC — gRPC Status Codes
+
+Use gRPC status codes (not HTTP codes) for gRPC services:
+
+| Code | Name | When to use |
+|------|------|-------------|
+| `0` | `OK` | Success |
+| `1` | `CANCELLED` | Client cancelled the request |
+| `2` | `UNKNOWN` | Unrecognized error — use sparingly |
+| `3` | `INVALID_ARGUMENT` | Bad input from caller |
+| `4` | `DEADLINE_EXCEEDED` | Timeout |
+| `5` | `NOT_FOUND` | Resource does not exist |
+| `6` | `ALREADY_EXISTS` | Duplicate create |
+| `7` | `PERMISSION_DENIED` | Authorized but not allowed |
+| `8` | `RESOURCE_EXHAUSTED` | Rate limit, quota exceeded |
+| `12` | `UNIMPLEMENTED` | Method not implemented |
+| `13` | `INTERNAL` | Internal server error |
+| `14` | `UNAVAILABLE` | Server temporarily unavailable — client should retry with backoff |
+| `16` | `UNAUTHENTICATED` | Not authenticated |
+
+- Always return a status message alongside the code — codes alone are not debuggable
+- Map gRPC errors to HTTP equivalents at the gateway layer (gRPC-Gateway or Envoy transcoder); do not expose raw gRPC codes to browser clients
+- Proto files live in `proto/` at project root; generated code lives in a dedicated package (`gen/`, `pb/`) — never commit generated files alongside their source proto in the same directory

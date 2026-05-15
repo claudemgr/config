@@ -42,6 +42,10 @@ Applies to: HTTP servers, gRPC services, WebSocket servers, background daemons, 
 - Validate all required config at startup; exit non-zero immediately if required values are missing or invalid — do not start partially configured.
 - Log the listening address and version on startup.
 
+### Observability
+- **Metrics endpoint** — expose `GET /metrics` in Prometheus text format (or equivalent for the observability stack); required for any server that runs in a container or behind a load balancer
+- Minimum metrics to expose: request count, request duration (histogram), error count, active connections, build version (gauge with label)
+
 ### Security (server-specific)
 - Bind to `localhost` by default; require explicit config to bind to `0.0.0.0`.
 - Enforce request body size limits — reject oversized payloads before parsing.
@@ -58,7 +62,7 @@ Applies to: browser-facing HTML UIs — server-rendered pages, forms, dashboards
 See `~/.claude/memory/ui_ux_conventions.md` for the full design system. Key rules:
 
 - **Server-side rendering only** — Go templates, Jinja2, ERB, etc. No React/Vue/Angular for core content.
-- **Progressive enhancement** — every page works without JavaScript; JS is an enhancement only.
+- **Progressive enhancement** — every page works without JavaScript; JS is an enhancement only. HTMX and Alpine.js are permitted as progressive-enhancement libraries because they do not require client-side rendering or routing — they augment server-rendered HTML in place. They must not be used to bypass SSR or to move business logic to the client.
 - **Mobile-first CSS** — base styles target mobile; expand with `@media (min-width: …)` breakpoints.
 - **Breakpoints:** mobile (none) · tablet (`768px`) · desktop (`1024px`) · wide (`1440px`)
 - **Dark-first theme** — ship dark mode first; light mode and `auto` (system preference) also required.
@@ -128,7 +132,7 @@ Applies to: non-interactive command-line tools invoked once per task.
 - **`--help` / `-h`** → print help and exit `0` — never require privileges.
 - **`--version` / `-v`** → print version and exit `0` — never require privileges.
 - **`--color auto|yes|no`** and **`NO_COLOR`** — always honor both; see language-specific conventions.
-- **Machine-readable output** — provide `--json` or `--output json` for any output that downstream scripts might consume.
+- **Machine-readable output** — provide `--json` or `--output json` for any output that downstream scripts might consume. When `--json` is active, the exit code semantics are unchanged — errors still exit non-zero; the JSON body carries error detail in a `{"error": "..."}` field.
 - **Idempotent when possible** — running twice should be safe; document when it is not.
 
 ### Argument parsing
@@ -152,6 +156,20 @@ Applies to: packages/crates with no binary entrypoint, consumed by other project
 - **MSRV** — declare and test against a minimum supported language version.
 - **No mandatory network calls** — optional network features are behind a feature flag (Rust) or build tag (Go).
 - **No panics on bad input** — return an error. Panics are reserved for logic errors that indicate a programming mistake in the caller.
+- **Documentation generation** — all public symbols must have doc comments; run `godoc` (Go) or `cargo doc` (Rust) as part of CI and treat warnings as errors. A library with undocumented public API is incomplete.
+
+---
+
+## Type: `plugin` / `extension`
+
+Applies to: dynamically loaded modules, browser extensions, editor plugins, app extensions.
+
+- **Hardened plugin contract** — the host must define and document the exact interface (function signatures, data types, versioning) in `{project_dir}/IDEA.md` before any plugin loading is implemented
+- **No ambient trust** — plugins run with the minimum necessary capability; they must not receive host credentials, internal data structures, or unrestricted filesystem access
+- **Sandboxing** — prefer WASM, subprocess isolation, or capability-based APIs over raw `dlopen`/FFI; raw dynamic loading requires explicit justification in `{project_dir}/IDEA.md`
+- **Versioned interface** — the plugin API is semver-versioned; breaking changes require a major version bump and a migration path
+- **Signature verification** — plugins loaded from external sources must be cryptographically verified before execution; unsigned plugins are rejected by default
+- **Failure isolation** — a plugin panic or crash must not crash the host; wrap plugin calls in a recovery boundary (Go: `recover()`; Rust: `catch_unwind`)
 
 ---
 

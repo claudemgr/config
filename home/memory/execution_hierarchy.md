@@ -26,6 +26,33 @@ Never run anything directly on the host unless no lower option works. Always use
 - Only remove resources created by the current project — never `docker system prune` or broad sweeps.
 - Identify resources by name/label/prefix before removing; if uncertain, list and ask.
 
+## Container Network Isolation
+
+Test containers must run on an isolated network — never on the default bridge:
+
+```bash
+docker network create --driver bridge {project_name}-test-net
+# ... run containers with --network {project_name}-test-net ...
+docker network rm {project_name}-test-net   # clean up immediately after
+```
+
+Rules:
+- Create a named network before the first test container starts; tear it down after the last container stops
+- Never use `--network host` in tests — it exposes the container to the host network and other services
+- Containers in the test network can communicate by service name; no host port mapping required for inter-container traffic
+- Track the network name/ID alongside container IDs for cleanup
+
+## Container Lifetime
+
+Every container started by AI must have an explicit lifetime — never leave one running indefinitely:
+
+- **Test containers:** stop and remove immediately after the test completes (pass or fail)
+- **Build containers:** `--rm` flag on all `docker run` invocations; they self-remove on exit
+- **Long-running service containers (integration tests):** set a `--stop-timeout` and enforce it; if a container has not exited within 60s of `docker stop`, force-kill with `docker kill`
+- **No containers survive a session end** — if a container was started during a session, it must be stopped before the session ends
+
+If a container must remain running after the session (e.g. a dev environment started at user request), document its name/ID explicitly and tell the user — never leave one silently running.
+
 ## Scope
 
 **This applies to everything:** build toolchains (`cargo`, `gradle`, `go build`), project binaries, `./scripts/`, `./tests/`, and system install scripts.

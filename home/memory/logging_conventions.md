@@ -121,6 +121,41 @@ Follow XDG / OS conventions:
 
 In Docker: write to stdout (access, app) and stderr (errors) — never to a file inside the container. The runtime collects and rotates.
 
+## Log Levels — Default by Environment
+
+| Environment | Default level | Rationale |
+|-------------|--------------|-----------|
+| Production | `INFO` | Debug noise creates storage and security risk in prod |
+| Development (local) | `DEBUG` | Full visibility while developing |
+| CI / test | `WARN` | Reduce noise; tests assert behavior, not log verbosity |
+
+Override via env var: `LOG_LEVEL=debug` / `LOG_LEVEL=info` / etc. The env var always wins over the compiled default. Never require a recompile to change log level.
+
+## Request / Trace ID Propagation
+
+Every inbound request in a server must be assigned a unique request ID. This ID must appear on every log line emitted during that request's lifetime.
+
+- Generate at the entry point (middleware / handler) using UUID v7 (time-ordered) or a short random hex
+- Accept `X-Request-ID` from upstream if present and trusted; otherwise generate one
+- Propagate downstream via context: include in outbound HTTP calls as `X-Request-ID`, in gRPC calls as metadata, in queue messages as a field
+- Log field name: `request_id` (logfmt) or `"request_id"` (JSON)
+
+```
+# logfmt — request_id on every line in the request scope
+time=2026-05-13T10:58:00Z level=INFO msg="handler start" request_id=01HZ3X... path=/api/users
+time=2026-05-13T10:58:00Z level=INFO msg="db query ok" request_id=01HZ3X... rows=5
+```
+
+## Structured Logging in Containers (Kubernetes / Cloud)
+
+When the container runtime is Kubernetes or a cloud log aggregator (CloudWatch, GCP Logging, Datadog):
+
+- Output **JSON** to stdout/stderr instead of logfmt — aggregators parse structured JSON natively
+- Field names must be stable across versions — renaming a field breaks dashboards and alerts
+- Required JSON fields: `time` (RFC 3339), `level`, `msg`, `request_id` (when in request scope), `version`
+- Never embed newlines inside a JSON log line — multi-line stack traces must be a single JSON string value
+- Detect at runtime: if `LOG_FORMAT=json` env var is set, switch to JSON output; otherwise use logfmt/plain text
+
 ## Log Rotation
 
 System services must ship a `logrotate` config at `docker/rootfs/etc/logrotate.d/{project_name}`:
@@ -135,7 +170,8 @@ System services must ship a `logrotate` config at `docker/rootfs/etc/logrotate.d
     notifempty
     sharedscripts
     postrotate
-        systemctl kill -s HUP {project_name}.service 2>/dev/null || true
+        systemctl kill -s HUP {project_name}.service 2>/dev/null || \
+        kill -HUP "$(cat /var/run/{project_name}.pid 2>/dev/null)" 2>/dev/null || true
     endscript
 }
 ```

@@ -74,6 +74,30 @@ std::fs::create_dir_all(&dir)?;
 
 Never call `std::env::temp_dir()` alone — always nest under `{project_org}/`.
 
+### Python
+
+```python
+import os
+import tempfile
+
+base = os.path.join(tempfile.gettempdir(), project_org)
+os.makedirs(base, exist_ok=True)
+temp_dir = tempfile.mkdtemp(prefix=f"{project_name}-", dir=base)
+```
+
+Never call `tempfile.mkdtemp()` alone — always pass `dir=` to nest under `{project_org}/`.
+
+## Directory Permissions
+
+Temp directories must be created with mode `0700` (owner-only access) when they may contain sensitive data (tokens, private keys, intermediate build artifacts with embedded secrets). Use `0755` only for non-sensitive build output that other processes legitimately need to read.
+
+| Contents | Mode |
+|----------|------|
+| Sensitive data (keys, tokens, credentials) | `0700` |
+| Non-sensitive build output | `0755` |
+
+In Go, `os.MkdirTemp` creates with `0700` by default — do not change this for sensitive dirs. In shell, `mktemp -d` creates with `0700` by default — same rule applies.
+
 ## OS Temp Directories
 
 | OS | Default | Env var |

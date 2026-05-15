@@ -121,6 +121,46 @@ ENTRYPOINT [ "tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh" ]
 - `apk add --no-cache` — never without `--no-cache`
 - No secrets, credentials, or `.env` values baked into the image
 
+## Non-root User
+
+Containers must not run as root unless the process genuinely requires it. Add to the runtime stage after `chmod`:
+
+```dockerfile
+# Create a non-root user for runtime
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+```
+
+If the app must bind to port 80 (or other privileged ports): use `tini` + `setcap` or remap to an unprivileged port (≥1024) inside the container and map externally via `docker-compose.yml`. Exceptions (filesystem mounts, device access, service management) must be documented in `{project_dir}/IDEA.md`.
+
+## entrypoint.sh
+
+`docker/rootfs/usr/local/bin/entrypoint.sh` is the only file that should live between `tini` and the application binary. Minimum required content:
+
+```bash
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# entrypoint.sh — container startup script
+# Called by: tini → entrypoint.sh → app
+# Add pre-start setup here (env checks, migrations, etc.)
+exec "$@"
+```
+
+Rules:
+- Must end with `exec "$@"` — replaces the shell process with the app so PID 1 signal handling is preserved
+- Never `source` secrets or credentials — use environment variables injected at runtime
+- Always executable (`chmod 755`)
+
+## Dockerfile.dev
+
+`docker/Dockerfile.dev` is the development variant. It shares the same base as the production build but adds dev tooling and omits release optimizations. Minimum required differences from `docker/Dockerfile`:
+
+- Uses the builder stage image directly (`FROM golang:alpine` / `FROM rust:alpine`) — no separate runtime stage
+- Includes dev dependencies (debugger, test runner, linter)
+- Mounts source at runtime via compose volume — does not `COPY . .` for source (only for deps)
+- Never pushed to a registry; for local use only
+- No `USER` restriction needed (dev containers often need write access to the mounted source)
+
 ---
 
 ## Docker Compose

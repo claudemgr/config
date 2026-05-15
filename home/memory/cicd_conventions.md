@@ -16,6 +16,70 @@ type: user
 | **Docker tags** | Any push → `devel`, `{commit}`; beta → adds `beta`; tag → `{version}`, `latest`, `YYMM`, `{commit}` |
 | **Workflow permissions** | Default to read-only / least privilege; grant write only to the specific release/publish job that needs it |
 
+## Workflow Best Practices
+
+### Concurrency groups
+
+Every workflow that runs on push or pull_request must define a concurrency group to cancel stale runs:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+Exception: release workflows (`release.yml`) must NOT cancel in progress — use `cancel-in-progress: false` to prevent a partial publish.
+
+### Caching
+
+Cache language dependencies between runs. Add to every build job:
+
+**Go:**
+```yaml
+- uses: actions/cache@{sha}
+  with:
+    path: |
+      ~/.cache/go-build
+      ~/go/pkg/mod
+    key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+    restore-keys: go-${{ runner.os }}-
+```
+
+**Rust:**
+```yaml
+- uses: actions/cache@{sha}
+  with:
+    path: |
+      ~/.cargo/registry
+      ~/.cargo/git
+      target/
+    key: rust-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+    restore-keys: rust-${{ runner.os }}-
+```
+
+Always pin `actions/cache` to a full commit SHA per the third-party pinning rule.
+
+### Artifact retention
+
+Always set an explicit retention period on `actions/upload-artifact` — never rely on the 90-day default:
+
+```yaml
+- uses: actions/upload-artifact@{sha}
+  with:
+    name: binaries
+    path: binaries/
+    retention-days: 7   # build artifacts; use 30 for release staging
+```
+
+Use 7 days for transient build artifacts; 30 days for release staging artifacts that may need re-download before a release is finalized.
+
+### Coverage gates
+
+`build.yml` must enforce a minimum coverage threshold. The threshold is defined in `{project_dir}/IDEA.md` under `## Business logic`. If not specified, default is 60%. CI must fail when coverage drops below the threshold — a passing build with uncovered code is a silent regression.
+
+**Go:** use `go test -cover ./... | tee coverage.out` and parse the total; fail if below threshold.
+**Rust:** use `cargo tarpaulin` or `cargo llvm-cov`; fail if below threshold.
+
 ## Security Requirements
 
 | Rule | Description |

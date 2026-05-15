@@ -58,6 +58,25 @@ The only exception: report-only files created by AI itself during the current se
 
 **Note:** `src/data/` is allowed for static files embedded in the binary. Only root-level `data/` is forbidden.
 
+## `docker/rootfs/` Contents
+
+`docker/rootfs/` mirrors the Linux FHS — it is `COPY`'d into the image at `/`. Acceptable paths inside it:
+
+| Path | Purpose |
+|------|---------|
+| `etc/logrotate.d/{project_name}` | logrotate config |
+| `etc/systemd/system/{project_name}.service` | systemd unit (Incus/VM builds only) |
+| `etc/cron.d/{project_name}` | cron job (if needed) |
+| `usr/local/bin/entrypoint.sh` | Required — container startup script |
+| `usr/local/bin/{additional_scripts}` | Helper scripts bundled with the image |
+| `usr/local/share/{project_name}/` | Static data files |
+
+**Never place in `docker/rootfs/`:**
+- Source code (belongs in `src/`)
+- Credentials or `.env` files
+- Files that belong in the OS package manager (`/usr/bin/`, `/bin/`) — use `/usr/local/bin/` instead
+- Large binary blobs — embed them in the binary at build time instead
+
 ## Allowed Root Files
 
 These are the only files that belong at the project root:
@@ -79,3 +98,4 @@ These are the only files that belong at the project root:
 | `site.txt` | Optional | Official site/homepage URL |
 | `.gitignore` | ✓ | Git ignore rules |
 | `.github/` | Optional | GitHub-specific files (workflows, templates, etc.) |
+| `.editorconfig` | Optional | Editor formatting rules — permitted, but settings must match the project's existing style conventions |

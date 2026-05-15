@@ -67,6 +67,42 @@ Masking rules:
 - Config files that need a credential: use `${VAR_NAME}` as a placeholder, never a real value
 - Scanning generated code for accidental credential leakage is part of every review
 
+## CI / CD Specific Rules
+
+- **`env:` blocks in GitHub Actions** — never print the value of a secret in a `run:` step (e.g. `echo "${{ secrets.TOKEN }}"` leaks to logs); reference secrets only as env vars (`TOKEN: ${{ secrets.TOKEN }}`) and let the tool consume them
+- GitHub Actions automatically masks registered secrets in logs, but derived values (slices, transforms, base64 of a secret) are NOT masked — never transform a secret and log the result
+- Rotate any secret that appeared in a CI log immediately — assume it is compromised
+- Fork PRs do not receive repo secrets by default — confirm this is configured correctly; never grant secrets to untrusted forks via `pull_request_target`
+
+## Git History — Secret Found in History
+
+If a secret is found in git history (even in an old commit or a deleted file):
+
+1. **Rotate the secret immediately** — treat it as compromised regardless of repo visibility
+2. Remove it from history with `git filter-repo` (preferred over `BFG`) — this rewrites history
+3. Force-push all affected branches; notify all collaborators to re-clone (their local copies still have the old history)
+4. Scan for any forks or mirrors that may have pulled the compromised history
+5. Document the incident and rotation in `{project_dir}/IDEA.md` if it affected production credentials
+
+Never leave a known secret in history "because it's revoked" — revoked secrets still indicate the project's secret naming and rotation practices to an attacker.
+
+## `.env.example` Placeholder Values
+
+`.env.example` / `.env.sample` files are committed as templates. Their values must be **obviously fake** — not real-looking strings that could be mistaken for real credentials:
+
+```bash
+# GOOD — clearly fake
+DATABASE_URL=postgres://user:changeme@localhost:5432/myapp
+API_KEY=your-api-key-here
+SECRET_TOKEN=replace-with-a-random-256-bit-hex-string
+
+# BAD — looks real, could be mistaken for a valid value
+DATABASE_URL=postgres://admin:p@ssw0rd123@prod.db.internal:5432/myapp
+API_KEY=sk-abc123def456ghi789
+```
+
+Never use real-looking tokens, real hostnames, or real-format secrets (e.g. a 40-char hex string that looks like a GitHub token) as example values.
+
 ## Pre-flight Before Sharing
 
 Before posting to any destination above:
