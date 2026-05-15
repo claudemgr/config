@@ -16,6 +16,45 @@ type: user
 | **Docker tags** | Any push → `devel`, `{commit}`; beta → adds `beta`; tag → `{version}`, `latest`, `YYMM`, `{commit}` |
 | **Workflow permissions** | Default to read-only / least privilege; grant write only to the specific release/publish job that needs it |
 
+## Workflow Permissions
+
+Set `contents: read` at the workflow level as the read-only baseline. Grant write permissions only on the specific job that performs the release or publish step — never workflow-wide.
+
+| Permission | Scope | Why |
+|------------|-------|-----|
+| `contents: read` | All jobs (baseline) | Checkout |
+| `contents: write` | Release job only | Create GitHub release, upload assets |
+| `packages: write` | Release job only | Push images to `ghcr.io` |
+| `id-token: write` | Release job only | OIDC token for Sigstore/cosign artifact signing |
+| `attestations: write` | Release job only | GitHub artifact attestation (SBOM, provenance) |
+
+```yaml
+# Workflow-level: read-only baseline
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Inherits read-only — no overrides needed
+    runs-on: ubuntu-latest
+    ...
+
+  release:
+    needs: build
+    permissions:
+      contents: write      # create GitHub release + upload assets
+      packages: write      # push to ghcr.io
+      id-token: write      # OIDC token for cosign signing
+      attestations: write  # GitHub artifact attestations (SBOM, provenance)
+    ...
+```
+
+Third-party registry publishing uses repository secrets, not GitHub token permissions:
+- npm → `NODE_AUTH_TOKEN` secret
+- crates.io → `CARGO_REGISTRY_TOKEN` secret
+
+---
+
 ## Workflow Best Practices
 
 ### Concurrency groups
