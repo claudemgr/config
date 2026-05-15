@@ -61,7 +61,7 @@ Applies to: browser-facing HTML UIs — server-rendered pages, forms, dashboards
 
 See `~/.claude/memory/ui_ux_conventions.md` for the full design system. Key rules:
 
-- **Server-side rendering only** — Go templates, Jinja2, ERB, etc. No React/Vue/Angular for core content.
+- **Server-side rendering only** — Go templates, Jinja2, ERB, etc. for Go/Rust/Python servers. No React/Vue/Angular for core content. Node/TypeScript web projects (Express, Fastify, Next.js SSR) follow their own conventions in `~/.claude/CLAUDE.md` — SSR is still required; client-side rendering is still forbidden.
 - **Progressive enhancement** — every page works without JavaScript; JS is an enhancement only. HTMX and Alpine.js are permitted as progressive-enhancement libraries because they do not require client-side rendering or routing — they augment server-rendered HTML in place. They must not be used to bypass SSR or to move business logic to the client.
 - **Mobile-first CSS** — base styles target mobile; expand with `@media (min-width: …)` breakpoints.
 - **Breakpoints:** mobile (none) · tablet (`768px`) · desktop (`1024px`) · wide (`1440px`)
@@ -139,6 +139,7 @@ Applies to: non-interactive command-line tools invoked once per task.
 - Shell: `getopt` / `zparseopts` / `argparse` (per `~/.claude/memory/script_conventions.md`)
 - Go: standard `flag` package or `cobra`/`pflag`
 - Rust: `clap` (derive API)
+- Node / TypeScript: `commander`, `yargs`, or `oclif` — choose based on complexity (`commander` for simple CLIs, `oclif` for multi-command plugin-style tools)
 
 Never hand-roll a parser.
 

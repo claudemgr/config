@@ -292,6 +292,25 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 - **`cargo clippy`** — enforced; always run with `-D warnings` (warnings are errors); no `#[allow(...)]` suppressions without an explanatory comment
 - Never suppress a clippy lint project-wide in `Cargo.toml` without documenting the reason in `{project_dir}/IDEA.md`
 
+## Error Handling
+
+- **`anyhow` for application (binary) crates** — use `anyhow::Result` as the return type in `main()` and internal functions that aren't public API; `context()` / `with_context()` to annotate errors with call-site meaning
+- **`thiserror` for library crates** — define custom error types with `#[derive(thiserror::Error)]`; each variant carries a human-readable `#[error("...")]` message; no `anyhow` in library public API
+- **No `unwrap()` or `expect()` in library or production hot-path code** — return `Result` instead; `unwrap()`/`expect()` are only acceptable in tests, examples, and build scripts where a panic is the right failure mode
+- **`?` for propagation** — always use `?` to propagate errors up the call stack; never `.unwrap()` where a `?` would work
+- **`Box<dyn Error>` is acceptable only in tests and throwaway scripts** — never in library public API or long-lived production code
+- **Structured error context** — add context at every boundary crossing (IO, network, DB, subprocess); bare errors like `"No such file or directory"` are useless without context: prefer `fs::read(&path).with_context(|| format!("reading config from {path:?}"))`
+- **No silent error swallowing** — never `let _ = fallible_call()` unless the error is genuinely irrelevant; document why with a comment when it is
+
+```toml
+# Cargo.toml — standard error handling deps
+[dependencies]
+anyhow  = "1"      # application crates
+thiserror = "2"    # library crates (pick one, not both)
+```
+
+---
+
 ## Code Rules
 
 - **No bare `cargo` on host** — all cargo invocations run inside Docker

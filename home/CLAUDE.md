@@ -152,6 +152,14 @@ Security is first-class from day one — never bolted on after. It must also be 
 - No CDN scripts in HTML — bundle all assets at build time (no `<script src="https://..."`)
 - Never log `req`, `res`, or `ctx` objects — they contain credentials; log only safe fields
 
+**Python:**
+- `python3 -m venv` or `uv` for isolation — never install project deps into the system Python
+- Type hints required on all function signatures; run `mypy --strict` or `pyright` in CI — type errors are build failures
+- `ruff` for both linting and formatting — replaces flake8, isort, black; zero warnings in CI
+- No `import *` — explicit imports only
+- `pathlib.Path` over `os.path` for all filesystem operations
+- No `eval()`, `exec()`, or `__import__()` with untrusted input — these are arbitrary code execution
+
 **Rust:**
 - Never run `cargo` directly on host — all cargo invocations run inside Docker
 - No `*-sys` dynamic linkage — vendored C deps must be statically linked; no `.so`/`.dylib`/`.dll` at runtime

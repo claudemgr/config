@@ -89,6 +89,20 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 | **Secrets never exposed to forks** | Fork PR workflows run without repo secrets, write tokens, publish steps, or deployment credentials |
 | **Secret scanning is mandatory** | Public repos run automated secret scanning on push/PR; findings are blockers, not warnings |
 | **Dependency updates are automated** | Public repos include dependency update automation for every ecosystem in use |
+| **Vulnerability scanning is mandatory** | `security.yml` MUST run the appropriate scanner(s) for every language in the repo; critical/high CVEs in direct deps are build blockers |
+
+### Vulnerability scanning in `security.yml`
+
+Run the appropriate scanner for each language present in the repo. All scanners run in `security.yml` on push and pull_request. A critical or high CVE in a direct dependency is a hard build failure — not a warning.
+
+| Language | Scanner | Command |
+|----------|---------|---------|
+| Go | govulncheck | `govulncheck ./...` |
+| Rust | cargo audit | `cargo audit` |
+| Node / TypeScript | npm audit | `npm audit --audit-level=high` |
+| Container images | Trivy | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
+
+See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commit checks, and the full vulnerability scanning policy.
 
 ## Branch Protection (Public Repos)
 
