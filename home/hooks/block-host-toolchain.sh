@@ -221,7 +221,7 @@ case "$FIRST_BASE" in
   # and this hook uses python3 internally). Only package managers and build
   # frontends are blocked.
   pip|pip3|pip3.[0-9]*|uv|poetry|pipenv|hatch|pdm|tox|nox|flit|twine|\
-  build|pyproject-build|setuptools|conda|mamba|micromamba)
+  pyproject-build|setuptools|conda|mamba|micromamba)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/app \\
     -w /app \\
