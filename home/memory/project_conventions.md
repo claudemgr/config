@@ -14,6 +14,8 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 
 **Project files override global:** if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it is the source of truth for that session and supersedes any global equivalent.
 
+**Stay inside `{project_dir}`:** all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. Never reach outside the project tree (e.g. `~/.claude/`, `/etc/`, another repo) on own initiative, even when a file there "should" be updated as a side effect of the task.
+
 ---
 
 ## File roles

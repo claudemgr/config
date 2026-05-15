@@ -26,6 +26,24 @@ Never run anything directly on the host unless no lower option works. Always use
 - Only remove resources created by the current project — never `docker system prune` or broad sweeps.
 - Identify resources by name/label/prefix before removing; if uncertain, list and ask.
 
+## Incus Network Isolation
+
+Test instances must run on an isolated network — never on the default bridge:
+
+```bash
+incus network create {project_name}-test-net
+incus launch {image} {instance} --network {project_name}-test-net
+# ... run tests ...
+incus delete --force {instance}
+incus network delete {project_name}-test-net
+```
+
+Rules:
+- Create a dedicated network before the first test instance starts; delete it after the last instance stops
+- Never attach test instances to `lxdbr0` or any shared bridge
+- Instances in the test network can reach each other by instance name via Incus DNS; no host port forwarding needed for inter-instance traffic
+- Track the network name alongside instance names for cleanup
+
 ## Container Network Isolation
 
 Test containers must run on an isolated network — never on the default bridge:

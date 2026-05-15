@@ -68,5 +68,7 @@ Same workflow, skipping the curl step:
 
 - **Never skip conversion for context-efficiency** — a 4 MB PNG is wasteful even if it "works".
 - **Never use a pinned tool** — always try the full fallback chain so the workflow succeeds on any host.
-- **Tempdir is mandatory** — do not convert in-place or write to the source directory.
+- **Tempdir is mandatory** — do not convert in-place or write to the source directory. Follow `~/.claude/memory/tempdir_conventions.md` for path structure and permissions.
+- **Tempdir permissions** — create with mode `0700`; intermediate image files may contain embedded metadata or be derived from sensitive screenshots. Never use `0755` for image tempdirs.
+- **Clean up immediately** — remove the tempdir (original + converted files) as soon as the Read tool call completes. Use the guarded form: `[ -n "$_tmpdir" ] && rm -rf "$_tmpdir"`.
 - **Document missing tools** — if none of the conversion tools are present, note which tools were tried and that the original was used.
