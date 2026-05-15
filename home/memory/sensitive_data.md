@@ -66,6 +66,7 @@ Masking rules:
 - Use environment variables, mounted secrets, or a secrets manager — never hardcode
 - Config files that need a credential: use `${VAR_NAME}` as a placeholder, never a real value
 - **Never store tokens in plaintext** — hash with SHA-256 before persisting to disk or a database; never log the raw token at any level
+- **Password hashing: Argon2id only** — never bcrypt, never scrypt, never MD5/SHA for passwords
 - Scanning generated code for accidental credential leakage is part of every review
 
 ## CI / CD Specific Rules
