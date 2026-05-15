@@ -324,6 +324,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/protect-host.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/block-host-toolchain.sh"
           }
         ]
       },
