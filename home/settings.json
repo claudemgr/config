@@ -328,6 +328,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/block-host-toolchain.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/enforce-docker-rm.sh"
           }
         ]
       },
@@ -337,6 +341,14 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-forbidden-files.sh"
           }
         ]
       },
@@ -346,6 +358,14 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-forbidden-files.sh"
           }
         ]
       }
