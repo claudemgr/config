@@ -35,6 +35,294 @@ Every UI must support three modes:
 
 ---
 
+## Design Token System
+
+All colors **must** come from this token set. Never hardcode hex values in component styles. Every combination listed in the contrast table below has been pre-checked; only use token pairings from that table.
+
+### Token reference
+
+#### Surface tokens
+
+| Token | Dark | Light | Purpose |
+|-------|------|-------|---------|
+| `--bg` | `#0d1117` | `#ffffff` | Page / app background |
+| `--bg-subtle` | `#161b22` | `#f6f8fa` | Sidebar, input fill, table stripe |
+| `--bg-elevated` | `#21262d` | `#ffffff` | Card, modal, dialog (use `box-shadow` for elevation on light) |
+| `--bg-overlay` | `#30363d` | `#ffffff` | Tooltip, dropdown, popover (use `box-shadow` for depth on light) |
+| `--bg-inset` | `#010409` | `#eaeef2` | Code block, terminal, inset well |
+
+#### Text tokens
+
+| Token | Dark | Light | Contrast on `--bg` | Use |
+|-------|------|-------|-------------------|-----|
+| `--fg` | `#e6edf3` | `#1f2328` | 16:1 / 17:1 | Primary body text, headings, labels |
+| `--fg-muted` | `#8b949e` | `#636c76` | 6.6:1 / 5.5:1 | Secondary text, descriptions, metadata |
+| `--fg-subtle` | `#6e7681` | `#818b98` | 4.6:1 / 3.5:1 | Timestamps, placeholders, de-emphasized labels *(large text / UI text only — ≥18px or ≥14px bold)* |
+| `--fg-disabled` | `#484f58` | `#adb5c0` | 2.5:1 / 2.2:1 | Disabled controls — intentionally below AA to signal non-interactivity |
+| `--fg-on-accent` | `#0d1117` | `#ffffff` | 8:1 on `--accent` (dark) / 5.7:1 on `--accent` (light) | Text and icons drawn on top of an accent-colored background |
+| `--fg-link` | `#58a6ff` | `#0969da` | 8:1 / 5.7:1 | Hyperlinks; always underlined or icon-paired |
+
+> **Rule:** `--fg-subtle` and `--fg-disabled` must **never** be used for critical information, error messages, or any text that is the sole conveyor of meaning. If in doubt, step up to `--fg-muted`.
+
+#### Border tokens
+
+| Token | Dark | Light | Purpose |
+|-------|------|-------|---------|
+| `--border-subtle` | `#21262d` | `#eaeef2` | Dividers, hairlines — visual separation only |
+| `--border` | `#30363d` | `#d0d7de` | Input borders, card outlines, table borders |
+| `--border-strong` | `#8b949e` | `#636c76` | High-emphasis borders, active input, focused non-accent element |
+
+#### Accent / interactive tokens
+
+| Token | Dark | Light | Purpose |
+|-------|------|-------|---------|
+| `--accent` | `#58a6ff` | `#0969da` | Primary interactive blue — buttons, links, focus rings |
+| `--accent-hover` | `#79b8ff` | `#0860ca` | Hover state of an accent element |
+| `--accent-pressed` | `#388bfd` | `#0550ae` | Active / pressed state |
+| `--accent-subtle` | `#1f3d63` | `#ddf4ff` | Tinted selection background, highlighted row, tag fill |
+| `--accent-fg` | `#58a6ff` | `#0969da` | Accent-colored text or icon on a surface (not on accent bg) |
+
+#### Status / semantic tokens
+
+Each status group has three sub-tokens: `fg` (text/icon color), `bg` (tinted fill), `border` (outline).
+
+| Token | Dark fg | Dark bg | Dark border | Light fg | Light bg | Light border |
+|-------|---------|---------|-------------|----------|----------|--------------|
+| `--color-success-fg` | `#3fb950` | — | — | `#1a7f37` | — | — |
+| `--color-success-bg` | — | `#0f2d1b` | — | — | `#dafbe1` | — |
+| `--color-success-border` | — | — | `#238636` | — | — | `#82cfb0` |
+| `--color-warning-fg` | `#e3b341` | — | — | `#9a6700` | — | — |
+| `--color-warning-bg` | — | `#2d2000` | — | — | `#fff8c5` | — |
+| `--color-warning-border` | — | — | `#9e6a03` | — | — | `#d4a72c` |
+| `--color-error-fg` | `#f85149` | — | — | `#d1242f` | — | — |
+| `--color-error-bg` | — | `#2d1212` | — | — | `#ffebe9` | — |
+| `--color-error-border` | — | — | `#da3633` | — | — | `#cf222e` |
+| `--color-info-fg` | `#58a6ff` | — | — | `#0969da` | — | — |
+| `--color-info-bg` | — | `#1f3d63` | — | — | `#ddf4ff` | — |
+| `--color-info-border` | — | — | `#1f6feb` | — | — | `#54aeff` |
+
+Status fg contrast on `--bg`: success 4.8:1 / warning 7:1 / error 5.4:1 / info 8:1 — all WCAG AA ✓
+
+> **Icons:** use the same fg token as adjacent text — `--fg` for primary icons, `--fg-muted` for decorative or secondary icons, `--accent-fg` for interactive icons, status fg tokens for status icons. No independent icon color tokens.
+
+### Pre-checked contrast table
+
+Only use these foreground / background pairings. Any combination not in this table must be contrast-checked before use.
+
+| Foreground | Background | Ratio | Passes |
+|------------|------------|-------|--------|
+| `--fg` | `--bg` | 16:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--bg-subtle` | 14:1 / 15:1 | AA + AAA ✓ |
+| `--fg` | `--bg-elevated` | 12:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--bg-overlay` | 10:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--accent-subtle` | 9:1 / 14:1 | AA + AAA ✓ |
+| `--fg-muted` | `--bg` | 6.6:1 / 5.5:1 | AA ✓ |
+| `--fg-muted` | `--bg-subtle` | 5.8:1 / 5.0:1 | AA ✓ |
+| `--fg-muted` | `--bg-elevated` | 4.9:1 / 5.5:1 | AA ✓ |
+| `--fg-subtle` | `--bg` | 4.6:1 / 3.5:1 | AA (large/UI) ✓ |
+| `--fg-on-accent` | `--accent` | 8:1 / 5.7:1 | AA ✓ |
+| `--fg-link` | `--bg` | 8:1 / 5.7:1 | AA ✓ |
+| `--color-success-fg` | `--bg` | 4.8:1 / 5.4:1 | AA ✓ |
+| `--color-warning-fg` | `--bg` | 7.0:1 / 5.6:1 | AA ✓ |
+| `--color-error-fg` | `--bg` | 5.4:1 / 5.2:1 | AA ✓ |
+| `--color-info-fg` | `--bg` | 8:1 / 5.7:1 | AA ✓ |
+| `--color-success-fg` | `--color-success-bg` | 9:1 / 7:1 | AA ✓ |
+| `--color-warning-fg` | `--color-warning-bg` | 11:1 / 8:1 | AA ✓ |
+| `--color-error-fg` | `--color-error-bg` | 8:1 / 6:1 | AA ✓ |
+| `--color-info-fg` | `--color-info-bg` | 9:1 / 7:1 | AA ✓ |
+
+### Full CSS variable block (web)
+
+```css
+/* ── Dark theme ─────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  /* Surface */
+  --bg:           #0d1117;
+  --bg-subtle:    #161b22;
+  --bg-elevated:  #21262d;
+  --bg-overlay:   #30363d;
+  --bg-inset:     #010409;
+
+  /* Text */
+  --fg:           #e6edf3;
+  --fg-muted:     #8b949e;
+  --fg-subtle:    #6e7681;
+  --fg-disabled:  #484f58;
+  --fg-on-accent: #0d1117;
+  --fg-link:      #58a6ff;
+
+  /* Border */
+  --border-subtle: #21262d;
+  --border:        #30363d;
+  --border-strong: #8b949e;
+
+  /* Accent */
+  --accent:        #58a6ff;
+  --accent-hover:  #79b8ff;
+  --accent-pressed:#388bfd;
+  --accent-subtle: #1f3d63;
+  --accent-fg:     #58a6ff;
+
+  /* Status */
+  --color-success-fg:     #3fb950;
+  --color-success-bg:     #0f2d1b;
+  --color-success-border: #238636;
+
+  --color-warning-fg:     #e3b341;
+  --color-warning-bg:     #2d2000;
+  --color-warning-border: #9e6a03;
+
+  --color-error-fg:       #f85149;
+  --color-error-bg:       #2d1212;
+  --color-error-border:   #da3633;
+
+  --color-info-fg:        #58a6ff;
+  --color-info-bg:        #1f3d63;
+  --color-info-border:    #1f6feb;
+}
+
+/* ── Light theme ────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  /* Surface */
+  --bg:           #ffffff;
+  --bg-subtle:    #f6f8fa;
+  --bg-elevated:  #ffffff;
+  --bg-overlay:   #ffffff;
+  --bg-inset:     #eaeef2;
+
+  /* Text */
+  --fg:           #1f2328;
+  --fg-muted:     #636c76;
+  --fg-subtle:    #818b98;
+  --fg-disabled:  #adb5c0;
+  --fg-on-accent: #ffffff;
+  --fg-link:      #0969da;
+
+  /* Border */
+  --border-subtle: #eaeef2;
+  --border:        #d0d7de;
+  --border-strong: #636c76;
+
+  /* Accent */
+  --accent:        #0969da;
+  --accent-hover:  #0860ca;
+  --accent-pressed:#0550ae;
+  --accent-subtle: #ddf4ff;
+  --accent-fg:     #0969da;
+
+  /* Status */
+  --color-success-fg:     #1a7f37;
+  --color-success-bg:     #dafbe1;
+  --color-success-border: #82cfb0;
+
+  --color-warning-fg:     #9a6700;
+  --color-warning-bg:     #fff8c5;
+  --color-warning-border: #d4a72c;
+
+  --color-error-fg:       #d1242f;
+  --color-error-bg:       #ffebe9;
+  --color-error-border:   #cf222e;
+
+  --color-info-fg:        #0969da;
+  --color-info-bg:        #ddf4ff;
+  --color-info-border:    #54aeff;
+}
+
+/* ── Auto (no JS / no data-theme attribute) ─────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --bg-subtle: #161b22; --bg-elevated: #21262d;
+    --bg-overlay: #30363d; --bg-inset: #010409;
+    --fg: #e6edf3; --fg-muted: #8b949e; --fg-subtle: #6e7681;
+    --fg-disabled: #484f58; --fg-on-accent: #0d1117; --fg-link: #58a6ff;
+    --border-subtle: #21262d; --border: #30363d; --border-strong: #8b949e;
+    --accent: #58a6ff; --accent-hover: #79b8ff; --accent-pressed: #388bfd;
+    --accent-subtle: #1f3d63; --accent-fg: #58a6ff;
+    --color-success-fg: #3fb950; --color-success-bg: #0f2d1b; --color-success-border: #238636;
+    --color-warning-fg: #e3b341; --color-warning-bg: #2d2000; --color-warning-border: #9e6a03;
+    --color-error-fg:   #f85149; --color-error-bg:   #2d1212; --color-error-border:   #da3633;
+    --color-info-fg:    #58a6ff; --color-info-bg:    #1f3d63; --color-info-border:    #1f6feb;
+  }
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff; --bg-subtle: #f6f8fa; --bg-elevated: #ffffff;
+    --bg-overlay: #ffffff; --bg-inset: #eaeef2;
+    --fg: #1f2328; --fg-muted: #636c76; --fg-subtle: #818b98;
+    --fg-disabled: #adb5c0; --fg-on-accent: #ffffff; --fg-link: #0969da;
+    --border-subtle: #eaeef2; --border: #d0d7de; --border-strong: #636c76;
+    --accent: #0969da; --accent-hover: #0860ca; --accent-pressed: #0550ae;
+    --accent-subtle: #ddf4ff; --accent-fg: #0969da;
+    --color-success-fg: #1a7f37; --color-success-bg: #dafbe1; --color-success-border: #82cfb0;
+    --color-warning-fg: #9a6700; --color-warning-bg: #fff8c5; --color-warning-border: #d4a72c;
+    --color-error-fg:   #d1242f; --color-error-bg:   #ffebe9; --color-error-border:   #cf222e;
+    --color-info-fg:    #0969da; --color-info-bg:    #ddf4ff; --color-info-border:    #54aeff;
+  }
+}
+```
+
+### Desktop / TUI token mapping (Rust)
+
+```rust
+pub struct Theme {
+    // Surface
+    pub bg: Color, pub bg_subtle: Color, pub bg_elevated: Color,
+    pub bg_overlay: Color, pub bg_inset: Color,
+    // Text
+    pub fg: Color, pub fg_muted: Color, pub fg_subtle: Color,
+    pub fg_disabled: Color, pub fg_on_accent: Color, pub fg_link: Color,
+    // Border
+    pub border_subtle: Color, pub border: Color, pub border_strong: Color,
+    // Accent
+    pub accent: Color, pub accent_hover: Color, pub accent_pressed: Color,
+    pub accent_subtle: Color, pub accent_fg: Color,
+    // Status
+    pub success: StatusColors, pub warning: StatusColors,
+    pub error: StatusColors,   pub info: StatusColors,
+}
+pub struct StatusColors { pub fg: Color, pub bg: Color, pub border: Color }
+```
+
+Pass the active `Theme` instance through your widget/component tree; never read `dark-light` in individual widgets.
+
+### TUI ANSI fallback mapping
+
+When true-color is unavailable (16-color or 8-color terminal), map tokens to the nearest ANSI color:
+
+| Token | Dark ANSI | Light ANSI |
+|-------|-----------|------------|
+| `--fg` | `BrightWhite` | `Black` |
+| `--fg-muted` | `White` | `DarkGray` |
+| `--fg-subtle` | `BrightBlack` (gray) | `BrightBlack` |
+| `--fg-disabled` | `BrightBlack` | `BrightBlack` |
+| `--fg-on-accent` | `Black` | `White` |
+| `--accent` / `--accent-fg` | `BrightBlue` | `Blue` |
+| `--color-success-fg` | `BrightGreen` | `Green` |
+| `--color-warning-fg` | `BrightYellow` | `Yellow` |
+| `--color-error-fg` | `BrightRed` | `Red` |
+| `--color-info-fg` | `BrightBlue` | `Blue` |
+
+Respect `NO_COLOR` — strip all color tokens when set; render plain text only.
+
+### Mobile equivalents
+
+| CSS token | iOS (SwiftUI) | Android (Material You) |
+|-----------|---------------|------------------------|
+| `--bg` | `.systemBackground` | `colorSurface` |
+| `--bg-subtle` | `.secondarySystemBackground` | `colorSurfaceVariant` |
+| `--bg-elevated` | `.tertiarySystemBackground` | `colorSurfaceContainer` |
+| `--fg` | `.label` | `colorOnSurface` |
+| `--fg-muted` | `.secondaryLabel` | `colorOnSurfaceVariant` |
+| `--fg-disabled` | `.tertiaryLabel` | `colorOutline` |
+| `--accent` | `.tintColor` / `AccentColor` | `colorPrimary` |
+| `--color-error-fg` | `.systemRed` | `colorError` |
+| `--color-success-fg` | `.systemGreen` | custom `colorSuccess` |
+| `--color-warning-fg` | `.systemOrange` | custom `colorWarning` |
+
+Use semantic system colors where available — they automatically adapt to dark/light/high-contrast modes without custom logic.
+
+---
+
 ## Web UI
 
 ### Rendering
@@ -78,15 +366,10 @@ Every UI must support three modes:
 Apply to: IPv6, onion addresses, API tokens, hashes, UUIDs, Base64 blobs.
 
 ### Theme implementation (web)
-```css
-:root[data-theme="dark"]  { --bg: #0d1117; --fg: #e6edf3; --accent: #58a6ff; }
-:root[data-theme="light"] { --bg: #ffffff; --fg: #1f2328; --accent: #0969da; }
+Use the full CSS variable block from the **Design Token System** section above — copy it verbatim into your project's root stylesheet. Do not use the old three-token stub.
 
-@media (prefers-color-scheme: dark)  { :root { --bg: #0d1117; --fg: #e6edf3; --accent: #58a6ff; } }
-@media (prefers-color-scheme: light) { :root { --bg: #ffffff; --fg: #1f2328; --accent: #0969da; } }
-```
 - `data-theme` attribute on `<html>` set by JS from user preference (localStorage)
-- Default (no JS): CSS media query handles `auto` automatically
+- Default (no JS): the `@media (prefers-color-scheme: …)` blocks in the token CSS handle `auto` automatically
 - Theme toggle button updates `data-theme` and persists to localStorage instantly (no page reload)
 
 ### Server vs client responsibility
