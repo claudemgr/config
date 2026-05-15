@@ -332,6 +332,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/enforce-docker-rm.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-force-push.sh"
           }
         ]
       },

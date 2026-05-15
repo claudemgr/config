@@ -35,6 +35,8 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
 - Targeted edits only; full rewrites only when asked
 - Required deps: just add them. Real choice between alternatives: ask first
+- **No TODO/FIXME/HACK in committed code** — resolve before committing or open a tracked issue and reference it; never commit a reminder to future-you
+- **No commented-out code** — delete it; git history is the undo mechanism
 - **No comments in JSON** — JSON has no comment syntax; they break parsers
 - **Singular directory names** — `handler/`, `model/`, `middleware/` not `handlers/`/`models/`; exception: tooling dirs follow community convention (`scripts/`, `tests/`, `completions/`)
 
@@ -139,6 +141,16 @@ Security is first-class from day one — never bolted on after. It must also be 
 - Never run `go` directly on host — always via `make dev` / `make test` / `make build` (Docker internally)
 - Never depend on host cron or systemd timers — use a built-in scheduler (`robfig/cron`, `go-co-op/gocron`, or a ticker loop)
 - Server projects: Go templates rendered server-side only — no client-side rendering
+
+**Node / TypeScript:**
+- `strict: true` in `tsconfig.json` — no `any` without a comment explaining why
+- ESLint + Prettier required; `eslint --max-warnings 0` in CI — zero tolerance
+- Never `require()` in TypeScript — `import` only; enable `"moduleResolution": "bundler"` or `"node16"`
+- Never `process.exit()` in library code — only in CLI entry points
+- `package.json` scripts must work without global installs — use `npx` or `./node_modules/.bin/`
+- `npm ci` in CI (reproducible); `npm install` only for local dev
+- No CDN scripts in HTML — bundle all assets at build time (no `<script src="https://..."`)
+- Never log `req`, `res`, or `ctx` objects — they contain credentials; log only safe fields
 
 **Rust:**
 - Never run `cargo` directly on host — all cargo invocations run inside Docker
