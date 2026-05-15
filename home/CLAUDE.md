@@ -118,6 +118,9 @@ Security is first-class from day one — never bolted on after. It must also be 
 - **Audit log security-relevant events** — auth success/failure, permission changes, admin actions, data exports; logs are append-only and never contain raw credentials
 - **No security theater** — do not impose friction that punishes honest users without meaningfully stopping attackers (e.g. forced password rotation on a schedule unrelated to breach, CAPTCHA on low-risk flows, MFA on non-sensitive pages)
 - **Clear security errors** — when a request is blocked or fails a security check, tell the user what happened and what to do next; never return a bare 403 or "access denied" with no context
+- **Enumeration mitigation** — identical message and timing for "wrong password" vs "no such user"; opaque IDs over sequential integers; never confirm account existence on password reset; see `~/.claude/memory/security_conventions.md`
+- **GeoIP is a signal, not a gate** — country blocks are risk signals only; never use GeoIP as the sole access control; VPNs bypass it trivially; see `~/.claude/memory/security_conventions.md`
+- **CVE pre-flight** — run `govulncheck` (Go) / `cargo audit` (Rust) / `npm audit` (Node) before adding any dependency and before committing; never ship a critical/high CVE in direct deps; see `~/.claude/memory/security_conventions.md`
 
 ## Project Defaults
 - License: MIT · Single self-contained binary · First-run works with zero config
