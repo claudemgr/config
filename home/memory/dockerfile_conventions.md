@@ -178,6 +178,84 @@ Compose files always use `./volumes` for bind-mount paths. `./volumes` is **rela
 
 Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never committed.
 
+### Dev Compose (`docker-compose.dev.yml`)
+
+```yaml
+services:
+  {name}:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/build                   # source mounted for hot-reload
+      - /build/node_modules         # anonymous volume keeps deps inside container (Node only)
+    environment:
+      - DEBUG=1
+    ports:
+      - "8080:80"
+    networks:
+      - {name}-dev
+
+networks:
+  {name}-dev:
+    driver: bridge
+```
+
+### Production Compose (`docker-compose.yml`)
+
+```yaml
+services:
+  {name}:
+    image: ghcr.io/{org}/{name}:latest   # replace with provider registry at deploy time
+    restart: unless-stopped
+    volumes:
+      - ./volumes/data:/data
+      - ./volumes/config:/config
+    ports:
+      - "8080:80"
+    networks:
+      - {name}-net
+
+networks:
+  {name}-net:
+    driver: bridge
+```
+
+### Test Compose (`docker-compose.test.yml`)
+
+```yaml
+services:
+  {name}:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - TEST_MODE=1
+    networks:
+      - {name}-test
+
+  db-test:                             # include only when the project needs a DB
+    image: postgres:alpine
+    environment:
+      - POSTGRES_PASSWORD=test
+    tmpfs:
+      - /var/lib/postgresql/data       # ephemeral — always clean state
+    networks:
+      - {name}-test
+
+networks:
+  {name}-test:
+    driver: bridge
+    name: {name}-test                  # explicit name for reliable cleanup
+```
+
+Test Compose rules:
+- AI copies `docker-compose.test.yml` to a temp dir before running — `./volumes` resolves to `{tempdir}/volumes/`
+- Named bridge network for all test services — never `--network host` or default bridge
+- Database services use `tmpfs` — no persistent volume, always starts clean
+- Network name is explicit so `docker network rm {name}-test` cleans up reliably
+- Never mount `./volumes/` or any project directory path at runtime during tests
+
 ### AI Docker Compose rules
 
 - **NEVER** run `docker compose up` with `docker-compose.yml` or `docker-compose.dev.yml` — those are human-only
