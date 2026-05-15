@@ -49,10 +49,12 @@ When credentials are needed at runtime: use environment variables, mounted secre
 
 - **Never store tokens in plaintext** — hash with SHA-256 before storing; never log raw tokens
 - **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine
+- **Credential masking** — when displaying or logging a credential, preserve the key name and replace the value with `xxxxx`; never log partial values
 
 ## Project Files & Naming
 - See `~/.claude/memory/project_conventions.md` for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
 - See `~/.claude/memory/project_forbidden_files.md` for file/directory rules including README.md, LICENSE.md naming, and what must never be created
+- **`TODO.AI.md` hygiene** — remove completed items; never leave them marked done and accumulating. **`PLAN.AI.md` hygiene** — delete the file once the work it describes is fully committed
 
 ## Cleanup
 - **Clean up immediately** — stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed; never leave them running until session end
@@ -94,6 +96,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - `docker-compose.yml` must have hardcoded sane defaults and work with zero `.env` — users override by editing the file, not by creating `.env`
 - Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
 - Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `~/.claude/memory/tempdir_conventions.md`
+- **`docker run` must use `--rm`** — every build/test container must self-remove on exit; no orphaned containers
+- **Test container network isolation** — always create a named bridge network for tests; never use the default bridge or `--network host`
 
 ## UI/UX
 - Any UI work — web, desktop, mobile, TUI — must be approached with designer-level intent. "It works" is not enough; aim for clarity, consistency, and delight.
@@ -185,5 +189,9 @@ When executing a task list, dependency graph takes priority over label order. Nu
 Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
 
 **Cadence:** one logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
+
+**Lint gate:** run the appropriate agent before committing — `script-lint` for shell, `go-lint` for Go, `rust-lint` for Rust. Do not commit if the linter reports violations.
+
+**CI/CD:** third-party GitHub Actions must be pinned to a full commit SHA — never a tag (`uses: actions/checkout@v4` is forbidden; `uses: actions/checkout@{sha}` is required).
 
 **Push is immediate and irreversible.** To skip: `touch .no_push` at repo root (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
