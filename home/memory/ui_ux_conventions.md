@@ -175,3 +175,110 @@ Apply to: IPv6, onion addresses, API tokens, hashes, UUIDs, Base64 blobs.
 - **No feature gating** — GUI, TUI, and CLI surfaces expose the same core capabilities
 - **Feedback for every action** — button press, form submit, background task — user always knows something happened
 - **Consistent spacing** — use a spacing scale (e.g. 4 px base unit: 4, 8, 12, 16, 24, 32, 48); never arbitrary pixel values
+
+---
+
+## Dynamic Interaction (all surfaces)
+
+### Gestures
+
+- **Tap** — primary action on an element; must have a visible pressed/active state
+- **Long-press** — reveals contextual options (context menu, drag handle, selection mode); always show a visual affordance (highlight, scale, or haptic) to confirm recognition
+- **Swipe (horizontal)** — navigation between peers (tabs, pages, cards) or destructive/action reveal on list rows; always provide a snap point and a cancel path (release before threshold = no action)
+- **Swipe (vertical)** — scroll; pull-to-refresh when at the top of a scrollable list; dismiss a modal when at the top of the sheet
+- **Pinch / spread** — zoom in/out on zoomable content only; never hijack pinch on non-zoomable surfaces
+- **Edge swipe** — reserved for OS-level navigation (back, app switcher); never override or intercept edge gestures
+- **Drag** — reorder, move, or resize; always show a drag indicator (handle icon or elevated state); snap to valid drop zones; animate to final position on release
+- **Two-finger tap / three-finger tap** — reserved for accessibility (zoom, undo); never bind custom actions to these
+- Gesture conflicts must be resolved with a clear priority order: scroll > swipe-action > long-press > tap; never let two gestures silently compete
+- Every gesture must have a non-gesture equivalent (button, menu item, keyboard shortcut) — gestures are an enhancement, not the only path
+
+### Haptics
+
+- Use haptics only on touch-capable hardware; never assume haptic availability — always check at runtime and degrade gracefully
+- **Selection / light** — item selection, toggle, radio button, segmented control change
+- **Impact / medium** — completing a drag-and-drop, snapping to a grid, confirming a reorder
+- **Impact / heavy** — destructive action confirmation (delete, archive), pull-to-refresh trigger point
+- **Notification / success** — task completed successfully
+- **Notification / warning** — recoverable error, validation failure
+- **Notification / error** — unrecoverable error, rejected action
+- Never fire haptics on passive scroll or hover — only on deliberate, discrete user actions
+- Never chain haptics back-to-back faster than 100ms; multiple rapid haptics feel like a glitch
+- Respect system accessibility settings — if the user has disabled haptics or vibration, honor it
+
+### Animations & Transitions
+
+- **Duration scale** (all surfaces):
+
+  | Type | Duration |
+  |------|----------|
+  | Micro (state change, toggle) | 100–150ms |
+  | Standard (element enter/exit) | 200–300ms |
+  | Emphasis (modal, page) | 300–400ms |
+  | Complex (shared element, hero) | 400–500ms |
+
+- **Easing**:
+  - Enter: ease-out (fast start, gentle settle)
+  - Exit: ease-in (gentle start, fast exit)
+  - Repositioning / reorder: ease-in-out
+  - Never use linear for UI transitions — it reads as mechanical
+- **Enter** — elements slide or fade in from their natural origin; never pop in from nowhere
+- **Exit** — elements fade or slide toward their origin; never disappear instantly
+- **Shared element / hero** — when an element is the subject of a navigation (e.g. tapping a thumbnail to open detail), it must animate continuously from source to destination; no cut
+- Respect `prefers-reduced-motion` (web) and the system reduced-motion accessibility flag (mobile/desktop) — when set, replace motion with instant transitions or simple opacity fades; never disable all feedback, just reduce motion
+- Never animate layout-affecting properties (width, height, top, left) on the web — animate `transform` and `opacity` only; these are GPU-composited and do not cause reflow
+- Skeleton screens replace spinners for content that has a known shape; spinners are for indeterminate-duration operations only
+
+### Custom Keyboards & Input Extensions
+
+- The input area (keyboard + toolbar) must never obscure focused input fields — reflow the layout when the keyboard is visible; use the platform's keyboard-avoidance primitive rather than hardcoding offsets
+- Keyboard height is dynamic — it changes with language, orientation, hardware keyboard attachment, and accessibility settings; always read it from the platform notification/event, never hardcode it
+- The accessory / autocomplete bar above the keyboard is part of the keyboard height — account for it in layout math
+- Custom keyboard extensions must respect the same safe area and inset rules as the host app
+- Dismiss behavior: tapping outside an input, pressing a hardware `Escape` or `Back`, or swiping down on a sheet that contains an input must dismiss the keyboard first, then (on a second gesture if needed) dismiss the sheet
+- Custom keyboards must support all system text traits: autocorrect, autocapitalize, secure text (password), numeric, email, URL — never assume the default traits are correct for all fields
+- Input accessory toolbars (formatting bar, emoji button, attachment picker) must be keyboard-height-aware on every orientation change
+- If a custom keyboard has a `Done` / `Return` action, it must be wired to the form's primary submit action — never a no-op
+
+### Dynamic Layout Adaptation
+
+- **Orientation** — all layouts must be tested in portrait and landscape; neither is the "real" layout; content must reflow, not just rescale
+- **Split-screen / multi-window** — assume the app can run at any width from ~320 pt to full screen simultaneously; use relative units and flexible containers, never fixed-width columns that only work full-screen
+- **Foldables** — if a fold crease runs through the content area, shift content to avoid the hinge; never place interactive elements on the crease
+- **Keyboard-up reflow** — when the software keyboard appears, the visible content area shrinks; scroll the focused field into view within the reduced area; do not zoom or scale the layout
+- **Dynamic Type / font scaling** — all text must scale with the system font size setting; no hardcoded `px`/`pt`/`sp` font sizes; test at minimum and maximum scale factors
+- **Display density** — use density-independent units everywhere (`dp`, `pt`, `rem`, `em`); never raw pixels except for single-pixel hairlines
+- **Notch / punch-hole / safe areas** — all content and interactive elements must respect the safe area insets on all four sides; backgrounds may extend behind system bars (edge-to-edge), but tappable targets must not
+
+### Scroll Behavior
+
+- **Momentum** — scroll must have natural deceleration; never snap-stop on release unless snapping to a defined snap point
+- **Snap points** — use snap points only when content is paged (carousels, full-screen cards, tab pagers); never on a plain list
+- **Sticky headers** — section headers may stick to the top of a scroll container; they must not obscure the top-most visible item when sticky; unstick when scrolling back past their natural position
+- **Parallax** — decorative only; hero images may scroll at 0.5× the content speed; interactive elements must never be inside a parallax layer
+- **Pull-to-refresh** — only valid at scroll position = 0 (top); trigger point must have a clear visual threshold indicator; show a spinner/progress indicator while refreshing; dismiss the indicator when data is loaded, not when the request is sent
+- **Infinite scroll** — load the next page when the user is within 2–3 screen-heights of the end; show a loading indicator at the bottom while fetching; show an end-of-list message when no more pages exist; never silently stop loading
+- **Overscroll** — rubber-band (iOS-style) or glow (Android-style) at both ends of a scrollable list; never a hard stop with no visual feedback
+- Scroll containers must not be nested in the same axis — horizontal list inside horizontal scroll, or vertical inside vertical, causes gesture conflicts and is prohibited
+
+### Context Menus & Drag-and-Drop
+
+- **Context menu trigger** — long-press on mobile; right-click on desktop; `⋮` / `…` menu button always present as a non-gesture fallback
+- Context menus must show only actions relevant to the specific item — never a generic global menu
+- Destructive actions (delete, remove, archive) must be visually distinct in the menu (red label or warning icon) and must be the last item
+- **Drag-and-drop**:
+  - Show a drag preview (a "ghost" of the item) attached to the pointer/finger during drag
+  - Valid drop zones highlight on hover; invalid zones show no highlight (never a red X)
+  - Drop snaps to the closest valid position; animate the item into its final slot
+  - If the drag is cancelled (released outside a valid zone, `Escape` pressed), the item animates back to its origin
+  - Multi-select drag: all selected items travel together in a stacked preview with a count badge
+- Drag handles on reorderable lists must be visible (not hidden behind a long-press); an explicit handle icon is required when the list has both tap-to-open and drag-to-reorder behaviors on the same row
+
+### State Persistence Across Interruptions
+
+- **Background / app switch** — save all unsaved user input (forms, compose views, search queries) to a draft store before the app leaves the foreground; restore on return
+- **Phone call / system overlay** — treat the same as backgrounding; never discard in-progress state because of a transient overlay
+- **Rotation / resize** — UI state (scroll position, selected item, expanded/collapsed sections, modal open/closed) must survive orientation changes and window resizes without resetting to defaults
+- **Process kill / crash recovery** — any user-authored content (typed text, drawn content, partially filled form) must be auto-saved at least every 30 seconds to a recoverable draft; on next launch, offer to restore
+- **Network interruption** — in-flight actions (form submit, file upload, send message) must be queued and retried automatically; user must see a clear status: sending → queued → sent/failed; never silently drop
+- **Session expiry** — if authentication expires mid-session, preserve all unsaved state, redirect to login, then restore state after re-authentication; never discard work
