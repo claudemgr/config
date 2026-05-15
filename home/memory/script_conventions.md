@@ -534,6 +534,20 @@ Every script change requires updating all three in the same commit:
 
 **Exempt from triple sync:** hook scripts, sourced library files, and non-interactive scripts that are not user-facing commands. These do not have `__help()`, man pages, or completions.
 
+## Self-Contained Scripts
+
+Scripts must bundle all logic they need — no `source` or `.` includes:
+
+```bash
+# BAD
+source /path/to/lib.sh
+. "$SCRIPT_SRC_DIR/helpers.sh"
+
+# GOOD — inline the required logic
+```
+
+**Exception:** profile/shell init scripts are explicitly designed to source files: `.bashrc`, `.bash_profile`, `.profile`, `.zshrc`, `.zshenv`, `.zprofile`, `.fishrc`, and analogues. These may use `source`/`.` freely.
+
 ## Testing
 
 Syntax checking is interpreter-aware — use the right tool per shebang:
@@ -548,8 +562,8 @@ Syntax checking is interpreter-aware — use the right tool per shebang:
 | `.ps1` | `pwsh -NonInteractive -File scriptname` | PSScriptAnalyzer |
 | `.cmd` / `.bat` | no standard checker | no standard linter |
 
-- Run `./bin/scriptname --help` to confirm help output renders correctly
-- Test inside Incus (preferred) or Docker — never directly on host
+- Syntax checks (`bash -n`, `sh -n`, `zsh -n`, `fish -n`) and `--help`/`--version` invocations are safe to run directly on the host — they only print and exit 0, with no side effects
+- Functional testing (anything that mutates state, installs, calls external services, or runs as root) must run inside Incus (preferred) or Docker — never directly on host
 
 ## Security
 
