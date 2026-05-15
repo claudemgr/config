@@ -282,3 +282,138 @@ Apply to: IPv6, onion addresses, API tokens, hashes, UUIDs, Base64 blobs.
 - **Process kill / crash recovery** — any user-authored content (typed text, drawn content, partially filled form) must be auto-saved at least every 30 seconds to a recoverable draft; on next launch, offer to restore
 - **Network interruption** — in-flight actions (form submit, file upload, send message) must be queued and retried automatically; user must see a clear status: sending → queued → sent/failed; never silently drop
 - **Session expiry** — if authentication expires mid-session, preserve all unsaved state, redirect to login, then restore state after re-authentication; never discard work
+
+### Focus Management
+
+- Every modal, dialog, drawer, and sheet must trap focus — keyboard/tab navigation must not escape to content behind the overlay while it is open
+- On open: move focus to the first interactive element inside the overlay, or the close button if no other primary action exists
+- On close: return focus to the element that triggered the open
+- Tab order must follow visual reading order (top-left → bottom-right for LTR; mirrored for RTL); never rely on render/DOM order alone
+- Auto-focus rules: auto-focus the primary input in a form-only view; never auto-focus in a mixed-content view — it disrupts screen readers and scroll position
+- Focus indicators must always be visible; style them to match the design system (never just suppress the default without a custom replacement)
+- Web: provide a "skip to main content" link as the first focusable element on every page
+
+### Toast / Snackbar / Banner
+
+- **Toast / Snackbar** — transient, non-blocking; appears at bottom of screen (mobile) or bottom-center / top-right (desktop/web); auto-dismisses on a timer
+- Duration: informational = 3s; with an action button = 5s; error = persistent until explicitly dismissed
+- Maximum one toast visible at a time; queue additional toasts; never stack them simultaneously
+- A toast may carry one action button (e.g. "Undo", "Retry") — never two
+- Tapping outside a toast does not dismiss it; only the timer, action button, or an explicit × does
+- Never use a toast for an error that requires user action — use a dialog or banner instead
+- **Banner** — persistent, full-width; sits below the top bar or above the content area; used for offline state, degraded-mode warnings, or required-action notices; always has a dismiss or action path
+- **Severity tiers** (apply to both toast and banner):
+
+  | Tier | Color | Icon |
+  |------|-------|------|
+  | Info | neutral | none required |
+  | Success | green | checkmark |
+  | Warning | amber | warning triangle |
+  | Error | red | error circle |
+
+### Bottom Sheets & Modal Presentation
+
+- **Bottom sheet** — slides up from the bottom edge; used for contextual actions, pickers, and filter panels; not a replacement for full-page navigation
+- Drag handle (pill indicator) is required on all draggable sheets; centered at the top of the sheet
+- Snap points: minimum two — a "peek" height (~40% screen) and "full" height (near full screen, safe area respected); releasing below the lowest snap point dismisses
+- Dismiss threshold: sheet released below 40% of its open height, or downward velocity > 800 unit/s = dismiss; otherwise snap to nearest point
+- Scrim behind the sheet: tap dismisses; scrim opacity scales with sheet position (0 at closed → 0.5 at full open)
+- Sheet stacking: underlying sheet scales down and shifts back (card-stack effect); maximum two sheets deep; never three
+- **Modal dialogs** — centered overlay; used for decisions that block proceeding; always provide both a confirm and a cancel path
+- Dialogs for consequential actions (destructive, data loss) must not be dismissable by tapping the scrim — only explicit buttons
+- Full-screen modals: use for complex flows requiring full attention; always provide a clear back/close affordance in the top bar
+
+### Popovers & Tooltips
+
+- **Tooltip** — appears on hover (desktop/web) or long-press (mobile); shows a short label for an unlabeled control; auto-dismisses on pointer-out or tap-elsewhere
+- Tooltip delay: 300–500ms on hover; immediate on long-press (haptic provides the trigger confirmation)
+- Never put interactive content (buttons, links) inside a tooltip — use a popover instead
+- **Popover** — anchored overlay containing interactive content; arrow/caret points to the trigger element
+- Positioning priority: below → above → right → left; flip automatically when the preferred position would clip outside the viewport
+- Dismiss on: tap/click outside, `Escape` key, or an explicit close button inside; never auto-dismiss on a timer
+- A popover must never open another popover — use a menu or sheet instead
+- On small screens (mobile), a popover wider than ~80% of the screen width should become a bottom sheet instead
+- Arrow/caret must always point to the exact trigger element even after the popover has been repositioned to avoid clipping
+
+### Selection Mode & Multi-select
+
+- Selection mode is entered by: long-press on an item (mobile), checkbox click (desktop/web), or an explicit "Select" button
+- On entry: show a selection toolbar (top or bottom); show checkboxes or selection indicators on all items; hide non-selection actions
+- On exit (cancel or complete): restore all items to default state; hide toolbar; return focus to the last interacted item
+- "Select all / Deselect all" must always be available in the selection toolbar when a list has 2+ items
+- Count badge in the toolbar updates in real time as items are selected/deselected
+- **Batch action toolbar** — fixed position (does not scroll with the list); shows only actions valid for the entire current selection; destructive actions are last and visually distinct
+- Tapping an already-selected item deselects it — it does not open it
+- Long-press on a second item selects the range between first and second on ordered lists; shift-click is the desktop equivalent
+- Swipe-to-action on rows is suspended while selection mode is active — swiping instead selects/deselects
+
+### Undo & Redo
+
+- Any reversible user action must support undo: text edits, moves, deletes, archives, sends (within a grace window)
+- Undo trigger: shake gesture (mobile — respect system setting; if disabled, do not implement), `Cmd+Z` / `Ctrl+Z` (desktop/web), or the action button on the confirmation toast
+- Redo trigger: `Cmd+Shift+Z` / `Ctrl+Y` (desktop/web); no standard mobile gesture — expose via an Edit menu or toolbar button
+- Undo history depth: minimum 20 steps for text editing; minimum 1 step for destructive actions
+- When an action is undoable, show a toast immediately: "[Action] — Undo" with a 5s timer; the toast is the primary undo path on mobile
+- Actions that cannot be undone must say so explicitly before confirmation — never silently non-undoable
+- Undo/redo state must survive rotation and backgrounding; it does not need to survive process kill
+
+### Offline & Network-aware UI
+
+- **Offline indicator** — a persistent banner or status bar tint when the device has no network; must appear within 2s of connectivity loss; must disappear within 2s of reconnection
+- Never hide network state — if an action failed due to connectivity, say so explicitly ("Saved locally — will sync when online")
+- **Queued actions** — any action taken offline must be queued and shown as pending in the UI (e.g. a message shown with a clock icon, not a checkmark); auto-retry with exponential backoff when connectivity returns
+- **Degraded mode** — if the service is reachable but slow or partially unavailable, show a non-blocking warning banner; do not block the entire UI
+- Never disable the UI entirely when offline — allow read-only access to cached data; disable only actions that require a network round-trip, with a clear disabled reason shown on hover/press
+- Retry UX: offer a manual "Retry" button for failed actions alongside automatic retry; show retry count only after two or more failures
+- Data freshness: if cached data is older than a reasonable threshold for the content type, show a "Last updated X ago" label; never silently serve stale data as current
+
+### Pointer & Hover Adaptation
+
+- **Hover states** — required on all interactive elements on pointer-capable devices; hover must never be the only path to an action — every hover-revealed action must also be reachable via tap or keyboard
+- Hover transition: 100–150ms ease; never instant (jarring) and never >200ms (sluggish)
+- **Cursor shapes** — use the correct cursor for context:
+
+  | Cursor | When |
+  |--------|------|
+  | Default arrow | non-interactive areas |
+  | Pointer (hand) | links, buttons, clickable cards |
+  | Text (I-beam) | text inputs, selectable text |
+  | Grab / grabbing | draggable elements (open at rest, closed while dragging) |
+  | Resize (directional) | resize handles |
+  | Wait / progress | UI blocked on an operation |
+  | Not-allowed | disabled interactive elements — always pair with a tooltip explaining why |
+
+- **Touch + mouse hybrid devices** — detect input type at event time, not at startup; users may switch between touch and mouse mid-session; hover states must appear and disappear reactively
+- On touch, hover styles must never get "stuck" after a tap — clear hover state on pointer-up / touch-end
+- Minimum touch target (44×44 px) still applies even when a mouse is connected — never shrink targets on mouse-only assumptions
+- Right-click on desktop and long-press on mobile must produce the same context menu for the same element
+
+### Voice Input
+
+- Voice input states must be visually distinct across all surfaces: idle → listening → processing → result committed; never leave the mic active without a clear visible indicator
+- Listening indicator: animated waveform or pulsing mic icon; visible in the top bar or inline in the input field
+- Interim transcription (words appearing while speaking) must be visually distinct from committed text (e.g. dimmed or italic) until finalized
+- Silence timeout: stop listening after 2–3s of silence; give a visual countdown in the final second
+- Cancel: tapping outside the voice input or pressing the mic button again cancels cleanly; never leave the mic active in the background
+- Errors (no speech detected, service unavailable): show an inline message below the field; never a blocking dialog; fall back to keyboard/text input automatically
+- Voice input must be opt-in per field — never auto-activate on field focus
+
+### Stylus & Pen Input
+
+- Detect stylus/pen hover (proximity) separately from finger touch; show a precision crosshair cursor on stylus hover
+- Respect palm rejection — ignore touch contacts within a defined margin around an active stylus stroke
+- Pressure sensitivity: map to stroke weight, opacity, or tool size in drawing/annotation contexts; in standard UI contexts treat all pressure levels as a normal tap
+- Tilt/rotation: use for tool angle in drawing contexts; ignore in standard UI interactions
+- Barrel button (first): context menu / right-click equivalent; barrel button (second, if present): undo — never reassign these without explicit user configuration
+- Stylus proximity hover is for precision cursor display only — do not use it to reveal hidden actions (a finger user would never see them)
+- Mobile: palm rejection must be active whenever a stylus event is in progress; desktop (drawing tablets): same rule applies
+
+### Biometric Authentication Overlay
+
+- Biometric prompts (fingerprint, face, iris, PIN fallback) are system-owned overlays — never simulate or replicate them in-app
+- When a biometric prompt appears: pause all timers, animations, and auto-logout countdowns; resume on dismissal (success or failure)
+- On success: proceed directly to the gated action without an additional in-app confirmation step
+- On max-attempt failure: hand off to the platform's PIN/password fallback automatically — never show a custom fallback before the system fallback
+- Never trigger biometric auth automatically on app foreground — only trigger when the user initiates a protected action
+- The UI behind the biometric overlay must be obscured (blurred or replaced with a placeholder) to prevent shoulder-surfing of sensitive content
+- Mobile: Face ID, Touch ID, Android fingerprint/face. Desktop: Windows Hello, macOS Touch ID — same rules apply on both
