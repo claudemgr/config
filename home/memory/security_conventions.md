@@ -53,11 +53,27 @@ GeoIP is a **risk signal** — a hint that helps layer defense. It is never the 
 
 | Field | Value |
 |-------|-------|
-| Source | [ip-location-db](https://github.com/sapics/ip-location-db) (jsDelivr CDN, MIT licensed) |
+| Source | [ip-location-db](https://github.com/sapics/ip-location-db) — npm `-mmdb` packages (MIT licensed) |
 | Formats | ASN (`.mmdb`), country (`.mmdb`), city (`.mmdb`) |
 | Storage path | `{data_dir}/security/geoip/` |
 | Update cadence | Daily — use a built-in scheduler, not host cron |
 | On first run | Download database before serving any GeoIP-dependent request |
+
+MMDB files are distributed via npm scoped packages with a `-mmdb` suffix (e.g. `@ip-location-db/asn-mmdb`). Packages without the suffix are CSV-only. Download via jsDelivr CDN or npm tarball:
+
+```
+# jsDelivr CDN (scoped package format)
+https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv4.mmdb
+https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv6.mmdb
+https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb            # IPv4+IPv6 combined
+
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv4.mmdb
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv6.mmdb
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country.mmdb  # combined
+
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv4.mmdb
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv6.mmdb
+```
 
 ### Middleware order
 
@@ -82,6 +98,74 @@ IP-derived location is **PII under GDPR** and similar regulations in most jurisd
 - Never log a user's resolved country, city, or ASN alongside their user ID or email — treat it as transient signal only
 - Do not persist IP-to-location mappings beyond the current request unless explicitly required and documented in `IDEA.md`
 - Geo data used for blocking: log the block event (`geoip_block: ip=[redacted], country=XX`) but do not retain a location history per user
+
+### Go Implementation
+
+**Do NOT use `geoip2-golang`** (`github.com/oschwald/geoip2-golang`) with ip-location-db files. That library enforces an allowlist of MaxMind-branded `database_type` strings (`GeoLite2-ASN`, `GeoIP2-City`, etc.). ip-location-db uses its own type strings — `geoip2.Open()` returns `InvalidDatabaseError`.
+
+**Use `maxminddb-golang`** (`github.com/oschwald/maxminddb-golang`) directly — the underlying low-level library with no type restriction.
+
+#### `database_type` strings (embedded in the MMDB binary)
+
+| File pattern | `database_type` |
+|---|---|
+| `asn-ipv4.mmdb` | `asn ipv4` |
+| `asn-ipv6.mmdb` | `asn ipv6` |
+| `asn.mmdb` (combined) | `asn ipvAll` |
+| `*-country-ipv4.mmdb` | `country ipv4` |
+| `*-country-ipv6.mmdb` | `country ipv6` |
+| `*-country.mmdb` (combined) | `country ipvAll` |
+| `*-city-ipv4.mmdb` | `city ipv4` |
+| `*-city-ipv6.mmdb` | `city ipv6` |
+
+#### Go struct definitions (tag names match actual MMDB field names)
+
+```go
+import "github.com/oschwald/maxminddb-golang"
+
+// ASN lookup
+type ASNRecord struct {
+    ASN uint32 `maxminddb:"autonomous_system_number"`
+    Org string `maxminddb:"autonomous_system_organization"`
+}
+
+// Country lookup
+type CountryRecord struct {
+    CountryCode string `maxminddb:"country_code"` // ISO 3166-1 alpha-2
+}
+
+// City lookup — all fields are present; empty string when not populated
+type CityRecord struct {
+    City        string  `maxminddb:"city"`
+    CountryCode string  `maxminddb:"country_code"`
+    Latitude    float64 `maxminddb:"latitude"`
+    Longitude   float64 `maxminddb:"longitude"`
+    Postcode    string  `maxminddb:"postcode"`
+    State1      string  `maxminddb:"state1"` // region / province
+    State2      string  `maxminddb:"state2"` // sub-region
+    Timezone    string  `maxminddb:"timezone"`
+}
+```
+
+#### Usage pattern
+
+```go
+db, err := maxminddb.Open(path)
+if err != nil {
+    return fmt.Errorf("open geoip db: %w", err)
+}
+defer db.Close()
+
+ip := net.ParseIP("8.8.8.8")
+
+var record ASNRecord
+if err := db.Lookup(ip, &record); err != nil {
+    return fmt.Errorf("geoip lookup: %w", err)
+}
+// record.ASN == 15169, record.Org == "Google LLC"
+```
+
+Use separate `db` handles for IPv4 and IPv6 files when splitting by protocol, or the combined `asn.mmdb` / `country.mmdb` for both. The combined files accept both address families.
 
 ---
 
