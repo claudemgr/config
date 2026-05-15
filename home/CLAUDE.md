@@ -104,6 +104,21 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Dark mode is the default. Every UI must support dark / light / auto (follows OS preference). Never hardcode colors — use CSS custom properties (web) or a shared theme struct (desktop/TUI).
 - For non-trivial UI tasks, invoke the `designer` agent. See `~/.claude/memory/ui_ux_conventions.md` for the full design system.
 
+## Security by Design
+
+Security is first-class from day one — never bolted on after. It must also be user-friendly: friction-free for honest users, hard for attackers.
+
+- **Secure default** — the safe path is the easy path. Insecure options require explicit opt-in; never make the user work harder to be secure
+- **Fail closed** — when in doubt, deny and explain clearly; never silently allow
+- **Least privilege** — request only the permissions actually needed; drop them as soon as they are no longer needed
+- **Explicit trust boundaries** — document what is trusted (authenticated session, signed payload, internal network) and what is not; never assume
+- **No security through obscurity** — assume the attacker knows your code, your schema, and your algorithm choices; security must hold even so
+- **Defense in depth** — no single control is the last line; layer authentication, authorization, input validation, output encoding, and rate limiting independently
+- **Rate-limit all auth endpoints** — login, password reset, OTP, token refresh — with exponential backoff and lockout; brute force is always in scope
+- **Audit log security-relevant events** — auth success/failure, permission changes, admin actions, data exports; logs are append-only and never contain raw credentials
+- **No security theater** — do not impose friction that punishes honest users without meaningfully stopping attackers (e.g. forced password rotation on a schedule unrelated to breach, CAPTCHA on low-risk flows, MFA on non-sensitive pages)
+- **Clear security errors** — when a request is blocked or fails a security check, tell the user what happened and what to do next; never return a bare 403 or "access denied" with no context
+
 ## Project Defaults
 - License: MIT · Single self-contained binary · First-run works with zero config
 - No feature gating; all functionality available to all users
