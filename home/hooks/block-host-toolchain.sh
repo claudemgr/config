@@ -12,8 +12,10 @@
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
 # @@Changelog        :  Initial version
 # @@TODO             :  None
-# @@Other            :  Commands already mediated by docker/incus/podman/kubectl are exempted
+# @@Other            :  Commands already mediated by docker/incus/podman/kubectl are exempted.
+# @@Other            :  Pure POSIX / system tools (make, curl, jq, grep, git, ssh, …) are never blocked.
 # @@Resource         :  ~/.claude/memory/go_conventions.md, ~/.claude/memory/rust_conventions.md
+# @@Resource         :  ~/.claude/memory/tempdir_conventions.md, ~/.claude/memory/execution_hierarchy.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
@@ -63,6 +65,9 @@ print(parts[0] if parts else "")
 # Emits the block message to BOTH stdout (Claude Code reads this as the block
 # reason and feeds it back to Claude) and stderr (visible to the user in the
 # terminal), then exits 2 to block the tool call.
+#
+# The stdout message also includes a temp-directory reminder so Claude knows
+# to mount build output into a proper temp dir, not into the project tree.
 __block() {
   local tool="$1"
   local docker_cmd="$2"
@@ -73,6 +78,11 @@ __block() {
 Run inside Docker instead:
 
 ${docker_cmd}
+
+Temp directory reminder: any build output or test artifacts must be written
+to a temp volume, never into the project tree. Use the pattern:
+  \$(mktemp -d \"\${TMPDIR:-/tmp}/{project_org}/{internal_name}-XXXXXX\")
+and mount it as an additional -v flag. See ~/.claude/memory/tempdir_conventions.md
 "
   if [[ -n "$ref" ]]; then
     msg="${msg}
@@ -112,12 +122,18 @@ FIRST_BASE="${FIRST##*/}"
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Toolchain dispatch
+#
+# NOT blocked (pure POSIX / system / infra tools — always allowed on host):
+#   make, cmake (meta-build), curl, wget, jq, yq, grep, sed, awk, find, sort,
+#   git, ssh, rsync, docker, podman, incus, kubectl, helm, openssl, bash, sh,
+#   python3 (as scripting tool — pip/uv/poetry are blocked separately), perl,
+#   systemctl, journalctl, ps, kill, df, du, tar, zip, unzip, …
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 case "$FIRST_BASE" in
 
   # ── Go ────────────────────────────────────────────────────────────────────
-  go)
+  go|gofmt|goimports|golangci-lint|govet|gopls|gomod|godoc)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/build \\
     -v \"\${HOME}/.cache/go-build\":/root/.cache/go-build \\
@@ -126,20 +142,21 @@ case "$FIRST_BASE" in
     -e CGO_ENABLED=0 \\
     golang:alpine \\
     ${CMD}"
-    __block "go" "$DOCKER_CMD" "~/.claude/memory/go_conventions.md"
+    __block "$FIRST_BASE" "$DOCKER_CMD" "~/.claude/memory/go_conventions.md"
     ;;
 
   # ── Rust ──────────────────────────────────────────────────────────────────
-  cargo|rustc|rustup)
+  cargo|rustc|rustup|rustfmt)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/workspace \\
+    -v \"\${HOME}/.cargo/registry\":/usr/local/cargo/registry \\
     -w /workspace \\
     rust:alpine \\
     ${CMD}"
     __block "$FIRST_BASE" "$DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
     ;;
 
-  # ── Node / JavaScript ─────────────────────────────────────────────────────
+  # ── Node / JavaScript / TypeScript ───────────────────────────────────────
   node|npm|npx|yarn|pnpm|corepack)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/app \\
@@ -149,10 +166,28 @@ case "$FIRST_BASE" in
     __block "$FIRST_BASE" "$DOCKER_CMD" ""
     ;;
 
-  # ── Python (as build tool — pip installs, package builds, etc.) ───────────
-  # Note: python3 invoked as a scripting tool (e.g. python3 -c '...') is
-  # common and legitimate; only block when it looks like a build/package op.
-  pip|pip3|uv)
+  bun)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/app \\
+    -w /app \\
+    oven/bun:alpine \\
+    ${CMD}"
+    __block "bun" "$DOCKER_CMD" ""
+    ;;
+
+  deno)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/app \\
+    -w /app \\
+    denoland/deno:alpine \\
+    ${CMD}"
+    __block "deno" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Python — build / packaging tools ─────────────────────────────────────
+  # python / python3 as a scripting tool (python3 -c '...') is legitimate and
+  # NOT blocked here. Only package managers and build frontends are blocked.
+  pip|pip3|pip3.[0-9]*|uv|poetry|pipenv|hatch|pdm|tox|nox|flit|twine|build|pyproject-build)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/app \\
     -w /app \\
@@ -162,7 +197,7 @@ case "$FIRST_BASE" in
     ;;
 
   # ── Ruby ──────────────────────────────────────────────────────────────────
-  gem|bundle|bundler)
+  gem|bundle|bundler|rake|rspec|rubocop)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/app \\
     -w /app \\
@@ -171,13 +206,246 @@ case "$FIRST_BASE" in
     __block "$FIRST_BASE" "$DOCKER_CMD" ""
     ;;
 
-  # ── JVM (Gradle / Maven) ──────────────────────────────────────────────────
-  gradle|gradlew|./gradlew|mvn|mvnw|./mvnw)
+  # ── JVM build tools (Gradle / Maven / Ant) ───────────────────────────────
+  gradle|gradlew|mvn|mvnw|ant)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/workspace \\
+    -v \"\${HOME}/.gradle\":/root/.gradle \\
+    -v \"\${HOME}/.m2\":/root/.m2 \\
     -w /workspace \\
     gradle:alpine \\
     ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Java / JDK tools ──────────────────────────────────────────────────────
+  java|javac|jar|javap|jshell|jlink|jpackage|javadoc|javaws|jmap|jstack|jinfo|jcmd|jps|jstat)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    eclipse-temurin:21-alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Kotlin ────────────────────────────────────────────────────────────────
+  kotlin|kotlinc|kotlinc-jvm|kotlinc-js)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    eclipse-temurin:21-alpine \\
+    sh -c 'apk add --no-cache kotlin && ${CMD}'"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Scala / SBT ───────────────────────────────────────────────────────────
+  scala|scalac|scala3|scalac3|sbt)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -v \"\${HOME}/.ivy2\":/root/.ivy2 \\
+    -v \"\${HOME}/.sbt\":/root/.sbt \\
+    -w /workspace \\
+    sbtscala/scala-sbt:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Clojure / Leiningen ───────────────────────────────────────────────────
+  lein|clojure|clj|clj-kondo)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -v \"\${HOME}/.m2\":/root/.m2 \\
+    -w /workspace \\
+    clojure:tools-alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Groovy ────────────────────────────────────────────────────────────────
+  groovy|groovyc|groovysh)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    groovy:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── PHP ───────────────────────────────────────────────────────────────────
+  php|php[0-9]*|composer|phpunit|phpcs|phpmd|phpstan|psalm)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/app \\
+    -w /app \\
+    php:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── .NET / C# / F# ───────────────────────────────────────────────────────
+  dotnet|msbuild|nuget|csc|fsc|vbc|dotnet-script)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/app \\
+    -w /app \\
+    mcr.microsoft.com/dotnet/sdk:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Elixir / Erlang ───────────────────────────────────────────────────────
+  mix|elixir|elixirc|erl|erlc|escript|rebar3|dialyzer)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/app \\
+    -w /app \\
+    elixir:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Haskell ───────────────────────────────────────────────────────────────
+  ghc|ghci|runghc|runhaskell|cabal|stack|haddock|hoogle)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    haskell:slim \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Swift ─────────────────────────────────────────────────────────────────
+  swift|swiftc|swift-package|swift-build|swift-test|swift-run)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    swift:slim \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Dart / Flutter ────────────────────────────────────────────────────────
+  dart|flutter|pub)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    dart:stable \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Zig ───────────────────────────────────────────────────────────────────
+  zig)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    alpine:edge \\
+    sh -c 'apk add --no-cache zig && ${CMD}'"
+    __block "zig" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Crystal ───────────────────────────────────────────────────────────────
+  crystal|shards)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    crystallang/crystal:latest-alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── OCaml / OPAM / Dune ───────────────────────────────────────────────────
+  ocaml|ocamlopt|ocamlfind|ocamlbuild|opam|dune)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    ocaml/opam:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── D language ────────────────────────────────────────────────────────────
+  dmd|dub|ldc|ldc2|gdc|rdmd)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    dlangcommunity/docker-dmd:latest \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Julia ─────────────────────────────────────────────────────────────────
+  julia)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -v \"\${HOME}/.julia\":/root/.julia \\
+    -w /workspace \\
+    julia:latest \\
+    ${CMD}"
+    __block "julia" "$DOCKER_CMD" ""
+    ;;
+
+  # ── R ─────────────────────────────────────────────────────────────────────
+  R|Rscript|renv)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    r-base:latest \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Nim ───────────────────────────────────────────────────────────────────
+  nim|nimble|nimgrep|nimpretty|testament)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    nimlang/nim:alpine \\
+    ${CMD}"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Lua ───────────────────────────────────────────────────────────────────
+  # lua itself is a common system scripting tool and is NOT blocked.
+  # Only luarocks (package manager) and build tools are blocked.
+  luarocks|luac)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    alpine \\
+    sh -c 'apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 && ${CMD}'"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── C / C++ compilers ────────────────────────────────────────────────────
+  gcc|g++|cc|c++|clang|clang++|clang-[0-9]*|clang++-[0-9]*|\
+  x86_64-linux-gnu-gcc|x86_64-linux-gnu-g++|\
+  aarch64-linux-gnu-gcc|aarch64-linux-gnu-g++|\
+  arm-linux-gnueabihf-gcc|arm-linux-gnueabihf-g++)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    alpine \\
+    sh -c 'apk add --no-cache build-base && ${CMD}'"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── C / C++ build generators and configuration tools ─────────────────────
+  # make is NOT blocked — it drives Docker-based builds in this project.
+  # ninja is NOT blocked — analogous to make (a build runner, not a compiler).
+  cmake|meson|autoconf|automake|autoreconf|configure)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    alpine \\
+    sh -c 'apk add --no-cache build-base cmake && ${CMD}'"
+    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    ;;
+
+  # ── Assembler / linker (rarely invoked directly; part of C/C++ chain) ────
+  as|ld|ar|ranlib|objcopy|strip)
+    DOCKER_CMD="  docker run --rm \\
+    -v \"\$(pwd)\":/workspace \\
+    -w /workspace \\
+    alpine \\
+    sh -c 'apk add --no-cache build-base binutils && ${CMD}'"
     __block "$FIRST_BASE" "$DOCKER_CMD" ""
     ;;
 
