@@ -32,6 +32,10 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 
 **If AI.md and IDEA.md conflict, AI.md wins. Fix IDEA.md.**
 
+### AI tool config files (Claude Code, Cursor, Windsurf, Aider, Copilot, Continue, etc.)
+
+All AI tool configs follow the same split: **team config is committed; personal overrides, history, and cache are gitignored.** The canonical example is `.claude/settings.json` (committed) vs `.claude/settings.local.json` (gitignored). The same rule applies to every other tool. The full per-tool table — what to commit and what to ignore — is in `~/.claude/memory/gitignore_conventions.md`.
+
 **New project detection:** if AI.md or IDEA.md is missing → new project. Plan first: create IDEA.md, copy TEMPLATE.md as AI.md, write PLAN.AI.md and TODO.AI.md before touching code.
 
 **Partial IDEA.md:** if IDEA.md exists but is missing one or more of the three required sections, do not proceed with work — add the missing sections first. Ask the user for the missing information rather than guessing. A partial IDEA.md is treated as absent for the section(s) it is missing.

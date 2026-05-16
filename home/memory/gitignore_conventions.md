@@ -125,21 +125,58 @@ releases/
 volumes/
 docker/volumes/
 
-# Claude Code local settings (allowed locally, not committed)
+# AI tool — Claude Code (personal/secret only)
 .claude/settings.local.json
 
-# Other AI tool config directories (always gitignored)
-.cursor/
-.windsurf/
-.aider/
+# AI tool — Cursor (personal/secret only)
+.cursor/settings.json
+
+# AI tool — Windsurf (personal/secret only)
+.windsurf/settings.json
+
+# AI tool — Aider (history and cache; conf and ignore are committed)
+.aider.chat.history.md
+.aider.input.history
+.aider.llm.history
+.aider.tags.cache.v3/
+
+# AI tool — Continue (personal data; config.json is committed)
+.continue/dev_data/
+.continue/session.json
+.continue/index/
+
+# AI tool — Codeium / Windsurf cache
+.codeium/
+
+# AI tool — Cline / Roo (cache only; rules files are committed)
+.cline/cache/
+
+# AI tool — generic catch-all for personal/secret AI directories
 .ai/
 ```
 
-**`.claude/` rule:** `.claude/settings.local.json` is gitignored (personal overrides). Everything else under `.claude/` — `settings.json`, `CLAUDE.md`, `plans/`, agents, hooks — is committed as part of the repo.
+## AI tool config — committed vs gitignored
 
-**Deviation from `go/TEMPLATE.md`:** The TEMPLATE says all AI config directories (including `.claude/`) are gitignored. Our rule intentionally deviates: only `.claude/settings.local.json` is ignored; the rest of `.claude/` is committed. Other AI tool dirs (`.cursor/`, `.windsurf/`, `.aider/`, `.ai/`) follow the TEMPLATE and are fully ignored. Our rule takes precedence over the TEMPLATE.
+The same logic applies to every AI tool: **team config is committed; personal overrides and credentials/cache are gitignored.** The pattern Claude Code uses (`settings.json` committed, `settings.local.json` gitignored) is the model for every other tool.
+
+| Tool | Committed (team config) | Gitignored (personal / cache / secret) |
+|------|------------------------|----------------------------------------|
+| Claude Code | `.claude/settings.json`, `.claude/CLAUDE.md`, `.claude/commands/`, `.claude/agents/`, `.claude/hooks/`, `.claude/plans/` | `.claude/settings.local.json` |
+| Cursor | `.cursor/rules/`, `.cursor/mcp.json`, `.cursorignore`, `.cursorrules` (legacy) | `.cursor/settings.json` |
+| Windsurf | `.windsurf/rules/`, `.windsurfrules`, `.codeiumignore` | `.windsurf/settings.json` |
+| Aider | `.aider.conf.yml`, `.aiderignore` | `.aider.chat.history.md`, `.aider.input.history`, `.aider.llm.history`, `.aider.tags.cache.v3/` |
+| GitHub Copilot | `.github/copilot-instructions.md` | (no personal files in repo) |
+| Continue | `.continue/config.json`, `.continue/prompts/` | `.continue/dev_data/`, `.continue/session.json`, `.continue/index/` |
+| Codeium | `.codeiumignore` | `.codeium/` |
+| Cline / Roo | `.clinerules`, `.roomodes` | `.cline/cache/` |
+
+**Rule:** never gitignore a tool's entire directory — pinpoint only the personal/secret/cache files. Blanket-ignoring `.cursor/` or `.windsurf/` would also ignore the rules/team config that should be committed.
+
+**`.claude/` rule (canonical example):** `.claude/settings.local.json` is gitignored (personal overrides and any local-only credentials). Everything else under `.claude/` — `settings.json`, `CLAUDE.md`, `commands/`, `agents/`, `hooks/`, `plans/` — is committed.
 
 **Docker Compose and `.dockerignore` rules** are in `~/.claude/memory/dockerfile_conventions.md`.
+
+## Language-specific additions
 
 Add these for projects that use them:
 
@@ -170,5 +207,6 @@ dist/
 
 - `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` — committed; they are safe templates
 - `!*/README*` — README files are always kept
-- `.claude/settings.json`, `.claude/CLAUDE.md`, `.claude/plans/` — committed; only `settings.local.json` is ignored
+- `.claude/settings.json`, `.claude/CLAUDE.md`, `.claude/plans/`, `.claude/commands/`, `.claude/agents/`, `.claude/hooks/` — committed; only `settings.local.json` is ignored
+- AI tool team rules — `.cursor/rules/`, `.cursorignore`, `.cursorrules`, `.windsurf/rules/`, `.windsurfrules`, `.codeiumignore`, `.aider.conf.yml`, `.aiderignore`, `.github/copilot-instructions.md`, `.continue/config.json`, `.clinerules`, `.roomodes` — committed
 

@@ -40,6 +40,13 @@ The only exception: report-only files created by AI itself during the current se
 | `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary. **Exception:** `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` are allowed — they are safe templates for users to copy |
 | `server.yml`, `cli.yml` | Config files are runtime-generated, never in repo |
 | `.env`, `app.env`, `default.env` | Never committed — must always be in `.gitignore`. Use `.env.example` / `.env.sample` variants for committed templates |
+| `.claude/settings.local.json` | Personal Claude Code overrides — gitignored, never committed |
+| `.cursor/settings.json` | Personal Cursor settings — gitignored, never committed |
+| `.windsurf/settings.json` | Personal Windsurf settings — gitignored, never committed |
+| `.aider.chat.history.md`, `.aider.input.history`, `.aider.llm.history` | Aider personal history — gitignored, never committed |
+| `.aider.tags.cache.v3/` | Aider symbol cache — gitignored, never committed |
+| `.continue/dev_data/`, `.continue/session.json`, `.continue/index/` | Continue personal data and indexes — gitignored, never committed |
+| `.codeium/` | Codeium auth/cache — gitignored, never committed |
 
 ## Forbidden Directories
 
