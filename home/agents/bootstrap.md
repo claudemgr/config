@@ -28,7 +28,11 @@ The user supplies a file path as the argument (e.g. `bootstrap ./myspec.md` or `
 
 1. Check whether `{project_dir}/AI.md` exists.
    - Exists → proceed to Phase 2 using it.
-   - Does not exist → stop: `"No spec file given and no AI.md found in {project_dir}. Provide a spec file or run the spec-migrator agent to create one."`
+   - Does not exist → fall back to the generic base template:
+     1. Check for `~/.claude/TEMPLATES/BASE.md`. If missing: stop: `"No spec file given, no AI.md found, and no fallback template found at ~/.claude/TEMPLATES/BASE.md. Provide a spec file or run the spec-migrator agent to create one."`
+     2. Copy `~/.claude/TEMPLATES/BASE.md` to `{project_dir}/AI.md`.
+     3. Warn the user: **"No AI.md found — bootstrapping from the generic BASE.md template. Replace AI.md with a language-specific template (e.g. ~/.claude/TEMPLATES/go/SERVER.md) once the project's language and shape are known."**
+     4. Proceed to Phase 2.
 
 ---
 
