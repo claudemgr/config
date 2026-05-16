@@ -503,9 +503,11 @@ All three workflows are required on every public repo regardless of language. `s
 
 If the project also supports Gitea/Forgejo or Jenkins, the equivalent workflows/pipelines MUST enforce the same gates — not a weaker subset. CI MUST fail when required tests, coverage gates, secret scans, dependency checks, or release validation fail.
 
-## Dependabot (Public Repos)
+## Dependency Update Automation (Public Repos)
 
-Public repos MUST define `.github/dependabot.yml`. Dependabot MUST cover, when used:
+Public repos MUST configure automated dependency updates. Renovate (`renovate.json` at repo root) is the universal primary tool — see the "Dependency Updates" section above. Dependabot (`.github/dependabot.yml`) is acceptable as a GitHub-only supplement, but is never the sole mechanism on a multi-provider repo.
+
+When Dependabot is used (GitHub-only repos), `.github/dependabot.yml` MUST cover:
 
 - Go modules
 - GitHub Actions

@@ -318,4 +318,4 @@ thiserror = "2"    # library crates (pick one, not both)
 - **No `-musl` suffix** — never include `-musl` in the output binary name; schema is `{name}-{os}-{arch}` regardless of target triple (e.g. `x86_64-unknown-linux-musl` still outputs `{name}-linux-x86_64`)
 - **Rust-only source** — no C/C++ in the binary (ring is the pre-approved exception)
 - **Embed assets at build time** — use `include_bytes!`, `include_str!`, or the `built` crate; never load from filesystem at runtime
-- **No hardcoded temp paths** — use `std::env::temp_dir()` and always prefix with `{project_org}/{project_name}-XXXXXX`
+- **No hardcoded temp paths** — use `std::env::temp_dir()` and always prefix with `{project_org}/{internal_name}-XXXXXX` (`{internal_name}` is the frozen on-disk identifier; never `{project_name}` which may change). See `tempdir_conventions.md`.
