@@ -121,7 +121,7 @@ After merging, update `~/.claude/memory/cicd_conventions.md` — "Common Action 
 | `owner/action-name` | vX.Y.Z | `{new-40-char-sha}` |
 ```
 
-Commit: `gitcommit --dir /root/Projects/github/claudemgr/config all`
+Commit: `gitcommit --dir {project_dir} all`
 
 ### Merge decision summary
 

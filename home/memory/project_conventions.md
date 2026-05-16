@@ -100,15 +100,12 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 
 **internal_name and internal_org are set ONCE (initial value = project_name/project_org) and never edited after the project ships. On-disk identifiers never change even if the project renames.**
 
-## Template system (claudemgr repo)
+## Template system
 
-- `claudemgr/go/TEMPLATE.md` — master Go project template
-- `claudemgr/rust/TEMPLATE.md` — master Rust project template
-- `claudemgr/config/CLAUDE.md` — project CLAUDE.md loader template
-- When starting a new project: COPY the appropriate TEMPLATE.md into the project as `AI.md`
-- The copied AI.md is immediately read-only; project-specific values go in IDEA.md
+- There are Go and Rust project templates. When starting a new project, copy the appropriate template as `AI.md`
+- The copied `AI.md` is immediately read-only; project-specific values go in `IDEA.md`
 - Also create an empty `SPEC.md` at project setup — it stays empty until a rule must contradict the template or global
-- Template updates in claudemgr: re-copy TEMPLATE.md over AI.md directly (no merge needed — AI.md was never modified)
+- Template updates: re-copy the template over `AI.md` directly (no merge needed — `AI.md` was never modified)
 
 ## First-time setup flow
 
