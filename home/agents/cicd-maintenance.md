@@ -1,6 +1,6 @@
 ---
 name: cicd-maintenance
-description: CI/CD maintenance agent — handles dependency update PRs/MRs (Renovate or Dependabot) on GitHub, GitLab, Gitea, and Forgejo; audits and fixes security.yml / .gitlab-ci.yml / Forgejo-Gitea workflows / Jenkinsfile against cicd_conventions.md; runs SHA 3-point verification, merges clean PRs, updates the SHA table. Use when a Renovate/Dependabot PR arrives, when any provider's CI workflow needs auditing or fixing, or when bringing a project into multi-provider compliance.
+description: CI/CD maintenance agent — handles Renovate dependency update PRs/MRs on GitHub, GitLab, Gitea, and Forgejo; audits and fixes security.yml / .gitlab-ci.yml / Forgejo-Gitea workflows / Jenkinsfile against cicd_conventions.md; runs SHA 3-point verification, merges clean PRs, updates the SHA table. Use when a Renovate PR arrives, when any provider's CI workflow needs auditing or fixing, or when bringing a project into multi-provider compliance.
 model: sonnet
 ---
 
@@ -36,12 +36,12 @@ esac
 
 ## Dependency Update PR/MR — End-to-End Workflow
 
-Renovate and Dependabot both open PRs (GitHub/Gitea/Forgejo) or MRs (GitLab) that bump dependency versions. The verification and merge flow is identical regardless of which tool opened the PR.
+Renovate opens PRs (GitHub/Gitea/Forgejo) or MRs (GitLab) that bump dependency versions. If a legacy `dependabot/` branch PR is encountered, process it through the same verification flow then migrate the project to Renovate before closing.
 
 ### Step 1: Find and read the PR/MR
 
 **GitHub** — use GitHub MCP tools:
-- `mcp__github__list_pull_requests` — find open Renovate/Dependabot PRs (head branch prefix: `renovate/` or `dependabot/`)
+- `mcp__github__list_pull_requests` — find open Renovate PRs (head branch prefix: `renovate/`)
 - `mcp__github__pull_request_read` — read diff and changed files
 
 **GitLab** — use the REST API:

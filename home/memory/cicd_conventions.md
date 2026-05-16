@@ -15,7 +15,7 @@ Every project targets all five CI/CD providers. The goal is zero vendor lock-in:
 | **Same gates, different syntax** | Build/test/security/release logic is identical across all providers; only the YAML dialect and runner format differ |
 | **No lock-in** | A project that only works on GitHub is not portable — all five workflow formats must be present and passing |
 | **Jenkinsfile is the escape hatch** | Jenkins runs anywhere, with or without a hosted CI provider; every project ships a `Jenkinsfile` |
-| **Renovate over Dependabot** | Renovate works on all five providers; Dependabot is GitHub-only. Use Renovate for new projects. Existing Dependabot configs are acceptable on GitHub-only repos |
+| **Renovate only — never Dependabot** | Renovate (AGPL-3.0, free for self-hosted and public repos) works on all five providers with one config file. Dependabot is GitHub-only and creates duplicate PRs alongside Renovate. Do not add Dependabot to any project |
 
 ### Provider Detection
 
@@ -92,7 +92,9 @@ Always run with `fetch-depth: 0` (GitHub/Gitea/Forgejo) or `GIT_DEPTH: 0` (GitLa
 
 ### Dependency Update Automation
 
-**Renovate** is the recommended tool — it works on GitHub, GitLab, Gitea, Forgejo, and can be self-hosted:
+**Renovate** is the only supported tool — AGPL-3.0 licensed, free for self-hosted use and free for public repos via the hosted app. It works on GitHub, GitLab, Gitea, Forgejo, and Bitbucket with a single `renovate.json` config file.
+
+Do not use Dependabot. It is GitHub-only, duplicates Renovate's work on GitHub, and cannot serve the other four providers. Running both on the same repo produces duplicate update PRs.
 
 ```json
 {
@@ -108,9 +110,7 @@ Always run with `fetch-depth: 0` (GitHub/Gitea/Forgejo) or `GIT_DEPTH: 0` (GitLa
 }
 ```
 
-Place `renovate.json` at the repo root. Renovate updates GitHub Actions SHAs, Docker image digests, Go modules, Cargo deps, npm deps, and more — in a single tool across all providers.
-
-Dependabot (`.github/dependabot.yml`) is acceptable for GitHub-only repos but must not be the sole update mechanism on a multi-provider project.
+Place `renovate.json` at the repo root. Renovate updates GitHub Actions SHAs, Docker image digests, Go modules, Cargo deps, npm deps, and more — one tool, all providers.
 
 ### Container Registry Per Provider
 
@@ -223,6 +223,55 @@ pipeline {
 ```
 
 Language-specific: swap the `golang:alpine` agent image and the build/test/vuln commands for Rust (`rust:alpine`, `cargo build`, `cargo test`, `cargo audit`) or Node.
+
+---
+
+## Provider CLI Tools
+
+Prefer provider CLIs over raw `curl` calls for API operations. Fall back to `curl -q -LSsf` only when the CLI is not installed or the operation has no CLI equivalent.
+
+| CLI | Provider | License | Install | Common use |
+|-----|----------|---------|---------|------------|
+| `gh` | GitHub | Apache-2.0 | `gh` from PATH | Issues, PRs, releases, repo settings, secret management |
+| `glab` | GitLab | MIT | `glab` from PATH | MRs, issues, releases, CI status |
+| `tea` | Gitea | MIT | `tea` from PATH | Issues, PRs, releases; also works against Forgejo (compatible API) |
+
+**Rules:**
+- Always check `command -v gh` / `command -v glab` / `command -v tea` before using — fall back to `curl` if not found
+- Use `gh release create` / `glab release create` / `tea release create` for release publishing instead of raw API calls
+- Use `gh secret set` / `glab variable set` for secret management — never echo secrets into a `curl -d` body
+- `tea` serves both Gitea and Forgejo — the Forgejo API is compatible with the Gitea v1 API
+
+---
+
+## Local Workflow Testing (act)
+
+`act` (nektos/act, MIT licensed, free) runs GitHub Actions workflows locally using Docker. Use it to verify workflow syntax and logic before pushing.
+
+```bash
+# Run the default event (push)
+act
+
+# Run a specific job
+act -j build
+
+# Run with a specific event
+act pull_request
+
+# List available jobs
+act --list
+
+# Use a specific platform image
+act -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+**Rules:**
+- Use `act` to catch syntax errors and logic bugs before they fail in CI
+- `act` does not perfectly replicate GitHub-hosted runners — treat passing `act` as a sanity check, not a guarantee
+- Never skip pushing to CI because `act` passed — always let the real CI run
+- `act` is not available on GitLab, Gitea, or Forgejo — it is GitHub Actions-specific
+- For GitLab CI, use `gitlab-runner exec docker {job}` for local testing
+- For Gitea/Forgejo act runner, there is no standard local test tool — push to a test branch
 
 ---
 
@@ -434,7 +483,7 @@ Every external action (`uses: owner/action@...`) MUST be pinned to a full commit
 2. **Runtime is still supported** — open the action's `action.yml` at the new SHA and check `runs.using`; if it names a runtime that GitHub has deprecated or scheduled for removal, the action will silently fail after that date. Example: `node20` is removed from GitHub-hosted runners on **2026-09-16** — any action still on `node20` must be updated to a SHA where it has migrated to `node24` (all common `actions/*` and `docker/*` actions have already done so; see the Common Action Reference SHAs table below)
 3. **No supply-chain change** — skim the diff between the old and new SHA; unexpected new dependencies, changed entrypoints, or network calls added to setup steps are red flags
 
-Dependabot covers `github-actions` ecosystem updates automatically when `.github/dependabot.yml` is configured — but it only updates the SHA, not the runtime verification. The runtime check is always manual.
+Renovate covers `github-actions` ecosystem updates automatically via `pinDigests: true` — but it only updates the SHA, not the runtime verification. The runtime check is always manual.
 
 ### Vulnerability scanning in `security.yml`
 
@@ -462,7 +511,7 @@ See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commi
 
 ## Common Action Reference SHAs
 
-Verified node24 SHAs as of 2025-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Dependabot opens a PR — always re-verify the runtime after updating.
+Verified node24 SHAs as of 2025-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Renovate opens a PR — always re-verify the runtime after updating.
 
 | Action | Tag | SHA |
 |--------|-----|-----|
@@ -505,15 +554,11 @@ If the project also supports Gitea/Forgejo or Jenkins, the equivalent workflows/
 
 ## Dependency Update Automation (Public Repos)
 
-Public repos MUST configure automated dependency updates. Renovate (`renovate.json` at repo root) is the universal primary tool — see the "Dependency Updates" section above. Dependabot (`.github/dependabot.yml`) is acceptable as a GitHub-only supplement, but is never the sole mechanism on a multi-provider repo.
+All public repos MUST configure Renovate (`renovate.json` at repo root). Do not add Dependabot — it is GitHub-only and duplicates Renovate's work. See the "Dependency Update Automation" section above for the `renovate.json` template.
 
-When Dependabot is used (GitHub-only repos), `.github/dependabot.yml` MUST cover:
+Renovate MUST cover at minimum: Go modules, GitHub Actions SHAs, Docker base image digests, Cargo deps, npm deps (whichever apply to the project).
 
-- Go modules
-- GitHub Actions
-- Docker / container base images
-
-Security updates are high priority and MUST go through the same test/security gates as manual changes. AI MUST NOT silently change dependency strategy, ignore failing update PRs, or disable update automation to "get green."
+Security updates are high priority and MUST go through the same test/security gates as manual changes. Never silently change dependency strategy, ignore failing update PRs, or disable update automation to "get green."
 
 ## Workflow Error Messaging
 
