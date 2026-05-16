@@ -22,15 +22,20 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 
 | File | Role | Mutable during work? |
 |------|------|----------------------|
-| **AI.md** | THE HOW — implementation spec, source of truth. READ-ONLY. | No (except policy-level changes) |
-| **IDEA.md** | THE WHAT — project plan. Three required sections (see below). | Yes |
+| **AI.md** | THE HOW — implementation spec and source of truth. Starts as a copy of the type template (go/ or rust/). Grows over time to include project-specific conventions that intentionally override global. When AI.md and global CLAUDE.md conflict, AI.md wins — that is the intended mechanism for per-project customization. | No (except deliberate convention changes) |
+| **IDEA.md** | THE WHAT — project intent, goal, and constraints only. Never the HOW. Three required sections (see below). | Yes |
 | **TODO.AI.md** | AI-owned task list. Required when working on more than 2 items. Completed items are REMOVED (not marked done and left). | Yes |
 | **TODO.md** | Human-owned task list; AI **must** mark done when completed (leaving unmarked is misleading), never delete/empty entries | Limited |
 | **PLAN.AI.md** | AI-owned implementation plan — delete when the work it describes is fully committed | Yes |
 | **PLAN.md** | Human-owned plan; AI **must** mark done when completed, never delete entries or rewrite wholesale | Limited |
-| **CLAUDE.md** | Short loader pointing at AI.md and IDEA.md. No project-specific spec content. | No |
+| **CLAUDE.md** | Short loader pointing at AI.md and IDEA.md. No project-specific spec or rule content. | No |
 
 **If AI.md and IDEA.md conflict, AI.md wins. Fix IDEA.md.**
+
+**The WHAT/HOW boundary is strict:**
+- IDEA.md answers: what is this project, what must it do, what must it never do, what must it be compatible with
+- AI.md answers: how to build it, how to structure the code, how to test it, which tools and patterns to use
+- If content describes an implementation decision → it belongs in AI.md, not IDEA.md
 
 ### AI tool config files (Claude Code, Cursor, Windsurf, Aider, Copilot, Continue, etc.)
 
@@ -44,15 +49,29 @@ All AI tool configs follow the same split: **team config is committed; personal 
 
 ```
 ## Project description
-(Elevator pitch — who, what, why. Free-form prose.)
+(Elevator pitch — who, what, why. Free-form prose. What the project IS, not how it works.)
 
 ## Project variables
 (key: value pairs, lower_snake_case keys. Minimum required: project_name, project_org,
 internal_name, internal_org. Add extras as needed: app_name, official_site, etc.)
 
 ## Business logic
-(THE WHAT — features, flows, roles, permissions, data models, trust boundaries,
-abuse cases, security decisions. NOT the HOW.)
+(THE WHAT only — never the HOW. Valid content:
+  - Features the project must have
+  - Features it must NOT have
+  - Compatibility requirements: "must be 100% compatible with X", "must interoperate with Y"
+  - Feature parity requirements: "feature 1:1+ with Z" (at least as capable, can exceed)
+  - Roles and user types that exist (not how auth is implemented)
+  - Constraints and non-negotiables: "must work offline", "must run on single binary"
+  - Trust boundaries: what is trusted, what is untrusted
+  - Abuse cases and threat actors the project must defend against
+
+Invalid in IDEA.md (belongs in AI.md):
+  - Data models and schema definitions
+  - API route structure
+  - Implementation patterns or technology choices
+  - Security implementation decisions (how to achieve a security property, not what it must be)
+  - Anything describing HOW the project is built)
 ```
 
 ## Placeholder system
