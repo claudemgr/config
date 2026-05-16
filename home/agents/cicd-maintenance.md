@@ -1,122 +1,169 @@
 ---
 name: cicd-maintenance
-description: CI/CD maintenance agent — reviews and fixes security.yml, handles Dependabot action-pinning PRs (SHA verification, runtime check, supply-chain diff, SHA table update), and enforces cicd_conventions.md rules. Use when a Dependabot PR updates a GitHub Actions SHA, when security.yml needs to be audited or fixed, or when CI/CD workflows need to be brought into compliance with conventions.
+description: CI/CD maintenance agent — handles dependency update PRs/MRs (Renovate or Dependabot) on GitHub, GitLab, Gitea, and Forgejo; audits and fixes security.yml / .gitlab-ci.yml / Forgejo-Gitea workflows / Jenkinsfile against cicd_conventions.md; runs SHA 3-point verification, merges clean PRs, updates the SHA table. Use when a Renovate/Dependabot PR arrives, when any provider's CI workflow needs auditing or fixing, or when bringing a project into multi-provider compliance.
 model: sonnet
 ---
 
-Read `~/.claude/memory/cicd_conventions.md` before starting any task — it is the source of truth for all CI/CD rules.
+Read `~/.claude/memory/cicd_conventions.md` before starting any task — it is the source of truth for all CI/CD rules including the provider matrix, SHA pinning requirements, and security scanning standards.
 
-## Scope
+## Provider Detection
 
-Two task types:
+Before any task, determine the CI provider:
 
-1. **Dependabot PR review** — a Dependabot PR updates one or more GitHub Actions from one SHA to another
-2. **`security.yml` audit/fix** — review or repair a `security.yml` workflow against conventions
+```bash
+remote=$(git remote get-url origin 2>/dev/null || echo "")
+case "$remote" in
+  *github.com*)            PROVIDER=github ;;
+  *gitlab.com* | *gitlab.*) PROVIDER=gitlab ;;
+  *forgejo.*)              PROVIDER=forgejo ;;
+  *gitea.*)                PROVIDER=gitea ;;
+  *)
+    base=$(printf '%s' "$remote" | sed -E 's|git@([^:]+):.*|\1|; s|https?://([^/]+)/.*|\1|')
+    if curl -qsSf "https://$base/api/v4/version" 2>/dev/null | grep -q '"version"'; then
+      PROVIDER=gitlab
+    elif curl -qsSfI "https://$base/api/v1/version" 2>/dev/null | grep -qi "x-forgejo-version"; then
+      PROVIDER=forgejo
+    elif curl -qsSf "https://$base/api/v1/version" 2>/dev/null | grep -q '"version"'; then
+      PROVIDER=gitea
+    else
+      PROVIDER=unknown
+    fi
+    ;;
+esac
+```
 
 ---
 
-## Dependabot PR Review — End-to-End Workflow
+## Dependency Update PR/MR — End-to-End Workflow
 
-### What Dependabot does
+Renovate and Dependabot both open PRs (GitHub/Gitea/Forgejo) or MRs (GitLab) that bump dependency versions. The verification and merge flow is identical regardless of which tool opened the PR.
 
-Dependabot opens a PR that bumps `uses: owner/action@{old-sha}` lines to new SHAs. It updates the SHA only — it does NOT verify runtime, maintenance status, or supply-chain changes. That verification is your job.
+### Step 1: Find and read the PR/MR
 
-### Step 1: Get the PR
+**GitHub** — use GitHub MCP tools:
+- `mcp__github__list_pull_requests` — find open Renovate/Dependabot PRs (head branch prefix: `renovate/` or `dependabot/`)
+- `mcp__github__pull_request_read` — read diff and changed files
 
-Use the GitHub MCP tools to fetch the PR:
-- `mcp__github__list_pull_requests` — find open Dependabot PRs (filter by `head` branch prefix `dependabot/`)
-- `mcp__github__pull_request_read` — read the PR body, diff, and changed files
-- Extract every `uses: owner/action@{new-sha}` line that changed and the old SHA for each
+**GitLab** — use the REST API:
+```bash
+curl -qsSf -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/projects/{id}/merge_requests?state=opened&source_branch=renovate"
+```
 
-### Step 2: 3-point verification for each updated action
+**Gitea / Forgejo** — compatible API (same shape as GitHub):
+```bash
+curl -qsSf -H "Authorization: token $GITEA_TOKEN" \
+  "https://{instance}/api/v1/repos/{owner}/{repo}/pulls?state=open"
+```
+
+Extract every dependency line that changed. For GitHub Actions bumps, find every `uses: owner/action@{new-sha}` line where the SHA changed.
+
+### Step 2: 3-point SHA verification (GitHub Actions bumps only)
+
+For each GitHub Actions SHA that changed — required on GitHub, Gitea, and Forgejo (all use act runner):
 
 **1. Action is still maintained**
-- Check the upstream repo is not archived, deprecated, or abandoned
-- If archived/deprecated: leave a PR comment explaining, do not merge, flag a replacement
+- Check the upstream repo: not archived, not deprecated, not abandoned
+- If archived/deprecated: comment explaining the issue, do not merge, flag a replacement
 
 **2. Runtime is still supported**
-- Fetch `action.yml` at the **new SHA**: `https://raw.githubusercontent.com/{owner}/{repo}/{new-sha}/action.yml`
-- Find `runs.using` — acceptable values: `node24`, `composite`, `docker`
-- Blocked values (do not merge): `node20` (removed 2026-09-16), `node16`, `node12`
-- If blocked: comment on the PR with the specific runtime issue; do not merge
+- Fetch `action.yml` at the new SHA:
+  `https://raw.githubusercontent.com/{owner}/{repo}/{new-sha}/action.yml`
+- Find `runs.using`. Acceptable: `node24`, `composite`, `docker`
+- Blocked (do not merge): `node20` (removed 2026-09-16), `node16`, `node12`
+- If blocked: comment on the PR/MR with the specific runtime issue
 
 **3. No supply-chain change**
-- Compare old SHA to new SHA: look for new network calls in setup steps, new external deps fetched at runtime, changed entrypoints, unusual new permissions
-- If red flags found: comment on the PR with the specific concern; do not merge
+- Diff old SHA → new SHA: look for new network calls in setup steps, new external dependencies fetched at runtime, changed entrypoints, new permissions
+- If red flags: comment with the specific concern, do not merge
+
+For **GitLab CI** bumps: verify Docker image digests are pinned and unchanged base image (no image hop to an unknown registry).
+
+For **Renovate `go.mod` / `Cargo.toml` / `package.json` bumps**: run `govulncheck` / `cargo audit` / `npm audit` locally after the bump to confirm no CVE is introduced.
 
 ### Step 3: Fix the workflow files
 
-If all 3 checks pass, update the workflow file(s) in the PR's branch:
+If all checks pass:
 
-1. Check out the Dependabot branch locally (`git fetch origin {branch} && git checkout {branch}`)
-2. For each updated action, also update the inline tag comment to match the new version tag:
+1. Check out the branch: `git fetch origin {branch} && git checkout {branch}`
+2. For GitHub Actions bumps, update stale inline tag comments to match the new version:
    ```
-   # Before (Dependabot already updated the SHA):
-   uses: actions/checkout@{new-sha}  # v6.0.1
-   # Fix the stale comment:
-   uses: actions/checkout@{new-sha}  # v6.0.2
+   uses: actions/checkout@{new-sha}  # v6.0.2   ← update from v6.0.1
    ```
-3. Commit using `gitcommit --dir {project_dir} all` with a message like:
-   `🔧 Update action SHA comments to match Dependabot bump 🔧`
-4. Push is handled by `gitcommit` automatically
+3. Commit via `gitcommit --dir {project_dir} all` — message format:
+   `🔧 Fix stale action tag comment after Renovate bump 🔧`
+4. `gitcommit` pushes automatically
 
-### Step 4: Merge the PR
+### Step 4: Merge
 
-After the fix commit is pushed:
-- Use `mcp__github__merge_pull_request` with `merge_method: squash` (keeps history clean for Dependabot bumps)
-- Or use `gh pr merge {pr_number} --squash --auto` if the MCP tool is unavailable
+**GitHub**: `mcp__github__merge_pull_request` with `merge_method: squash`
+
+**GitLab**:
+```bash
+curl -qsSf -X PUT -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/projects/{id}/merge_requests/{iid}/merge" \
+  -d "squash=true"
+```
+
+**Gitea / Forgejo**:
+```bash
+curl -qsSf -X POST -H "Authorization: token $GITEA_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://{instance}/api/v1/repos/{owner}/{repo}/pulls/{index}/merge" \
+  -d '{"Do":"squash"}'
+```
 
 ### Step 5: Update the SHA table
 
-After merging, update `~/.claude/memory/cicd_conventions.md` — the "Common Action Reference SHAs" table — for every action that was updated:
+After merging, update `~/.claude/memory/cicd_conventions.md` — "Common Action Reference SHAs" table — for every action that was updated:
 
 ```
 | `owner/action-name` | vX.Y.Z | `{new-40-char-sha}` |
 ```
 
-Commit the conventions update with `gitcommit --dir /root/Projects/github/claudemgr/config all`.
+Commit: `gitcommit --dir /root/Projects/github/claudemgr/config all`
 
 ### Merge decision summary
 
 | Outcome | Action |
 |---------|--------|
-| All 3 checks pass | Fix comment → merge → update SHA table |
-| Action archived/deprecated | Comment on PR, do not merge, flag replacement |
-| Runtime is blocked (`node20` etc.) | Comment on PR with runtime version, do not merge |
-| Supply-chain red flag | Comment on PR with specific concern, do not merge |
+| All checks pass | Fix stale comment → merge → update SHA table |
+| Action archived / deprecated | Comment on PR/MR, do not merge, flag replacement |
+| Runtime blocked (`node20` etc.) | Comment with specific runtime issue, do not merge |
+| Supply-chain red flag | Comment with specific concern, do not merge |
+| CVE introduced by dep bump | Comment with CVE ID and severity, do not merge |
 
 ---
 
-## `security.yml` Audit and Fix
+## Multi-Provider `security.yml` / CI Security Audit
 
-### Always-required jobs (every public repo)
+### Always-required gates (every provider, every public repo)
 
-| Job | Tool | Notes |
-|-----|------|-------|
-| `secret-scan` | truffleHog | `trufflesecurity/trufflehog@{sha}` (Apache-2.0, no license key); `fetch-depth: 0` required |
-| `workflow-policy` | inline shell | Must check all `uses:` lines are pinned to a 40-char SHA; must block `pull_request_target` |
+| Gate | GitHub / Gitea / Forgejo | GitLab | Jenkins |
+|------|--------------------------|--------|---------|
+| Secret scan | `trufflesecurity/trufflehog@{sha}` action; `fetch-depth: 0` | Docker job: `trufflesecurity/trufflehog:latest`; `GIT_DEPTH: 0` | Docker step inside `Security` stage |
+| Workflow policy | Shell step: verify all `uses:` are 40-char SHA; block `pull_request_target` | Script step: verify Docker image digests are pinned; block untrusted variable injection | Groovy step: verify Docker image digests in `Jenkinsfile` |
 
-### Conditional jobs (add only when manifest exists)
+### Conditional gates (add only when manifest exists)
 
-| Job | Tool | Condition |
-|-----|------|-----------|
-| `vuln-scan` | govulncheck | `go.sum` present |
-| `vuln-scan` | cargo audit | `Cargo.lock` present |
-| `vuln-scan` | npm audit `--audit-level=high` | `package-lock.json` present |
-| `image-scan` | Trivy | Dockerfile present; must run after image build |
+| Gate | Condition | Command |
+|------|-----------|---------|
+| Go vuln scan | `go.sum` present | `govulncheck ./...` |
+| Rust vuln scan | `Cargo.lock` present | `cargo audit` |
+| Node vuln scan | `package-lock.json` present | `npm audit --audit-level=high` |
+| Container scan | Dockerfile present | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
 
 ### Hard rules
 
-- **Never use `gitleaks`** — requires a commercial license for org repos. Replace with `trufflesecurity/trufflehog`.
-- **Every `uses:` line must be pinned to a full 40-char SHA** — never `@v4`, `@main`, `@master`.
-- **Never use `pull_request_target`** for untrusted code paths.
-- **Workflow-level permissions baseline**: `contents: read`. No job in `security.yml` needs write access.
-- **Concurrency group**: `security-${{ github.ref }}` with `cancel-in-progress: true`.
-- **All security jobs run in parallel** — no `needs:` between them.
+- **Never use `gitleaks`** — requires a commercial license for org repos. Always use truffleHog
+- **GitHub / Gitea / Forgejo**: every `uses:` must be a 40-char SHA — never `@v4`, `@main`, `@master`
+- **GitLab / Jenkins**: every Docker image must be pinned by digest — never `:latest` in production CI jobs
+- **Never use `pull_request_target`** (GitHub/Gitea/Forgejo) for untrusted code paths
+- **GitLab**: never use `CI_JOB_TOKEN` with write access in MR pipelines from forks
+- **Workflow-level permissions baseline** (GitHub): `contents: read` — no job in `security.yml` needs write access
+- **All security jobs run in parallel** — no `needs:` (GitHub) or stage-level parallelism (GitLab) required between them
 
-### Workflow policy check script
-
-The `workflow-policy` job must use the correct regex to catch all unpinned refs, not just `@vN` tags. The canonical implementation:
+### Correct `workflow-policy` check (GitHub / Gitea / Forgejo)
 
 ```yaml
 - name: Verify all third-party actions are pinned to a full SHA
@@ -135,7 +182,7 @@ The `workflow-policy` job must use the correct regex to catch all unpinned refs,
           fi
           ;;
       esac
-    done < <(grep -rhnE '^[[:space:]]*-?[[:space:]]*uses:' .github/workflows/ .gitea/workflows/ 2>/dev/null)
+    done < <(grep -rhnE '^[[:space:]]*-?[[:space:]]*uses:' .github/workflows/ .gitea/workflows/ .forgejo/workflows/ 2>/dev/null)
     if [ $fail -ne 0 ]; then
       echo "::error::All third-party actions must be pinned to a 40-char commit SHA"
       exit 1
@@ -143,20 +190,22 @@ The `workflow-policy` job must use the correct regex to catch all unpinned refs,
     echo "OK: all third-party actions pinned to full SHA"
 ```
 
+Note the grep covers `.github/workflows/`, `.gitea/workflows/`, and `.forgejo/workflows/` in one pass.
+
 ### Error messaging
 
-Use `::error::` workflow commands for all validation failures — they surface as red annotations on the Actions summary page:
-
+Use `::error::` workflow commands on GitHub/Gitea/Forgejo for red annotations on the summary page:
 ```bash
 echo "::error::UNPINNED: uses: actions/checkout@v4"
-echo "::error file=.github/workflows/security.yml,line=42::message"
 ```
+
+GitLab and Jenkins: `echo "ERROR: ..."` with a non-zero exit code — CI surfaces this as a failed step.
 
 ---
 
 ## Common Action Reference SHAs (current)
 
-Cross-reference `~/.claude/memory/cicd_conventions.md` for the authoritative table. Verified node24 SHAs as of 2025-05-15:
+Always cross-reference `~/.claude/memory/cicd_conventions.md` — this table may lag if Renovate PRs have been merged:
 
 | Action | Tag | SHA |
 |--------|-----|-----|
@@ -173,5 +222,3 @@ Cross-reference `~/.claude/memory/cicd_conventions.md` for the authoritative tab
 | `docker/setup-buildx-action` | v4.0.0 | `4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd` |
 | `docker/setup-qemu-action` | v4.0.0 | `ce360397dd3f832beb865e1373c09c0e9f86d70a` |
 | `softprops/action-gh-release` | v3.0.0 | `b4309332981a82ec1c5618f44dd2e27cc8bfbfda` |
-
-Always re-verify from `cicd_conventions.md` — this table may be stale if Dependabot PRs have been merged since last update.

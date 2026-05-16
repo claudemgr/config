@@ -1,7 +1,229 @@
 ---
 name: CI/CD conventions
-description: Rules for GitHub Actions workflows, branch protection, release integrity, and dependency automation in CasjaysDev projects
+description: CI/CD rules for all supported providers — GitHub, GitLab, Gitea, Forgejo, Jenkins — including provider detection, workflow file locations, secret scanning, dependency updates, release integrity, and action pinning in CasjaysDev projects
 type: user
+---
+
+## Multi-Provider CI/CD
+
+Every project targets all five CI/CD providers. The goal is zero vendor lock-in: the same build, test, security, and release gates run correctly regardless of where the code is hosted.
+
+### Philosophy
+
+| Principle | Description |
+|-----------|-------------|
+| **Same gates, different syntax** | Build/test/security/release logic is identical across all providers; only the YAML dialect and runner format differ |
+| **No lock-in** | A project that only works on GitHub is not portable — all five workflow formats must be present and passing |
+| **Jenkinsfile is the escape hatch** | Jenkins runs anywhere, with or without a hosted CI provider; every project ships a `Jenkinsfile` |
+| **Renovate over Dependabot** | Renovate works on all five providers; Dependabot is GitHub-only. Use Renovate for new projects. Existing Dependabot configs are acceptable on GitHub-only repos |
+
+### Provider Detection
+
+Detect the provider from the git remote URL. For self-hosted instances, fall back to the API version endpoint:
+
+```bash
+remote=$(git remote get-url origin 2>/dev/null || echo "")
+case "$remote" in
+  *github.com*)  PROVIDER=github ;;
+  *gitlab.com* | *gitlab.*) PROVIDER=gitlab ;;
+  *forgejo.*)    PROVIDER=forgejo ;;
+  *gitea.*)      PROVIDER=gitea ;;
+  *)
+    # Self-hosted: probe the API version endpoint
+    base=$(printf '%s' "$remote" | sed -E 's|git@([^:]+):.*|\1|; s|https?://([^/]+)/.*|\1|')
+    if curl -qsSf "https://$base/api/v4/version" 2>/dev/null | grep -q '"version"'; then
+      PROVIDER=gitlab
+    elif curl -qsSf "https://$base/api/v1/version" 2>/dev/null | grep -qi "forgejo"; then
+      PROVIDER=forgejo
+    elif curl -qsSf "https://$base/api/v1/version" 2>/dev/null | grep -q '"version"'; then
+      PROVIDER=gitea
+    else
+      PROVIDER=unknown
+    fi
+    ;;
+esac
+```
+
+For Forgejo vs Gitea (both expose `/api/v1/version`): Forgejo sets an `X-Forgejo-Version` response header and the version string often contains `+gitea-` (e.g. `7.0.0+gitea-1.21.0`). Check the header first.
+
+### Workflow File Locations
+
+| Provider | Workflow location | Syntax / runner |
+|----------|------------------|-----------------|
+| GitHub | `.github/workflows/*.yml` | GitHub Actions |
+| GitLab | `.gitlab-ci.yml` | GitLab CI |
+| Gitea | `.gitea/workflows/*.yml` | GitHub Actions (act runner) |
+| Forgejo | `.forgejo/workflows/*.yml` | GitHub Actions (act runner) |
+| Jenkins | `Jenkinsfile` | Declarative Pipeline (Groovy) |
+
+Gitea and Forgejo use the act runner — their workflow syntax is GitHub Actions-compatible. The same YAML (modulo registry/secret variable names) usually works on GitHub, Gitea, and Forgejo with no changes.
+
+### Required Workflow Set Per Provider
+
+Every project must provide the equivalent of three gates on every provider:
+
+| Gate | GitHub | GitLab | Gitea | Forgejo | Jenkins |
+|------|--------|--------|-------|---------|---------|
+| **Build + Test** | `build.yml` | `build` + `test` stages in `.gitlab-ci.yml` | `build.yml` | `build.yml` | `Build` + `Test` stages in `Jenkinsfile` |
+| **Security** | `security.yml` | `security` stage | `security.yml` | `security.yml` | `Security` stage (parallel steps) |
+| **Release** | `release.yml` | `release` stage (manual/tag-triggered) | `release.yml` | `release.yml` | `Release` stage (tag-triggered) |
+
+### Action / Step Pinning Per Provider
+
+| Provider | Pinning requirement |
+|----------|-------------------|
+| GitHub | `uses: owner/action@{40-char-sha}` — never a tag or branch |
+| GitLab | Docker images pinned by digest: `image: alpine@sha256:{digest}` for production; template `include:` refs pinned to SHA |
+| Gitea | Same as GitHub (act runner uses the same `uses:` syntax) |
+| Forgejo | Same as GitHub (act runner) |
+| Jenkins | Docker images pinned by digest; shared library versions locked in `Jenkinsfile` |
+
+### Secret Scanning Per Provider
+
+truffleHog is the mandatory scanner on all providers (Apache-2.0, no license key, never gitleaks):
+
+| Provider | How to run truffleHog |
+|----------|----------------------|
+| GitHub / Gitea / Forgejo | `trufflesecurity/trufflehog@{sha}` composite action |
+| GitLab | Docker job: `image: trufflesecurity/trufflehog:latest`, `script: trufflehog git file://. --since-commit HEAD~1 --fail` |
+| Jenkins | Docker step: `docker.image('trufflesecurity/trufflehog:latest').inside { sh 'trufflehog git file://. --since-commit HEAD~1 --fail' }` |
+
+Always run with `fetch-depth: 0` (GitHub/Gitea/Forgejo) or `GIT_DEPTH: 0` (GitLab) so the full commit history is scanned.
+
+### Dependency Update Automation
+
+**Renovate** is the recommended tool — it works on GitHub, GitLab, Gitea, Forgejo, and can be self-hosted:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "automerge": false
+    }
+  ]
+}
+```
+
+Place `renovate.json` at the repo root. Renovate updates GitHub Actions SHAs, Docker image digests, Go modules, Cargo deps, npm deps, and more — in a single tool across all providers.
+
+Dependabot (`.github/dependabot.yml`) is acceptable for GitHub-only repos but must not be the sole update mechanism on a multi-provider project.
+
+### Container Registry Per Provider
+
+See `~/.claude/memory/github_conventions.md` → "Container Registry" for the full table. Summary:
+
+| Provider | Registry |
+|----------|---------|
+| GitHub | `ghcr.io/{org}/{name}` |
+| GitLab | `registry.gitlab.com/{group}/{project}` |
+| Gitea / Forgejo | `{instance}/{org}/{name}` (OCI registry built in) |
+| Self-hosted | Any OCI-compliant registry — configure via `REGISTRY` make variable |
+
+Base/toolchain images always pull from `docker.io` regardless of provider.
+
+### GitLab CI Structure (`.gitlab-ci.yml`)
+
+```yaml
+stages:
+  - build
+  - test
+  - security
+  - release
+
+variables:
+  CGO_ENABLED: "0"
+
+build:
+  stage: build
+  image: golang:alpine
+  script:
+    - go build ./...
+
+test:
+  stage: test
+  image: golang:alpine
+  script:
+    - go test ./...
+
+secret-scan:
+  stage: security
+  image: trufflesecurity/trufflehog:latest
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - trufflehog git file://. --since-commit HEAD~1 --fail
+
+vuln-scan:
+  stage: security
+  image: golang:alpine
+  script:
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+
+release:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  script:
+    - # build artifacts, checksums, SBOM, publish
+```
+
+Security jobs run in the same stage (parallel by default in GitLab CI).
+
+### Jenkinsfile Structure
+
+Every project ships a `Jenkinsfile` using the declarative pipeline syntax:
+
+```groovy
+pipeline {
+    agent { docker { image 'golang:alpine' } }
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'CGO_ENABLED=0 go build ./...'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'CGO_ENABLED=0 go test ./...'
+            }
+        }
+        stage('Security') {
+            parallel {
+                stage('Secret Scan') {
+                    steps {
+                        sh 'docker run --rm -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
+                    }
+                }
+                stage('Vuln Scan') {
+                    steps {
+                        sh 'go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...'
+                    }
+                }
+            }
+        }
+        stage('Release') {
+            when { tag 'v*' }
+            steps {
+                sh '# build artifacts, checksums, SBOM, publish'
+            }
+        }
+    }
+}
+```
+
+Language-specific: swap the `golang:alpine` agent image and the build/test/vuln commands for Rust (`rust:alpine`, `cargo build`, `cargo test`, `cargo audit`) or Node.
+
 ---
 
 ## General Rules
@@ -9,7 +231,7 @@ type: user
 | Rule | Description |
 |------|-------------|
 | **NEVER use Makefile in CI** | Workflows have explicit commands with all env vars |
-| **Multi-platform parity** | GitHub/Gitea/Jenkins must match — same platforms, same env vars, same logic |
+| **Multi-platform parity** | All five providers must match — same platforms, same env vars, same logic |
 | **VERSION precedence** | `release.txt` wins when present; otherwise use the workflow/build-specific fallback (tag, beta timestamp, etc.) |
 | **LDFLAGS** | `-s -w -X 'main.Version=...' -X 'main.CommitID=...' -X 'main.BuildDate=...' -X 'main.OfficialSite=...'` |
 | **Docker builds on every push** | Any branch push triggers Docker image build |
