@@ -142,8 +142,8 @@ case "$FIRST_BASE" in
   go|gofmt|goimports|golangci-lint|gopls|godoc)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/build \\
-    -v \"\${HOME}/.cache/go-build\":/root/.cache/go-build \\
-    -v \"\${HOME}/go/pkg/mod\":/go/pkg/mod \\
+    -v \"\${GOCACHE:-\${HOME}/.cache/go-build}\":/root/.cache/go-build \\
+    -v \"\${GOMODCACHE:-\${GOPATH:-\${HOME}/go}/pkg/mod}\":/go/pkg/mod \\
     -w /build \\
     -e CGO_ENABLED=0 \\
     golang:alpine \\
@@ -155,7 +155,8 @@ case "$FIRST_BASE" in
   cargo|rustc|rustup|rustfmt|wasm-pack)
     DOCKER_CMD="  docker run --rm \\
     -v \"\$(pwd)\":/workspace \\
-    -v \"\${HOME}/.cargo/registry\":/usr/local/cargo/registry \\
+    -v \"\${CARGO_HOME:-\${HOME}/.cargo}/registry\":/usr/local/cargo/registry \\
+    -v \"\${CARGO_HOME:-\${HOME}/.cargo}/git\":/usr/local/cargo/git \\
     -w /workspace \\
     rust:alpine \\
     ${CMD}"
