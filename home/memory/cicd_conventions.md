@@ -126,7 +126,7 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 | **Third-party action pinning** | External actions MUST be pinned to a full commit SHA — never float on `@main`, `@master`, or broad tags; verify runtime and maintenance status on every SHA update |
 | **No unsafe PR triggers** | Do NOT use `pull_request_target` for untrusted code execution, build, test, or artifact upload paths |
 | **Secrets never exposed to forks** | Fork PR workflows run without repo secrets, write tokens, publish steps, or deployment credentials |
-| **Secret scanning is mandatory** | Public repos run automated secret scanning on push/PR; findings are blockers, not warnings |
+| **Secret scanning is mandatory** | Public repos run `truffleHog` on push/PR via `security.yml`; findings are blockers, not warnings. Use `trufflesecurity/trufflehog` (Apache-2.0, no license key). Never use `gitleaks` — requires a commercial license for org repos |
 | **Dependency updates are automated** | Public repos include dependency update automation for every ecosystem in use |
 | **Vulnerability scanning is mandatory** | `security.yml` MUST run the appropriate scanner(s) for every language in the repo; critical/high CVEs in direct deps are build blockers |
 
@@ -154,8 +154,9 @@ Dependabot covers `github-actions` ecosystem updates automatically when `.github
 
 Run the appropriate scanner for each language present in the repo. All scanners run in `security.yml` on push and pull_request. A critical or high CVE in a direct dependency is a hard build failure — not a warning.
 
-| Language | Scanner | Command |
-|----------|---------|---------|
+| Language / Scope | Scanner | Command / Action |
+|------------------|---------|-----------------|
+| All repos (secrets) | truffleHog | `trufflesecurity/trufflehog@{sha}` — Apache-2.0, no license key |
 | Go | govulncheck | `govulncheck ./...` |
 | Rust | cargo audit | `cargo audit` |
 | Node / TypeScript | npm audit | `npm audit --audit-level=high` |
@@ -169,6 +170,7 @@ Verified node24 SHAs as of 2025-05-15. All common `actions/*` and `docker/*` act
 
 | Action | Tag | SHA |
 |--------|-----|-----|
+| `trufflesecurity/trufflehog` | v3.95.3 | `37b77001d0174ebec2fcca2bd83ff83a6d45a3ab` |
 | `actions/checkout` | v6.0.2 | `de0fac2e4500dabe0009e67214ff5f5447ce83dd` |
 | `actions/upload-artifact` | v7.0.1 | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
 | `actions/download-artifact` | v8.0.1 | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
