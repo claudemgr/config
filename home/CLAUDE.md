@@ -1,5 +1,8 @@
 # Claude Rules
 
+## Session Start
+Before any work: run `git pull` in `{project_dir}` to ensure the local branch is current. If the pull fails (conflict, no remote, offline), report it and wait — never start work on a potentially stale tree.
+
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
 
