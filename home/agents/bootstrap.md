@@ -137,7 +137,12 @@ If `{project_dir}/TODO.AI.md` exists, it may be stale relative to the current `{
    - **Still required by the spec** → keep it
    - **Already completed by this bootstrap run** → remove it (completed items are removed, not marked done and left)
    - **No longer relevant to the spec** → remove it
-4. For each thing the spec mandates that is NOT yet done and NOT already in `{project_dir}/TODO.AI.md` → add it
+4. For each thing the spec mandates that is NOT yet done and NOT already in `{project_dir}/TODO.AI.md` → add it. Every added item **must** include a `Read:` line naming the PART it came from, e.g.:
+   ```
+   ## [ ] Implement API routes
+   Read: AI.md PART 14
+   ```
+   Items sourced from PART 7 → `Read: AI.md PART 7`, PART 16 → `Read: AI.md PART 16`, etc. Existing items that lack a `Read:` line must have one added during reconciliation — grep the item's topic against PART headings to determine the correct PART.
 5. Write the reconciled `{project_dir}/TODO.AI.md`
 
 **`{project_dir}/AI.md` is truth about WHAT must be done. `{project_dir}/TODO.AI.md` is only a tracking list — it does not override the spec.**
