@@ -222,7 +222,7 @@ Security is first-class from day one — never bolted on after. It must also be 
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
 - **Read files narrowly** — for files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
 - **No speculative reads** — only read files the current task directly requires. Do not open adjacent files because they "might be relevant." If a file turns out to be needed, read it then.
-- **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed. The one explicit exception: read `COMMIT_MESS` once before running `gitcommit` to confirm the message matches the actual diff — a push is irreversible.
+- **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed. The one explicit exception: `COMMIT_MESS` must be written from the actual `git status`/`git diff` output (never from memory), then re-read once to verify it matches the diff before running `gitcommit` — a push is irreversible and COMMIT_MESS must reflect actual state, not assumptions.
 - **Don't spawn agents for small tasks** — if the work fits in 2–3 direct tool calls, do it inline. Agent overhead (launch, context transfer, result relay) costs more tokens than the task itself for simple lookups, single-file edits, or short shell commands.
 - **Plan mode is for genuine ambiguity, not file count** — invoke plan mode when requirements are unclear or the approach has real tradeoffs, not simply because a task touches 3+ files. Mechanical changes across many files (rename, find-replace, bulk fix) do not need a plan.
 - **Parallelize independent research** — multiple independent questions: spawn agents in parallel (single message, multiple Agent calls)
@@ -255,8 +255,8 @@ When executing a task list, dependency graph takes priority over label order. Nu
 
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
-2. Write `{dir}/.git/COMMIT_MESS` — every changed file, each change described, nothing missing
-3. Re-read `COMMIT_MESS` to verify it matches reality
+2. Write `{dir}/.git/COMMIT_MESS` directly from that output — every changed file, each change described, nothing missing. Never write from memory of what you think you changed; always derive from the diff you just ran.
+3. Re-read `COMMIT_MESS` and compare against the diff — verify every changed file is listed, every description is accurate. If anything is missing or wrong, rewrite the file and re-read again.
 4. Run `gitcommit --dir {dir} all` — wrapper deletes `COMMIT_MESS` on success
 
 **Message format:** `{emoji} Title (≤64 chars) {emoji}` + blank line + body + `- path: change` bullets per file

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Design an implementation plan before writing code. Use when a task touches 3+ files, has ambiguous requirements, or needs architectural tradeoffs evaluated before committing to an approach. Returns a step-by-step plan, identifies critical files, and flags risks. Does not write code.
+description: Design an implementation plan before writing code. Use when a task has genuinely ambiguous requirements, or needs architectural tradeoffs evaluated before committing to an approach. Do NOT invoke simply because a task touches many files — file count alone is not a reason to plan. Returns a step-by-step plan, identifies critical files, and flags risks. Does not write code.
 model: sonnet
 ---
 

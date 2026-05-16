@@ -268,7 +268,7 @@ Use `AUDIT.AI.md` only when an explicit audit finds more than 5 issues.
 If >5 issues found:
 1. Create `AUDIT.AI.md` at the project root
 2. Log all issues by pass and component
-3. Fix them one by one, marking complete as you go
+3. Fix them one by one, deleting each entry from AUDIT.AI.md only after it is fully resolved and committed — never mark complete and leave, delete when done
 4. **Delete `AUDIT.AI.md` when all resolved** — delete it, do not empty it
 
 ```markdown

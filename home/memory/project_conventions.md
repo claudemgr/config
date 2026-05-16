@@ -132,11 +132,11 @@ Wrong order:   1, 2, 3, a, b, c   (2 runs before its prerequisites)
 
 ## Compliance schedule (per AI.md)
 
-- Session start: read AI.md completely
-- Before each task: re-read relevant parts
-- Every 3–5 changes: verify against spec
-- Before task completion: full compliance check
-- When uncertain: re-read spec, never guess
+- Session start: read AI.md if starting a new project, returning after a long break, or after context compaction — otherwise load only what the current task requires
+- Before each task: read only the parts of the spec directly relevant to what you are about to implement; do not pre-load the whole file speculatively
+- Every 3–5 changes: verify the work against spec by reading only the sections that cover those changes
+- Before task completion: check compliance against the relevant spec sections
+- When uncertain about a spec requirement: read that specific section — never guess, never rely on memory of a prior session
 
 ## Language-specific implementation rules
 
