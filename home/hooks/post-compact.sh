@@ -12,34 +12,24 @@
 # @@Description      :  PostCompact hook: re-inject project-dir context after compaction truncates it
 # @@Changelog        :  New File
 # @@TODO             :
-# @@Other            :  Compaction drops old context; this hook re-anchors Claude to the project
+# @@Other            :  Compaction drops old context — this hook re-anchors Claude to the project
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
 
-# Drain stdin (compaction summary) — we do not use it but must consume it
+# Drain stdin (compaction summary) — must consume it
 INPUT="$(cat)"
 
 project=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -f "$project/CLAUDE.md" ] || [ -f "$project/AI.md" ] || exit 0
 
-if [ -f "$project/home/CLAUDE.md" ]; then
-  MSG="POST-COMPACT DRIFT GUARD [claudemgr/config]
+MSG="POST-COMPACT CONTEXT
 project_dir: ${project}
-Context was compacted — re-anchoring now.
-Source: ${project}/home/ | Deployed: ~/.claude/ (never read directly from this project)
-When global CLAUDE.md says read ~/.claude/memory/MEMORY.md, read home/memory/MEMORY.md instead.
-Writes stay within ${project}."
-else
-  MSG="POST-COMPACT CONTEXT
-project_dir: ${project}
-Context was compacted. Project CLAUDE.md/AI.md still take precedence over global ~/.claude/CLAUDE.md.
-Writes stay within ${project}."
-fi
+Context was compacted. Project CLAUDE.md and AI.md still take precedence over the global ~/.claude/CLAUDE.md.
+All writes must stay within ${project}. Re-read project files as needed — do not rely on pre-compaction assumptions."
 
 python3 -c "
 import json, sys
-msg = sys.argv[1]
-print(json.dumps({'systemMessage': msg}))
+print(json.dumps({'systemMessage': sys.argv[1]}))
 " "$MSG"

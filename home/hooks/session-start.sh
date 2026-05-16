@@ -20,29 +20,16 @@ set -euo pipefail
 
 project=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
 
-# Only fire when the project has a CLAUDE.md or AI.md (i.e. a managed project)
+# Only fire when the project has a CLAUDE.md or AI.md (a managed project)
 [ -f "$project/CLAUDE.md" ] || [ -f "$project/AI.md" ] || exit 0
 
-# Build the context message
-if [ -f "$project/home/CLAUDE.md" ]; then
-  # claudemgr/config project — source vs deployed distinction matters
-  MSG="DRIFT GUARD ACTIVE [claudemgr/config]
+MSG="SESSION CONTEXT
 project_dir: ${project}
-Source files: ${project}/home/ (CLAUDE.md, memory/, agents/, hooks/, settings.json)
-Deployed copies: ~/.claude/ — written by deploy script only, never read directly
-Rule: when the global CLAUDE.md says read ~/.claude/memory/MEMORY.md, in THIS project read home/memory/MEMORY.md instead.
-All reads and writes must stay within ${project}."
-else
-  # General managed project
-  MSG="SESSION CONTEXT
-project_dir: ${project}
-Project CLAUDE.md and AI.md override the global ~/.claude/CLAUDE.md for this session.
+Project CLAUDE.md and AI.md are the source of truth for this session — they override the global ~/.claude/CLAUDE.md.
 All writes must stay within ${project} unless the user explicitly names an external path.
-If this project has AI.md, read it before acting."
-fi
+Read AI.md and IDEA.md before acting on this project."
 
 python3 -c "
 import json, sys
-msg = sys.argv[1]
-print(json.dumps({'systemMessage': msg}))
+print(json.dumps({'systemMessage': sys.argv[1]}))
 " "$MSG"
