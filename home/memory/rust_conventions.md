@@ -29,10 +29,23 @@ VERSION       := $(shell cat release.txt 2>/dev/null || echo "0.1.0")
 DOCKER_IMAGE  := rust:alpine
 BINARIES_DIR  := ./binaries
 RELEASES_DIR  := ./releases
+
+CARGO_HOME     ?= $(HOME)/.cargo
+CARGO_REGISTRY ?= $(CARGO_HOME)/registry
+CARGO_GIT      ?= $(CARGO_HOME)/git
+
+RUST_DOCKER := docker run --rm \
+	-v "$(PWD)":/workspace \
+	-v $(CARGO_REGISTRY):/usr/local/cargo/registry \
+	-v $(CARGO_GIT):/usr/local/cargo/git \
+	-w /workspace \
+	$(DOCKER_IMAGE)
 ```
 
 - `rust:alpine` rolling tag — never pinned
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
+- `CARGO_HOME`, `CARGO_REGISTRY`, `CARGO_GIT` use `?=` so host environment values (e.g. custom `CARGO_HOME` in CI) are respected; defaults cover the standard `~/.cargo` location on Linux/macOS
+- In `rust:alpine`, Cargo's home is `/usr/local/cargo` — registry and git dirs are mounted there so downloads persist to the host
 
 ## Makefile — Standard Targets
 
@@ -46,22 +59,26 @@ RELEASES_DIR  := ./releases
 
 ## Build Pattern
 
-All cargo invocations run inside Docker — never directly on host:
+All cargo invocations run inside Docker — never directly on host. Every target must `@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)` before the docker run:
 
 ```makefile
-@docker run --rm --platform linux/amd64 \
-    -v "$(PWD)":/workspace \
-    -v "$(PWD)/binaries":/output \
-    -w /workspace $(DOCKER_IMAGE) bash -c ' \
-    apt-get update -qq && \
-    apt-get install -y -qq {platform-deps} && \
-    cargo build --release && \
-    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \
-    cp target/release/$(PROJECT_NAME) /output/$(PROJECT_NAME)-{os}-{arch} && \
-    chmod 755 /output/$(PROJECT_NAME)-{os}-{arch}'
+build:
+	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
+	@docker run --rm --platform linux/amd64 \
+	    -v "$(PWD)":/workspace \
+	    -v "$(PWD)/binaries":/output \
+	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
+	    -v $(CARGO_GIT):/usr/local/cargo/git \
+	    -w /workspace $(DOCKER_IMAGE) bash -c ' \
+	    cargo build --release && \
+	    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \
+	    cp target/release/$(PROJECT_NAME) /output/$(PROJECT_NAME)-{os}-{arch} && \
+	    chmod 755 /output/$(PROJECT_NAME)-{os}-{arch}'
 ```
 
 Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-x86_64`).
+
+**Rule — any `docker run` with a Rust/Cargo image** must include the cache volume mounts and the preceding mkdir. Never omit them — every invocation that fetches or compiles crates must persist results to the host.
 
 ## Platform Targets and Binary Naming
 
@@ -89,8 +106,13 @@ macOS and FreeBSD cross-compilation from Linux is generally not supported — do
 
 ```makefile
 test:
-	@docker run --rm -v "$(PWD)":/workspace -w /workspace $(DOCKER_IMAGE) bash -c \
-		'cargo test --lib --no-fail-fast'
+	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
+	@docker run --rm \
+	    -v "$(PWD)":/workspace \
+	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
+	    -v $(CARGO_GIT):/usr/local/cargo/git \
+	    -w /workspace $(DOCKER_IMAGE) bash -c \
+	    'cargo fmt --check && cargo clippy -- -D warnings && cargo test --lib --no-fail-fast'
 ```
 
 Always inside Docker. Never `cargo test` directly on host.

@@ -78,7 +78,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 **Paste services** (pastebin, GitHub Gist, paste.rs, etc.) are treated identically to public git repos — "private" pastes are still public. Never paste credentials, keys, internal config, or PII. Apply the same pre-flight check as a `git push` before posting anything.
 
 - **Never store tokens in plaintext** — hash with SHA-256 before storing; never log raw tokens
-- **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine
+- **Never hardcode machine-specific values** — hostname, IP, CPU count, memory size — always detect at runtime on the target machine. For **host** paths: never hardcode `/root`, `/home/jason`, or any specific username — use `$HOME`/`~/` in shell, `$(HOME)` in Makefile, `os.UserHomeDir()` in Go, `dirs::home_dir()` in Rust. Exception: paths inside containers or VMs where the user is known and fixed (e.g. `golang:alpine` always runs as root, so `/root/.cache/go-build` is correct inside that container).
 - **Credential masking** — when displaying or logging a credential, preserve the key name and replace the value with `xxxxx`; never log partial values
 
 ## Project Files & Naming

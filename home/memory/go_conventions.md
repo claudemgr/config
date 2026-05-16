@@ -42,11 +42,12 @@ LDFLAGS := -s -w \
 	-X 'main.BuildDate=$(BUILD_DATE)' \
 	-X 'main.OfficialSite=$(OFFICIAL_SITE)'
 
-BINDIR    := binaries
-RELDIR    := releases
-GOCACHE   := $(HOME)/.cache/go-build
-GOMODCACHE:= $(HOME)/go/pkg/mod
-REGISTRY  := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+BINDIR     := binaries
+RELDIR     := releases
+GOPATH     ?= $(HOME)/go
+GOCACHE    ?= $(HOME)/.cache/go-build
+GOMODCACHE ?= $(GOPATH)/pkg/mod
+REGISTRY   := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm \
 	-v $(PWD):/build \
@@ -99,11 +100,22 @@ GO_DOCKER := docker run --rm \
 
 - Always `golang:alpine` (rolling tag — never pinned)
 - Always `-e CGO_ENABLED=0`
-- Module cache mounted from host for speed (`~/.cache/go-build`, `~/go/pkg/mod`)
+- `/root/.cache/go-build` and `/go/pkg/mod` are paths **inside the container** — `golang:alpine` runs as root, so `/root` is correct and expected there. `$(GOCACHE)` and `$(GOMODCACHE)` are the **host** paths, always resolved via `$(HOME)` — never hardcoded.
 
-## Dev Target Pattern
+## Target Patterns
+
+Every target that invokes `GO_DOCKER` or any `docker run` with a Go toolchain image **must** create the cache dirs as its first step. This ensures the host dirs exist before Docker mounts them and that downloaded modules persist across runs.
 
 ```makefile
+build:
+	@mkdir -p $(GOCACHE) $(GOMODCACHE)
+	$(GO_DOCKER) go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
+
+test:
+	@mkdir -p $(GOCACHE) $(GOMODCACHE)
+	$(GO_DOCKER) go vet ./...
+	$(GO_DOCKER) go test -v -cover ./...
+
 dev:
 	@mkdir -p $(GOCACHE) $(GOMODCACHE)
 	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
@@ -115,6 +127,23 @@ dev:
 ```
 
 Always builds into a temp dir, never to a hardcoded path.
+
+**Rule — any direct `docker run` with a Go toolchain image** (not via `GO_DOCKER` macro) must also include the cache mounts and the preceding mkdir:
+
+```makefile
+some-target:
+	@mkdir -p $(GOCACHE) $(GOMODCACHE)
+	@docker run --rm \
+		-v $(PWD):/build \
+		-v $(GOCACHE):/root/.cache/go-build \
+		-v $(GOMODCACHE):/go/pkg/mod \
+		-w /build \
+		-e CGO_ENABLED=0 \
+		golang:alpine \
+		go ...
+```
+
+Never omit the cache mounts from a Go docker run — every invocation that downloads or compiles modules must persist results to the host.
 
 ## Build Info Variables
 
@@ -297,9 +326,11 @@ Singular package and directory names — see `~/.claude/CLAUDE.md` → Code & Fi
 Mount host cache dirs into the Docker container — do not re-download modules on every build:
 
 ```
-~/.cache/go-build  → /root/.cache/go-build
-~/go/pkg/mod       → /go/pkg/mod
+$(GOCACHE) on host    →  /root/.cache/go-build  in container  (golang:alpine runs as root)
+$(GOMODCACHE) on host →  /go/pkg/mod            in container
 ```
+
+`GOPATH`, `GOCACHE`, and `GOMODCACHE` all use `?=` so host environment values are respected when set (e.g. XDG paths, custom `GOPATH`, CI overrides). `GOMODCACHE` derives from `GOPATH` rather than hardcoding `~/go` so custom `GOPATH` locations (like `~/.local/share/go`) are handled automatically. Every target that uses `GO_DOCKER` or any direct `docker run` with a Go image must `@mkdir -p $(GOCACHE) $(GOMODCACHE)` first — Docker will silently create dirs as root if they don't exist, breaking cache persistence.
 
 ## Version Source
 
