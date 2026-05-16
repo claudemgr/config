@@ -291,6 +291,58 @@ Public repos MUST define `.github/dependabot.yml`. Dependabot MUST cover, when u
 
 Security updates are high priority and MUST go through the same test/security gates as manual changes. AI MUST NOT silently change dependency strategy, ignore failing update PRs, or disable update automation to "get green."
 
+## Workflow Error Messaging
+
+GitHub Actions surfaces failures in three ways — use the right one:
+
+| Technique | When to use | Syntax |
+|-----------|-------------|--------|
+| `::error::` workflow command | Any pre-flight or validation failure — appears as a red annotation on the Actions summary page, not just in logs | `echo "::error::Tag 'foo' is not a valid tag"` |
+| `::error file=...,line=N::` | When the failure is tied to a specific file (e.g., lint, format, policy check) | `echo "::error file=.github/workflows/release.yml,line=12::message"` |
+| `echo "ERROR: ..." && exit 1` | Steps where the annotation is less important than a clear log line | Standard shell pattern |
+
+Always write the message so a developer reading only the step name + message can understand what failed and what to do next — never output a bare non-zero exit with no explanation.
+
+### Release pre-flight validation
+
+The GitHub Releases API returns HTTP 422 with `"tag_name is not a valid tag"` when:
+- The tag does not exist in the repository at the time of the API call
+- The tag name contains whitespace, control characters, or other characters GitHub rejects
+- The workflow was triggered on a branch or manual dispatch but the `tag_name` resolved to an empty string or a non-tag ref
+
+Add this step as the **first step of the `release` job**, before any build or publish action:
+
+```yaml
+- name: Validate release tag
+  run: |
+    ref="${{ github.ref }}"
+    # Must be triggered by a tag push
+    if [[ "$ref" != refs/tags/* ]]; then
+      echo "::error::release.yml triggered on non-tag ref '$ref'. Releases require a tag push (refs/tags/v...)."
+      exit 1
+    fi
+    tag="${ref#refs/tags/}"
+    # Tag must exist in the repository
+    if ! git tag -l | grep -qxF "$tag"; then
+      echo "::error::Tag '$tag' does not exist in this repository. Push the tag before the release workflow runs."
+      exit 1
+    fi
+    # Tag must be well-formed: no whitespace or control characters
+    if printf '%s' "$tag" | grep -qP '[[:space:][:cntrl:]]'; then
+      echo "::error::Tag '$tag' contains whitespace or control characters and is not a valid GitHub tag name."
+      exit 1
+    fi
+    echo "Release tag '$tag' validated"
+```
+
+This step requires `fetch-depth: 0` on the checkout action so `git tag -l` sees the full tag list. Without it the local clone may not have the tag even though it exists on the remote.
+
+```yaml
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+  with:
+    fetch-depth: 0   # required for git tag -l in release pre-flight
+```
+
 ## Release Integrity
 
 - Tagged releases MUST publish a machine-readable checksum file for all release artifacts (SHA-256)
