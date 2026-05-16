@@ -22,7 +22,8 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 
 | File | Role | Mutable during work? |
 |------|------|----------------------|
-| **AI.md** | THE HOW — implementation spec and source of truth. Starts as a copy of the type template (go/ or rust/). Grows over time to include project-specific conventions that intentionally override global. When AI.md and global CLAUDE.md conflict, AI.md wins — that is the intended mechanism for per-project customization. | No (except deliberate convention changes) |
+| **AI.md** | THE HOW — implementation spec, readonly copy of the type template (go/ or rust/). Never modified after initial copy. Placeholders resolve from IDEA.md at runtime. When the template is updated in claudemgr, re-copy this file — no merge needed because it was never touched. | No |
+| **SPEC.md** | Project-specific rule overrides — the only place where project rules may contradict the template or global conventions. Created at project setup (may be empty); content added only when a rule must actively differ. SPEC.md wins over AI.md which wins over global CLAUDE.md. | Yes — only when adding or changing rule overrides |
 | **IDEA.md** | THE WHAT — project intent, goal, and constraints only. Never the HOW. Three required sections (see below). | Yes |
 | **TODO.AI.md** | AI-owned task list. Required when working on more than 2 items. Completed items are REMOVED (not marked done and left). | Yes |
 | **TODO.md** | Human-owned task list; AI **must** mark done when completed (leaving unmarked is misleading), never delete/empty entries | Limited |
@@ -30,6 +31,17 @@ All relative file references (`AI.md`, `./src`, `./`) resolve from `$PWD`. Absol
 | **PLAN.md** | Human-owned plan; AI **must** mark done when completed, never delete entries or rewrite wholesale | Limited |
 | **CLAUDE.md** | Short loader pointing at AI.md and IDEA.md. No project-specific spec or rule content. | No |
 
+## Rule hierarchy (highest precedence first)
+
+```
+SPEC.md          ← project-specific rule overrides (wins over everything below)
+AI.md            ← type template (wins over global)
+Global CLAUDE.md ← baseline for all projects
+```
+
+SPEC.md > AI.md > global CLAUDE.md. When files conflict, fix the lower-precedence file.
+
+**If SPEC.md and AI.md conflict, SPEC.md wins — that is its purpose.**
 **If AI.md and IDEA.md conflict, AI.md wins. Fix IDEA.md.**
 
 **The WHAT/HOW boundary is strict:**
@@ -95,6 +107,8 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 - `claudemgr/config/CLAUDE.md` — project CLAUDE.md loader template
 - When starting a new project: COPY the appropriate TEMPLATE.md into the project as `AI.md`
 - The copied AI.md is immediately read-only; project-specific values go in IDEA.md
+- Also create an empty `SPEC.md` at project setup — it stays empty until a rule must contradict the template or global
+- Template updates in claudemgr: re-copy TEMPLATE.md over AI.md directly (no merge needed — AI.md was never modified)
 
 ## First-time setup flow
 

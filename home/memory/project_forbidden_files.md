@@ -90,7 +90,8 @@ These are the only files that belong at the project root:
 
 | File | Required | Purpose |
 |------|:--------:|---------|
-| `AI.md` | ✓ | Project specification (THE HOW) |
+| `AI.md` | ✓ | Project specification (THE HOW) — readonly template copy |
+| `SPEC.md` | Optional | Project-specific rule overrides — may be empty; only add content when a rule must contradict the template or global |
 | `IDEA.md` | ✓ | Project description, variables, business logic (THE WHAT) |
 | `CLAUDE.md` | ✓ | Short loader — points at `AI.md` and `IDEA.md` |
 | `README.md` | ✓ | Public documentation |

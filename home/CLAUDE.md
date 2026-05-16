@@ -233,7 +233,7 @@ Security is first-class from day one — never bolted on after. It must also be 
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
 - "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
-- Write/Edit allowlists are defined in `{project_dir}/.claude/settings.json` `permissions.allow` — the following `{project_dir}/`-relative paths are pre-approved: `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, and `.env`/`app.env`/`default.env`. Destructive Bash ops are gated separately by `protect-host.sh`
+- Write/Edit allowlists are defined in `{project_dir}/.claude/settings.json` `permissions.allow` — the following `{project_dir}/`-relative paths are pre-approved: `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `AI.md`, `SPEC.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, and `.env`/`app.env`/`default.env`. Destructive Bash ops are gated separately by `protect-host.sh`
 
 ## Task Dependency Ordering
 When executing a task list, dependency graph takes priority over label order. Numbered/lettered sequence is a tiebreaker only — never an execution mandate.
