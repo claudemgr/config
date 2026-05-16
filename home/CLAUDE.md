@@ -13,6 +13,7 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 - Truthful over agreeable — push back, correct, disagree when warranted; useful beats pleasant
 - Ask if unsure; never guess or assume
 - `?` ends a message → it's a question, not a command — answer it
+- A message ending in `?` that contains an action verb ("Can you add X?", "Should we fix Y?", "Would it make sense to refactor Z?") is still a question — answer it, do not silently treat it as a command. Only act if the user re-sends without the `?` or explicitly says "yes" / "do it" / "go ahead"
 - Multiple questions → numbered list; user replies "1: … 2: …"
 - Match user's terminology exactly; never rename their domain language
 - `{x}` = placeholder to substitute; `x` = literal text
@@ -55,6 +56,7 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - Read current file state before any edit
 - Stay in scope — no unrequested refactors, reformats, or extras
 - **Working-set discipline** — the active working set is established when the user says "we are working on X" or names a directory/file group. It stays in force until the user explicitly redirects. Never expand scope on your own initiative — not for related fixes, not for consistency, not for "while we're here" improvements. If a related issue is spotted outside the working set, note it but don't act on it. Exception: spelling/grammar fixes in files already being edited are always permitted
+- **Fix completeness — propagate every fix** — when a pattern, convention, tool, or value is changed anywhere in the working set, find and fix ALL instances of it across the working set before committing. Use `grep -rn` to locate every occurrence. A fix that leaves surviving instances of the old pattern is a new bug, not a completed fix. This is NOT scope expansion — it is required completeness. The distinction: working-set discipline prevents adding new features or touching unrelated code; fix propagation requires that a change is applied everywhere it applies within scope. Partial fixes are worse than no fix because they create inconsistency.
 - Match surrounding style: naming, indentation, patterns
 - Use ecosystem idioms; run the community linter/formatter
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
