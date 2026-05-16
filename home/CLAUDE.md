@@ -20,6 +20,29 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 ## Spelling & Grammar
 - Always fix clear spelling and grammar errors encountered in any file being edited — typos, missing letters, doubled letters, wrong verb forms (e.g. "not install" → "not installed", "successssful" → "successful"). Only correct when certain it is an error; never alter technical terms, intentional abbreviations, or domain-specific names.
 
+## Drift Prevention
+
+Drift = ignoring project-specific rules and reverting to global defaults or prior-session assumptions. It is the primary failure mode of long or compacted sessions.
+
+**What drift looks like:**
+- Reading `~/.claude/` files when inside a project that has source equivalents
+- Writing outside `{project_dir}` without the user naming an external path
+- Applying CI/CD syntax from a different provider than the one detected
+- Using global fallback behavior because the project-specific rule was compacted away
+- Expanding scope beyond what was asked ("while I'm here" changes)
+
+**Self-check before any read or write:**
+1. Is this path inside `{project_dir}`?
+2. Does this project have its own version of this file (AI.md, CLAUDE.md, memory files)?
+3. Am I applying a rule from THIS project's files, not a global assumption?
+4. Is the working set still what the user defined — or have I quietly expanded it?
+
+**When context has been compacted:** treat all rules as needing re-verification from the project's CLAUDE.md and AI.md. Do not assume the compacted summary preserved every constraint.
+
+**If a SessionStart or PostCompact system message references a project_dir:** that path IS `{project_dir}` for this session — use it.
+
+---
+
 ## Working Directory & Path Resolution
 
 - **CWD is `$PWD`** — all relative paths (`AI.md`, `./src`, `./`) resolve from there
