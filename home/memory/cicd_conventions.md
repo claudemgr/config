@@ -55,6 +55,70 @@ Third-party registry publishing uses repository secrets, not GitHub token permis
 
 ---
 
+## Workflow Job Ordering
+
+GitHub Actions runs all jobs in parallel by default. Use `needs:` to enforce ordering when a job depends on another's output or must not run if a prior job failed.
+
+### `build.yml` job order
+
+```
+lint ──────────────┐
+                   ├──→ build (needs: test) ──→ upload-artifacts (needs: build)
+test ──────────────┘
+  └──→ coverage (needs: test)
+```
+
+- `lint` and `test` run in parallel — neither depends on the other
+- `build` `needs: [test]` — never produce artifacts from untested code
+- `coverage` `needs: [test]` — parses test output
+- `upload-artifacts` `needs: [build]` — only upload if build succeeded
+
+### `release.yml` job order
+
+```
+build ──→ release (needs: build)
+```
+
+- `release` `needs: build` — never publish without a successful build + test
+- `build` job uses read-only permissions; `release` job has elevated permissions scoped to it only
+- `release.yml` always re-runs its own build inline — never relies on artifacts from a prior workflow run
+
+### `security.yml` job order
+
+```
+secret-scan ──┐
+vuln-scan    ──┤  (all parallel — no deps between them)
+policy-check ──┘
+```
+
+Security jobs are independent — run in parallel. No `needs:` required within `security.yml`.
+
+### Docker image ordering
+
+Standard multi-stage Dockerfiles (single `docker/build-push-action` step) need no special job ordering — BuildKit handles stage sequencing internally.
+
+When a custom builder or base image is published separately and referenced by a downstream image:
+
+```yaml
+jobs:
+  build-base:
+    # Builds and pushes ghcr.io/{org}/{name}-builder:latest
+    ...
+  build-app:
+    needs: build-base   # app Dockerfile FROM references the builder image
+    ...
+```
+
+### Cross-workflow ordering
+
+GitHub Actions has no native cross-workflow `needs:`. Use branch protection instead:
+
+- `build.yml` and `security.yml` run on push/PR — branch protection requires both to pass before merge
+- `release.yml` triggers on tag — by the time a tag is cut, main has already passed build + security gates
+- Never use `workflow_run` to chain `release.yml` after `build.yml` — it is complex, fragile, and bypasses branch protection intent
+
+---
+
 ## Workflow Best Practices
 
 ### Concurrency groups
@@ -152,15 +216,25 @@ Dependabot covers `github-actions` ecosystem updates automatically when `.github
 
 ### Vulnerability scanning in `security.yml`
 
-Run the appropriate scanner for each language present in the repo. All scanners run in `security.yml` on push and pull_request. A critical or high CVE in a direct dependency is a hard build failure — not a warning.
+`security.yml` always runs on push and pull_request. Jobs are split into two tiers:
 
-| Language / Scope | Scanner | Command / Action |
-|------------------|---------|-----------------|
-| All repos (secrets) | truffleHog | `trufflesecurity/trufflehog@{sha}` — Apache-2.0, no license key |
-| Go | govulncheck | `govulncheck ./...` |
-| Rust | cargo audit | `cargo audit` |
-| Node / TypeScript | npm audit | `npm audit --audit-level=high` |
-| Container images | Trivy | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
+**Always-required jobs (every public repo, no conditions):**
+
+| Job | Scanner | Notes |
+|-----|---------|-------|
+| `secret-scan` | truffleHog | `trufflesecurity/trufflehog@{sha}` — Apache-2.0, no license key; `fetch-depth: 0` required |
+| `workflow-policy` | inline shell | Verifies all `uses:` lines are pinned to a 40-char SHA; blocks `pull_request_target` |
+
+**Conditional jobs (only when the manifest file exists in the repo):**
+
+| Job | Scanner | Condition | Command |
+|-----|---------|-----------|---------|
+| `vuln-scan` (Go) | govulncheck | `go.sum` present | `govulncheck ./...` |
+| `vuln-scan` (Rust) | cargo audit | `Cargo.lock` present | `cargo audit` |
+| `vuln-scan` (Node) | npm audit | `package-lock.json` present | `npm audit --audit-level=high` |
+| `image-scan` | Trivy | Dockerfile present | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
+
+A critical or high CVE in a direct dependency is a hard build failure — not a warning. The `image-scan` job requires the image to be built first; run it after `docker/build-push-action` in the same job or declare `needs: build`.
 
 See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commit checks, and the full vulnerability scanning policy.
 
@@ -202,6 +276,8 @@ Direct pushes to the default branch are forbidden except explicit maintainer eme
 | `.github/workflows/build.yml` | Build, test, coverage, and repo validation |
 | `.github/workflows/release.yml` | Tagged/manual release build and publish |
 | `.github/workflows/security.yml` | Secret scanning, dependency/security checks, workflow policy checks |
+
+All three workflows are required on every public repo regardless of language. `security.yml` always contains at minimum `secret-scan` (truffleHog) and `workflow-policy` (action pinning check); dependency vulnerability jobs are added only when the corresponding manifest files exist.
 
 If the project also supports Gitea/Forgejo or Jenkins, the equivalent workflows/pipelines MUST enforce the same gates — not a weaker subset. CI MUST fail when required tests, coverage gates, secret scans, dependency checks, or release validation fail.
 
