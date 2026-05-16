@@ -3,6 +3,8 @@
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
 
+Provider-specific convention files (`github_conventions.md`, `gitlab_conventions.md`, `gitea_conventions.md`, `forgejo_conventions.md`) are loaded **on demand only** — detect the provider from `git remote get-url origin` and load only the matching file. Never pre-load all provider files.
+
 ## Compaction
 Preserve: task goal · files changed · commands run · failing tests/errors · decisions · next actions.
 Drop: old exploration paths · repeated logs · irrelevant discussion.
