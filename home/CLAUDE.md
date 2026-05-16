@@ -62,6 +62,7 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols or error schemes
 - Targeted edits only; full rewrites only when asked
 - Required deps: just add them. Real choice between alternatives: ask first
+- **No partially implemented code** — never commit a stub, a `TODO` placeholder inside logic, an unimplemented interface method, or code that calls a function that does not exist yet. Every line of committed code must work as written. If full implementation requires more scope than the current task allows, stop and discuss — do not commit partial work and move on.
 - **No TODO/FIXME/HACK in committed code** — resolve before committing or open a tracked issue and reference it; never commit a reminder to future-you
 - **No commented-out code** — delete it; git history is the undo mechanism
 - **No comments in JSON** — JSON has no comment syntax; they break parsers
@@ -83,7 +84,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 ## Project Files & Naming
 - See `~/.claude/memory/project_conventions.md` for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
 - See `~/.claude/memory/project_forbidden_files.md` for file/directory rules including README.md, LICENSE.md naming, and what must never be created
-- **`TODO.AI.md` hygiene** — remove completed items; never leave them marked done and accumulating. **`PLAN.AI.md` hygiene** — delete the file once the work it describes is fully committed
+- **`TODO.AI.md` hygiene** — complete each item fully — code working, tests passing, committed — before removing it and starting the next. Never clear an item while its work is still in progress, and never start a new item while the current one is incomplete. Remove items only when done; never leave them marked done and accumulating. **`PLAN.AI.md` hygiene** — delete the file once the work it describes is fully committed
 
 ## Cleanup
 - **Clean up immediately** — stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed; never leave them running until session end
@@ -97,7 +98,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, do NOT retry the same command. Tell the user what was blocked and what it would destroy; only the user decides whether to proceed
 - Verify APIs/flags exist before using them; cite file:line for any code reference
 - Run code before calling it done; iterate until verification actually passes
-- Plan (use plan mode) for changes touching 3+ files or ambiguous requirements
+- Plan (use plan mode) for genuinely ambiguous requirements or architectural decisions with real tradeoffs — not simply because a task touches many files
 
 **Memory Safety — these apply to every line of code in every language:**
 - `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in `{project_dir}/IDEA.md`
@@ -220,7 +221,10 @@ Security is first-class from day one — never bolted on after. It must also be 
 ## Token & Context Discipline
 - **Use the explorer subagent for broad codebase searches** — searches spanning 3+ files, unknown locations, or multiple naming conventions: dispatch via explorer. Don't grep-walk in main context — search results bloat conversation history forever. Direct grep/find is fine for one specific known target
 - **Read files narrowly** — for files >500 lines: use `offset`/`limit`, or grep first to find the slice. Don't load 2000 lines when you need 50
-- **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed
+- **No speculative reads** — only read files the current task directly requires. Do not open adjacent files because they "might be relevant." If a file turns out to be needed, read it then.
+- **Don't re-read after editing** — Edit/Write errors if the change fails; no verification re-read needed. The one explicit exception: read `COMMIT_MESS` once before running `gitcommit` to confirm the message matches the actual diff — a push is irreversible.
+- **Don't spawn agents for small tasks** — if the work fits in 2–3 direct tool calls, do it inline. Agent overhead (launch, context transfer, result relay) costs more tokens than the task itself for simple lookups, single-file edits, or short shell commands.
+- **Plan mode is for genuine ambiguity, not file count** — invoke plan mode when requirements are unclear or the approach has real tradeoffs, not simply because a task touches 3+ files. Mechanical changes across many files (rename, find-replace, bulk fix) do not need a plan.
 - **Parallelize independent research** — multiple independent questions: spawn agents in parallel (single message, multiple Agent calls)
 
 ## Agent Usage
