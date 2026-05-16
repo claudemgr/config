@@ -152,6 +152,7 @@ Instructions for the agent...
 | `audit.md` | opus | Full project health audit — security, quality, logic, docs, spec compliance |
 | `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
 | `bootstrap.md` | sonnet | Bootstrap a project from a spec file (`{project_dir}/AI.md`); executes PART 0–6 |
+| `cicd-maintenance.md` | sonnet | Dependabot PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix |
 | `claude-code-guide.md` | sonnet | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
 | `code-reviewer.md` | sonnet | Review diffs, PRs, or files before committing or merging |
 | `commit-prep.md` | haiku | Prepare `COMMIT_MESS` without polluting main conversation with diff output |
