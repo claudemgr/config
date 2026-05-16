@@ -305,42 +305,35 @@ Always write the message so a developer reading only the step name + message can
 
 ### Release pre-flight validation
 
-The GitHub Releases API returns HTTP 422 with `"tag_name is not a valid tag"` when:
-- The tag does not exist in the repository at the time of the API call
-- The tag name contains whitespace, control characters, or other characters GitHub rejects
-- The workflow was triggered on a branch or manual dispatch but the `tag_name` resolved to an empty string or a non-tag ref
+The GitHub Releases API returns HTTP 422 with `"tag_name is not a valid tag"` when the tag does not exist in the repository at the time of the API call, or when the tag name is malformed. The correct fix is not to *validate* that the tag exists but for the **release job to own the tag** — delete it if it exists, then create it fresh. This ensures the tag always points to the correct commit and makes the workflow idempotent (re-runnable on failure).
 
-Add this step as the **first step of the `release` job**, before any build or publish action:
+The `release` job needs `contents: write` to push the tag — it already has this permission per the workflow permissions pattern.
 
 ```yaml
-- name: Validate release tag
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+  with:
+    fetch-depth: 0   # required: full history needed to inspect and push tags
+
+- name: Ensure release tag
   run: |
     ref="${{ github.ref }}"
-    # Must be triggered by a tag push
+    # Must be triggered by a tag push or workflow_dispatch with a tag input
     if [[ "$ref" != refs/tags/* ]]; then
       echo "::error::release.yml triggered on non-tag ref '$ref'. Releases require a tag push (refs/tags/v...)."
       exit 1
     fi
     tag="${ref#refs/tags/}"
-    # Tag must exist in the repository
-    if ! git tag -l | grep -qxF "$tag"; then
-      echo "::error::Tag '$tag' does not exist in this repository. Push the tag before the release workflow runs."
-      exit 1
-    fi
-    # Tag must be well-formed: no whitespace or control characters
+    # Reject malformed tag names before touching the remote
     if printf '%s' "$tag" | grep -qP '[[:space:][:cntrl:]]'; then
       echo "::error::Tag '$tag' contains whitespace or control characters and is not a valid GitHub tag name."
       exit 1
     fi
-    echo "Release tag '$tag' validated"
-```
-
-This step requires `fetch-depth: 0` on the checkout action so `git tag -l` sees the full tag list. Without it the local clone may not have the tag even though it exists on the remote.
-
-```yaml
-- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-  with:
-    fetch-depth: 0   # required for git tag -l in release pre-flight
+    # Delete existing tag (local + remote) then recreate at current HEAD
+    git tag -d "$tag" 2>/dev/null || true
+    git push origin ":refs/tags/$tag" 2>/dev/null || true
+    git tag "$tag"
+    git push origin "refs/tags/$tag"
+    echo "Tag '$tag' ensured at $(git rev-parse HEAD)"
 ```
 
 ## Release Integrity
