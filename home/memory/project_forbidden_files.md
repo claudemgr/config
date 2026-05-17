@@ -107,3 +107,99 @@ These are the only files that belong at the project root:
 | `.gitignore` | ✓ | Git ignore rules |
 | `.github/` | Optional | GitHub-specific files (workflows, templates, etc.) |
 | `.editorconfig` | Optional | Editor formatting rules — permitted, but settings must match the project's existing style conventions |
+
+---
+
+## README.md Requirements
+
+`README.md` is public documentation — written for users, not developers. Apply designer-level intent: clear, scannable, and complete.
+
+### Mandatory sections (binary projects)
+
+Every project that produces a binary must have all four of these sections:
+
+1. **What it does** — one-paragraph description; no jargon
+2. **Install** — platform-complete download instructions (see below)
+3. **Usage** — the most common invocation(s); flags table if the binary has a CLI
+4. **Build from source** — `make build` is always the canonical command; note any prerequisites
+
+### Install section — platform coverage rule
+
+**The install section MUST cover every platform the project builds for.** Covering one platform when the Makefile builds eight is a documentation bug.
+
+**How to determine the build matrix:**
+
+- **Go projects** — inspect the Makefile for GOOS/GOARCH loops or explicit platform targets. Default is 8 platforms (see `go_conventions.md`): linux/darwin/windows/freebsd × amd64/arm64.
+- **Rust projects** — inspect the Makefile for target triples. Default platforms are in `rust_conventions.md`.
+- If in doubt, run `grep -E 'GOOS|GOARCH|target.*triple|linux|darwin|windows|freebsd' Makefile` and document what you find.
+
+**Required install section structure:**
+
+```markdown
+## Install
+
+Download the latest release from [GitHub Releases](https://github.com/{org}/{project}/releases/latest).
+
+### Linux
+| Arch | Binary |
+|------|--------|
+| amd64 | `{project_name}-linux-amd64` |
+| arm64 | `{project_name}-linux-arm64` |
+
+```bash
+curl -LSsf https://github.com/{org}/{project}/releases/latest/download/{project_name}-linux-amd64 \
+  -o /usr/local/bin/{project_name} && chmod +x /usr/local/bin/{project_name}
+```
+
+### macOS
+| Arch | Binary |
+|------|--------|
+| Intel (x86_64) | `{project_name}-darwin-amd64` |
+| Apple Silicon (arm64) | `{project_name}-darwin-arm64` |
+
+```bash
+# Detect arch automatically
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+curl -LSsf "https://github.com/{org}/{project}/releases/latest/download/{project_name}-darwin-${ARCH}" \
+  -o /usr/local/bin/{project_name} && chmod +x /usr/local/bin/{project_name}
+# Remove macOS quarantine flag
+xattr -d com.apple.quarantine /usr/local/bin/{project_name} 2>/dev/null || true
+```
+
+### Windows
+| Arch | Binary |
+|------|--------|
+| amd64 | `{project_name}-windows-amd64.exe` |
+| arm64 | `{project_name}-windows-arm64.exe` |
+
+Download and add to `%PATH%`.
+
+### FreeBSD
+| Arch | Binary |
+|------|--------|
+| amd64 | `{project_name}-freebsd-amd64` |
+| arm64 | `{project_name}-freebsd-arm64` |
+```
+
+**Rules:**
+
+- Never document only one platform when the build matrix is wider — omission is a bug
+- Never hardcode a version number in download URLs — always use `/releases/latest/download/`
+- Always include the `xattr` quarantine removal step for macOS
+- Always include `chmod +x` for every Unix binary
+- Windows binaries get `.exe`; no other platforms do
+- Rust binary naming uses OS names `linux/macos/windows/freebsd` (not `darwin`) and arch names `x86_64/aarch64` (not `amd64/arm64`) — match what the Makefile actually produces
+- Go binary naming uses `darwin` (never `macos`) and `amd64`/`arm64` — match what the Makefile actually produces
+- If a platform is conditionally built (e.g. macOS cross-compile requires a macOS host), note the constraint; do not silently omit the platform
+
+### README.md sync rule
+
+When any of the following change, README.md must be updated in the same commit:
+
+- New binary added or renamed
+- New platform or architecture added to the build matrix
+- New CLI flag or subcommand added
+- Build prerequisites change
+- Project name, org, or repo path changes
+
+Use the `doc-sync` agent when CLI or feature changes require README updates.
