@@ -1,6 +1,6 @@
 ---
-name: Project forbidden files and directories
-description: Files and directories that must never be created in a project repo, sourced from the Go and Rust AI.md templates
+name: Project file rules
+description: Forbidden files/dirs, allowed root files, README.md layout and content requirements, documentation sync rules
 type: user
 ---
 
@@ -106,6 +106,7 @@ These are the only files that belong at the project root:
 | `site.txt` | Optional | Official site/homepage URL |
 | `.gitignore` | ✓ | Git ignore rules |
 | `.github/` | Optional | GitHub-specific files (workflows, templates, etc.) |
+| `install.sh` | Optional | Standalone installer script — allowed when the repo is primarily an install script with README and LICENSE |
 | `.editorconfig` | Optional | Editor formatting rules — permitted, but settings must match the project's existing style conventions |
 
 ---

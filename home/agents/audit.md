@@ -190,7 +190,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 ### Structure
 - Directory layout matches `{project_dir}/AI.md` spec (or project `{project_dir}/CLAUDE.md` spec)
-- No forbidden files or directories (`~/.claude/memory/project_forbidden_files.md`) — flag any found; do NOT delete without user confirmation
+- No forbidden files or directories (`~/.claude/memory/project_files.md`) — flag any found; do NOT delete without user confirmation
 - No forbidden directory names in source: plural source dirs (`handlers/`, `models/`) — exception: tooling dirs (`scripts/`, `tests/`, `completions/`, `binaries/`)
 - Dockerfile in `docker/Dockerfile`, not at repo root
 - `docker-compose.yml` in `docker/`, not at repo root

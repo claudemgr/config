@@ -94,7 +94,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 
 ## Project Files & Naming
 - See `~/.claude/memory/project_conventions.md` for `{project_dir}/AI.md` / `{project_dir}/IDEA.md` / `{project_dir}/CLAUDE.md` roles, placeholder system, first-time setup flow, and directory layout
-- See `~/.claude/memory/project_forbidden_files.md` for file/directory rules including README.md content requirements (multi-platform install coverage), LICENSE.md naming, and what must never be created
+- See `~/.claude/memory/project_files.md` for file/directory rules including README.md content requirements (multi-platform install coverage), LICENSE.md naming, allowed root files, and what must never be created
 - **`TODO.AI.md` hygiene** — complete each item fully — code working, tests passing, committed — before removing it and starting the next. Never clear an item while its work is still in progress, and never start a new item while the current one is incomplete. Remove items only when done; never leave them marked done and accumulating. **`PLAN.AI.md` hygiene** — delete the file once the work it describes is fully committed
 - **`TODO.AI.md` PART loading** — each item carries a `Read:` line naming its source PART (e.g. `Read: AI.md PART 14`). Before starting any item: `grep -n "^# PART 14" AI.md` to get the start line, `grep -n "^# PART 15" AI.md` for the end, then read only that slice with `offset`/`limit`. Never load the full spec file to implement one item.
 
