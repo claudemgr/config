@@ -39,9 +39,12 @@ VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
 COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
+NPM_CACHE ?= $(HOME)/.npm
+
 NODE_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
+	-v $(NPM_CACHE):/root/.npm \
 	-w /build \
 	node:alpine
 ```
@@ -60,15 +63,20 @@ NODE_DOCKER := docker run --rm -it \
 ## Docker Build Pattern
 
 ```makefile
+NPM_CACHE ?= $(HOME)/.npm
+
 NODE_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
+	-v $(NPM_CACHE):/root/.npm \
 	-w /build \
 	node:alpine
 ```
 
 - Always `node:alpine` rolling tag — never pinned for dev tooling
+- `NPM_CACHE` uses `?=` so a host `NPM_CACHE` env var (e.g. custom XDG path) is honored; default is `~/.npm`
 - `npm ci` inside Docker for reproducible installs
+- Every target that uses `NODE_DOCKER` must `@mkdir -p $(NPM_CACHE)` first so the host dir exists before Docker mounts it and downloaded packages persist across runs
 - Never run `node`, `npm`, `npx`, or `tsc` directly on host — always via `make`
 
 ## TypeScript Configuration

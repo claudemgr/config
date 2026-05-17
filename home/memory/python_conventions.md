@@ -39,9 +39,14 @@ VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
 COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
+PIP_CACHE ?= $(HOME)/.cache/pip
+UV_CACHE  ?= $(HOME)/.cache/uv
+
 PY_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
+	-v $(PIP_CACHE):/root/.cache/pip \
+	-v $(UV_CACHE):/root/.cache/uv \
 	-w /build \
 	python:alpine
 ```
@@ -60,14 +65,21 @@ PY_DOCKER := docker run --rm -it \
 ## Docker Build Pattern
 
 ```makefile
+PIP_CACHE ?= $(HOME)/.cache/pip
+UV_CACHE  ?= $(HOME)/.cache/uv
+
 PY_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
+	-v $(PIP_CACHE):/root/.cache/pip \
+	-v $(UV_CACHE):/root/.cache/uv \
 	-w /build \
 	python:alpine
 ```
 
 - Always `python:alpine` rolling tag — never pinned for dev tooling
+- `PIP_CACHE` and `UV_CACHE` use `?=` so host env vars (e.g. custom XDG paths) are honored; defaults are `~/.cache/pip` and `~/.cache/uv`
+- Every target that uses `PY_DOCKER` must `@mkdir -p $(PIP_CACHE) $(UV_CACHE)` first so host dirs exist before Docker mounts them and downloaded packages persist across runs
 - Dependencies installed inside Docker: `pip install -e .[dev]` or `uv sync --frozen`
 - Never run `python`, `pip`, `uv`, `ruff`, or `mypy` directly on host for project builds — always via `make`
 

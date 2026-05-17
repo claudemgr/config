@@ -131,6 +131,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
 - Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `~/.claude/memory/tempdir_conventions.md`
 - **`docker run` must use `--rm -it --name {project_name}-XXXX`** — every build/test container must self-remove on exit, be interactive-capable, and carry a traceable name; `XXXX` is a random suffix (Makefile: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`); no orphaned containers
+- **Toolchain containers must mount their package cache** — declare cache paths with `?=` (e.g. `NPM_CACHE ?= $(HOME)/.npm`) so host env vars with custom locations are honored; `@mkdir -p $(CACHE_DIR)` before every `docker run`; mount with `-v $(CACHE_DIR):/container/path`; see `~/.claude/memory/makefile_conventions.md` for the full table
 - **Test container network isolation** — always create a named bridge network for tests; never use the default bridge or `--network host`
 
 ## UI/UX

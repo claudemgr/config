@@ -106,20 +106,43 @@ Never `export` Makefile variables globally — pass them explicitly to Docker co
 All build-time tool invocations run inside Docker — language files define the specific image and mounts:
 
 ```makefile
-# Shared pattern — each language substitutes its own image and mounts
+# Shared pattern — each language substitutes its own image, cache vars, and mounts
+CACHE_DIR ?= $(HOME)/.cache/{lang}   # ?= honors host env var override
+
 LANG_DOCKER := docker run --rm -it \
     --name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
     -v $(PWD):/build \
+    -v $(CACHE_DIR):/root/.cache/{lang} \
     -w /build \
     {lang}:alpine
 ```
 
+### Cache mount rules (apply to every toolchain container)
+
+1. **Declare cache paths with `?=`** — `VAR ?= $(HOME)/.cache/...` so the host env var is honored when set (e.g. custom XDG paths). Never hardcode a path that a user may have relocated.
+2. **`@mkdir -p` before every `docker run`** — Docker silently creates missing dirs as root, breaking cache ownership and persistence. Always create the host dirs first:
+   ```makefile
+   build:
+       @mkdir -p $(CACHE_DIR)
+       $(LANG_DOCKER) ...
+   ```
+3. **Mount with `-v $(VAR):/container/path`** — the host path resolves from the `?=` variable; the container path is the fixed location for that toolchain image.
+
+| Language | Host variable | Default | Container path |
+|----------|--------------|---------|----------------|
+| Go (build) | `GOCACHE ?= $(HOME)/.cache/go-build` | `~/.cache/go-build` | `/root/.cache/go-build` |
+| Go (modules) | `GOMODCACHE ?= $(GOPATH)/pkg/mod` | `~/go/pkg/mod` | `/go/pkg/mod` |
+| Rust (registry) | `CARGO_REGISTRY ?= $(CARGO_HOME)/registry` | `~/.cargo/registry` | `/usr/local/cargo/registry` |
+| Rust (git) | `CARGO_GIT ?= $(CARGO_HOME)/git` | `~/.cargo/git` | `/usr/local/cargo/git` |
+| Node | `NPM_CACHE ?= $(HOME)/.npm` | `~/.npm` | `/root/.npm` |
+| Python (pip) | `PIP_CACHE ?= $(HOME)/.cache/pip` | `~/.cache/pip` | `/root/.cache/pip` |
+| Python (uv) | `UV_CACHE ?= $(HOME)/.cache/uv` | `~/.cache/uv` | `/root/.cache/uv` |
+
 - Always `--rm -it --name $(PROJECTNAME)-XXXX` — never leave build containers running; `-it` enables interactive use; `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`
 - Always `-w /build` — explicit working directory
 - Mount project root at `/build`; output dirs (`binaries/`, `dist/`) are subdirs of `/build`
-- Module/package caches are mounted from host when supported (Go module cache, npm node_modules)
 
-Language-specific Docker variables and cache mount patterns are in each language's conventions file:
+Language-specific Docker variables and full cache mount patterns are in each language's conventions file:
 - Go: `~/.claude/memory/go_conventions.md`
 - Rust: `~/.claude/memory/rust_conventions.md`
 - Node/TypeScript: `~/.claude/memory/node_typescript_conventions.md`
