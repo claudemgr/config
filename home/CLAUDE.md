@@ -265,6 +265,7 @@ When executing a task list, dependency graph takes priority over label order. Nu
 - `{dir}` = absolute path to the project root
 - `all` is the only command — other subcommands commit one file at a time
 - Never use `-m` / `--message` — bypasses the message file
+- If the GitHub remote repo does not exist, `gitcommit` creates it automatically and sets the upstream — no manual `gh repo create` or `git remote set-url` needed
 
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
