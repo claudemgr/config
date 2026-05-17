@@ -1,6 +1,6 @@
 ---
 name: Testing conventions
-description: Test structure, naming, unit vs integration split, coverage gates, mock strategy, and timing rules across Go, Rust, and shell projects
+description: Test structure, naming, unit vs integration split, coverage gates, mock strategy, and timing rules across Go, Rust, Node/TypeScript, Python, and shell projects
 type: user
 ---
 
@@ -18,6 +18,10 @@ Tests are written in the same work pass as the code they cover — never deferre
 | **Integration tests** | `tests/` at repo root | Full binary behavior: routes, auth flows, content negotiation, CLI↔server interaction, service installs | Shell scripts (`run_tests.sh`, `docker.sh`, `incus.sh`) |
 | **Unit tests** (Rust) | `#[cfg(test)]` blocks in `src/` | Same scope as Go unit tests | `cargo test` |
 | **Integration tests** (Rust) | `tests/` at crate root | Full binary/library integration | `cargo test --test '*'` |
+| **Unit tests** (Node/TS) | `src/*.test.ts` alongside source | Pure logic, parsing, transforms, component logic | `vitest --coverage` |
+| **Integration tests** (Node/TS) | `tests/` at repo root | Full server/CLI behavior, route responses, auth flows | Shell scripts or Vitest with `--pool=forks` |
+| **Unit tests** (Python) | `tests/test_*.py` | Pure logic, validation, parsing, transforms | `pytest --cov` |
+| **Integration tests** (Python) | `tests/integration/` | Full server/CLI behavior against a running service | `pytest tests/integration/` |
 
 ### What goes where
 
@@ -117,6 +121,108 @@ make test   # cargo fmt --check → cargo clippy -- -D warnings → cargo test -
 
 ---
 
+## Node/TypeScript Test Structure
+
+Use **Vitest** for new projects — faster, native ESM, TypeScript-first. Jest is acceptable for existing projects.
+
+### Parameterized tests — preferred over repeated `it()` blocks
+
+```typescript
+// src/utils.test.ts — unit test alongside source
+import { describe, it, expect } from "vitest";
+import { parseVersion } from "./utils.js";
+
+describe("parseVersion", () => {
+  it.each([
+    ["1.0.0", { major: 1, minor: 0, patch: 0 }],
+    ["0.1.0", { major: 0, minor: 1, patch: 0 }],
+    ["2.3.4", { major: 2, minor: 3, patch: 4 }],
+  ])("parses %s", (input, expected) => {
+    expect(parseVersion(input)).toEqual(expected);
+  });
+
+  it("throws on invalid input", () => {
+    expect(() => parseVersion("not-semver")).toThrow();
+  });
+});
+```
+
+### vitest.config.ts — coverage thresholds
+
+```typescript
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: "v8",
+      thresholds: { lines: 60, functions: 60, branches: 60 },
+    },
+  },
+});
+```
+
+Rules:
+- Unit tests live alongside source (`src/utils.test.ts`) — not in a separate tree
+- Use `it.each` for table-driven cases; name cases clearly
+- Integration tests in `tests/` — full server or CLI behavior
+- Always `make test` (Docker internally) — never `npx vitest` directly on host
+
+---
+
+## Python Test Structure
+
+Use **pytest** for all tests.
+
+### Parametrized tests — always preferred
+
+```python
+# tests/test_utils.py
+import pytest
+from {package_name}.utils import parse_version
+
+@pytest.mark.parametrize("version,expected", [
+    ("1.0.0", (1, 0, 0)),
+    ("0.1.0", (0, 1, 0)),
+    ("2.3.4", (2, 3, 4)),
+])
+def test_parse_version(version: str, expected: tuple[int, int, int]) -> None:
+    assert parse_version(version) == expected
+
+def test_parse_version_invalid() -> None:
+    with pytest.raises(ValueError):
+        parse_version("not-semver")
+```
+
+### conftest.py — shared fixtures
+
+```python
+# tests/conftest.py
+import pytest
+from pathlib import Path
+
+@pytest.fixture
+def tmp_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[server]\nport = 8080\n')
+    return cfg
+```
+
+Rules:
+- Tests in `tests/test_*.py` — one file per module
+- Shared fixtures in `tests/conftest.py` — never copy fixtures between test files
+- Use `tmp_path` (pytest built-in) for temp files; never hardcode `/tmp`
+- Integration tests in `tests/integration/` when they require a running service
+- Always `make test` (Docker internally) — never `pytest` directly on host
+
+Coverage thresholds in `pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=60"
+```
+
+---
+
 ## Mock Strategy
 
 | Dependency | How to mock |
@@ -138,6 +244,8 @@ make test   # cargo fmt --check → cargo clippy -- -D warnings → cargo test -
 | SERVER template projects | 100% Go code coverage | `go test -cover` |
 | Other Go projects | 60% (override in `IDEA.md` under `## Business logic`) | CI gate |
 | Rust projects | 60% (override in `IDEA.md`) | `cargo tarpaulin` or `cargo llvm-cov` |
+| Node/TypeScript projects | 60% lines/functions/branches (override in `IDEA.md`) | `vitest --coverage` (v8 provider) |
+| Python projects | 60% (override in `IDEA.md`) | `pytest --cov` + `--cov-fail-under` in `pyproject.toml` |
 
 The threshold is defined in `{project_dir}/IDEA.md`. CI fails when coverage drops below it — a passing build with uncovered code is a silent regression. If no threshold is set in `IDEA.md`, default is 60%.
 

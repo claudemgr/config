@@ -181,7 +181,7 @@ Security is first-class from day one — never bolted on after. It must also be 
 - Never `require()` in TypeScript — `import` only; enable `"moduleResolution": "bundler"` or `"node16"`
 - Never `process.exit()` in library code — only in CLI entry points
 - `package.json` scripts must work without global installs — use `npx` or `./node_modules/.bin/`
-- `npm ci` in CI (reproducible); `npm install` only for local dev
+- `npm ci` in Docker uses the `NPM_CACHE` mount (`~/.npm`) automatically — no extra flags needed; `npm install` for local dev only
 - No CDN scripts in HTML — bundle all assets at build time (no `<script src="https://..."`)
 - Never log `req`, `res`, or `ctx` objects — they contain credentials; log only safe fields
 

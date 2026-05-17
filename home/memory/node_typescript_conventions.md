@@ -75,9 +75,34 @@ NODE_DOCKER := docker run --rm -it \
 
 - Always `node:alpine` rolling tag — never pinned for dev tooling
 - `NPM_CACHE` uses `?=` so a host `NPM_CACHE` env var (e.g. custom XDG path) is honored; default is `~/.npm`
-- `npm ci` inside Docker for reproducible installs
+- `npm ci` inside Docker uses the `NPM_CACHE` mount (`/root/.npm`) automatically — no extra flags needed
 - Every target that uses `NODE_DOCKER` must `@mkdir -p $(NPM_CACHE)` first so the host dir exists before Docker mounts it and downloaded packages persist across runs
 - Never run `node`, `npm`, `npx`, or `tsc` directly on host — always via `make`
+
+## Target Patterns
+
+Every target that invokes `NODE_DOCKER` must create the cache dir as its first step:
+
+```makefile
+build:
+	@mkdir -p $(NPM_CACHE)
+	$(NODE_DOCKER) sh -c 'npm ci && npm run build'
+
+test:
+	@mkdir -p $(NPM_CACHE)
+	$(NODE_DOCKER) sh -c 'npm ci && npm run lint && npm run typecheck && npm run test'
+
+dev:
+	@mkdir -p $(NPM_CACHE)
+	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
+		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
+		echo "Quick dev build..." && \
+		$(NODE_DOCKER) sh -c 'npm ci && npm run build' && \
+		cp -r dist "$$BUILD_DIR/" && \
+		echo "Built: $$BUILD_DIR/dist"
+```
+
+**Rule — any direct `docker run` with a Node image** must also include the cache mount and the preceding mkdir.
 
 ## TypeScript Configuration
 

@@ -83,6 +83,27 @@ PY_DOCKER := docker run --rm -it \
 - Dependencies installed inside Docker: `pip install -e .[dev]` or `uv sync --frozen`
 - Never run `python`, `pip`, `uv`, `ruff`, or `mypy` directly on host for project builds — always via `make`
 
+## Target Patterns
+
+Every target that invokes `PY_DOCKER` must create the cache dirs as its first step:
+
+```makefile
+build:
+	@mkdir -p $(PIP_CACHE) $(UV_CACHE)
+	$(PY_DOCKER) sh -c 'pip install --quiet -e .[dev] && python -m build'
+
+test:
+	@mkdir -p $(PIP_CACHE) $(UV_CACHE)
+	$(PY_DOCKER) sh -c 'pip install --quiet -e .[dev] && ruff check . && ruff format --check . && mypy src && pytest'
+
+dev:
+	@mkdir -p $(PIP_CACHE) $(UV_CACHE)
+	$(PY_DOCKER) sh -c 'pip install -e .[dev]'
+	@echo "Project installed in editable mode inside Docker; run via make targets"
+```
+
+**Rule — any direct `docker run` with a Python image** must also include the cache mounts and the preceding mkdir.
+
 ## pyproject.toml Structure
 
 ```toml
