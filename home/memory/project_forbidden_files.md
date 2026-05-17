@@ -112,16 +112,79 @@ These are the only files that belong at the project root:
 
 ## README.md Requirements
 
-`README.md` is public documentation — written for users, not developers. Apply designer-level intent: clear, scannable, and complete.
+`README.md` is public documentation — written for users, not developers. Apply designer-level intent: clear, scannable, and complete. Emojis are welcome where they aid readability or navigation.
 
-### Mandatory sections (binary projects)
+**Always valid Markdown** — README.md must be syntactically correct Markdown at all times. No bare HTML, no broken link syntax, no unclosed fences.
 
-Every project that produces a binary must have all four of these sections:
+**Always in sync** — README.md reflects the current state of the project. Stale docs are a bug.
 
-1. **What it does** — one-paragraph description; no jargon
-2. **Install** — platform-complete download instructions (see below)
-3. **Usage** — the most common invocation(s); flags table if the binary has a CLI
-4. **Build from source** — `make build` is always the canonical command; note any prerequisites
+**Production before development** — users who want to run the project should never have to scroll past dev setup to find the install instructions.
+
+### Canonical section order
+
+```
+# {Project Name}
+
+{one-paragraph description — what it does, for whom, why it exists}
+
+🌐 **Site:** {official URL}   ← only if site.txt exists; omit otherwise
+
+---
+
+## 📦 Install
+
+{platform-complete download/install instructions — see platform coverage rule below}
+
+---
+
+## 🐳 Docker                ← only if docker/docker-compose.yml exists
+
+{docker compose up / pull instructions; image name; env var overrides}
+
+---
+
+## 🖥️ {Client CLI}          ← only if the project ships a CLI client binary
+
+{usage, flags table, example invocations}
+
+---
+
+## 🤖 {Agent}               ← only if the project ships an agent / daemon / server
+
+{how to run, config, systemd/launchd unit if applicable}
+
+---
+
+## {Other sections}         ← API docs, web UI, configuration reference, etc. as needed
+
+---
+
+## 🛠️ Development
+
+{build from source, prerequisites, make targets table, test commands}
+
+### 🐳 Docker build          ← only if docker/ directory exists
+
+{how to build and run the image locally; docker buildx command; image tag convention}
+
+---
+
+## 📄 License
+
+{license name} — see [LICENSE.md](LICENSE.md)
+```
+
+**Section rules:**
+
+- `# {Project Name}` is always H1 — the only H1 in the file
+- Description paragraph immediately follows the H1 — no section header wrapping it
+- Official site line is present only when `site.txt` exists at the project root; read it and use the URL verbatim
+- `## Install` (or equivalent production section) comes **before** `## Development` — always
+- Conditional sections (`Docker`, `Client CLI`, `Agent`) are included only when the project actually ships that component; detect by checking for `docker/docker-compose.yml` (Docker section) and `docker/Dockerfile` (Docker build subsection); omit entirely if not applicable
+- `## Development` is always the last substantive section, immediately before `## License`
+- `## License` is always the final section
+- Emojis in section headers are appropriate and encouraged; keep them consistent within a file
+- No `## Table of Contents` — headings are the navigation; ToC adds noise for short-to-medium READMEs
 
 ### Install section — platform coverage rule
 
@@ -194,12 +257,16 @@ Download and add to `%PATH%`.
 
 ### README.md sync rule
 
-When any of the following change, README.md must be updated in the same commit:
+README.md must be updated **in the same commit** when any of the following change:
 
-- New binary added or renamed
-- New platform or architecture added to the build matrix
-- New CLI flag or subcommand added
+- New binary added, renamed, or removed
+- New platform or architecture added to or removed from the build matrix
+- New CLI flag, subcommand, or config option added
 - Build prerequisites change
 - Project name, org, or repo path changes
+- New component added (CLI client, agent, web UI, Docker compose, etc.)
+- Official site URL defined or changed (`site.txt`)
 
 Use the `doc-sync` agent when CLI or feature changes require README updates.
+
+**Never leave README.md in a state where the section order violates the canonical layout** — if a prior session added a Development section before Install, fix the order in the same commit that touches README.md.
