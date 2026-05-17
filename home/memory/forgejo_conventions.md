@@ -94,7 +94,8 @@ secret-scan:
       run: apk add --no-cache docker-cli
     - name: truffleHog scan
       run: |
-        docker run --rm \
+        docker run --rm -it \
+          --name trufflehog-$RANDOM \
           -v "${{ forgejo.workspace }}:/repo" \
           trufflesecurity/trufflehog:latest \
           git file:///repo --since-commit HEAD~1 --fail

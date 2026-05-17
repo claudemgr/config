@@ -65,7 +65,7 @@ Rules:
 Every container started by AI must have an explicit lifetime — never leave one running indefinitely:
 
 - **Test containers:** stop and remove immediately after the test completes (pass or fail)
-- **Build containers:** `--rm` flag on all `docker run` invocations; they self-remove on exit
+- **Build containers:** `--rm -it --name {project_name}-XXXX` on all `docker run` invocations; self-remove on exit, interactive-capable, named for traceability (`XXXX` = random 8-char suffix)
 - **Long-running service containers (integration tests):** set a `--stop-timeout` and enforce it; if a container has not exited within 60s of `docker stop`, force-kill with `docker kill`
 - **No containers survive a session end** — if a container was started during a session, it must be stopped before the session ends
 

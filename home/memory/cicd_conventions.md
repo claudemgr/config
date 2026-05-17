@@ -202,7 +202,7 @@ pipeline {
             parallel {
                 stage('Secret Scan') {
                     steps {
-                        sh 'docker run --rm -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
+                        sh 'docker run --rm -it --name trufflehog-$RANDOM -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
                     }
                 }
                 stage('Vuln Scan') {

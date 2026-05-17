@@ -39,7 +39,8 @@ VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
 COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-NODE_DOCKER := docker run --rm \
+NODE_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-w /build \
 	node:alpine
@@ -59,7 +60,8 @@ NODE_DOCKER := docker run --rm \
 ## Docker Build Pattern
 
 ```makefile
-NODE_DOCKER := docker run --rm \
+NODE_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-w /build \
 	node:alpine

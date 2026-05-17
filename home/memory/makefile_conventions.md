@@ -107,13 +107,14 @@ All build-time tool invocations run inside Docker — language files define the 
 
 ```makefile
 # Shared pattern — each language substitutes its own image and mounts
-LANG_DOCKER := docker run --rm \
+LANG_DOCKER := docker run --rm -it \
+    --name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
     -v $(PWD):/build \
     -w /build \
     {lang}:alpine
 ```
 
-- Always `--rm` — never leave build containers running
+- Always `--rm -it --name $(PROJECTNAME)-XXXX` — never leave build containers running; `-it` enables interactive use; `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`
 - Always `-w /build` — explicit working directory
 - Mount project root at `/build`; output dirs (`binaries/`, `dist/`) are subdirs of `/build`
 - Module/package caches are mounted from host when supported (Go module cache, npm node_modules)

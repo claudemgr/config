@@ -49,7 +49,8 @@ GOCACHE    ?= $(HOME)/.cache/go-build
 GOMODCACHE ?= $(GOPATH)/pkg/mod
 REGISTRY   := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 
-GO_DOCKER := docker run --rm \
+GO_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(GOCACHE):/root/.cache/go-build \
 	-v $(GOMODCACHE):/go/pkg/mod \
@@ -89,7 +90,8 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 ## Docker Build Pattern
 
 ```makefile
-GO_DOCKER := docker run --rm \
+GO_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(GOCACHE):/root/.cache/go-build \
 	-v $(GOMODCACHE):/go/pkg/mod \
@@ -123,7 +125,7 @@ dev:
 		echo "Quick dev build..." && \
 		$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
 		echo "Built: $$BUILD_DIR/$(PROJECTNAME)" && \
-		echo "Test:  docker run --rm -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
+		echo "Test:  docker run --rm -it --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
 ```
 
 Always builds into a temp dir, never to a hardcoded path.
@@ -133,7 +135,8 @@ Always builds into a temp dir, never to a hardcoded path.
 ```makefile
 some-target:
 	@mkdir -p $(GOCACHE) $(GOMODCACHE)
-	@docker run --rm \
+	@docker run --rm -it \
+		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 		-v $(PWD):/build \
 		-v $(GOCACHE):/root/.cache/go-build \
 		-v $(GOMODCACHE):/go/pkg/mod \

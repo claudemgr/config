@@ -34,7 +34,8 @@ CARGO_HOME     ?= $(HOME)/.cargo
 CARGO_REGISTRY ?= $(CARGO_HOME)/registry
 CARGO_GIT      ?= $(CARGO_HOME)/git
 
-RUST_DOCKER := docker run --rm \
+RUST_DOCKER := docker run --rm -it \
+	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v "$(PWD)":/workspace \
 	-v $(CARGO_REGISTRY):/usr/local/cargo/registry \
 	-v $(CARGO_GIT):/usr/local/cargo/git \
@@ -64,7 +65,8 @@ All cargo invocations run inside Docker — never directly on host. Every target
 ```makefile
 build:
 	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
-	@docker run --rm --platform linux/amd64 \
+	@docker run --rm -it --platform linux/amd64 \
+		--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	    -v "$(PWD)":/workspace \
 	    -v "$(PWD)/binaries":/output \
 	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
@@ -107,7 +109,8 @@ macOS and FreeBSD cross-compilation from Linux is generally not supported — do
 ```makefile
 test:
 	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
-	@docker run --rm \
+	@docker run --rm -it \
+		--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	    -v "$(PWD)":/workspace \
 	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
 	    -v $(CARGO_GIT):/usr/local/cargo/git \

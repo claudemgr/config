@@ -86,7 +86,8 @@ secret-scan:
         fetch-depth: 0
     - name: truffleHog scan
       run: |
-        docker run --rm \
+        docker run --rm -it \
+          --name trufflehog-$RANDOM \
           -v "${{ gitea.workspace }}:/repo" \
           trufflesecurity/trufflehog:latest \
           git file:///repo --since-commit HEAD~1 --fail
@@ -271,7 +272,8 @@ renovate:
   steps:
     - name: Self-hosted Renovate
       run: |
-        docker run --rm \
+        docker run --rm -it \
+          --name renovate-$RANDOM \
           -e RENOVATE_TOKEN="${{ secrets.RENOVATE_TOKEN }}" \
           -e RENOVATE_PLATFORM=gitea \
           -e RENOVATE_ENDPOINT="${{ gitea.server_url }}" \
