@@ -1,7 +1,15 @@
 # Claude Rules
 
 ## Session Start
-Before any work: run `git pull` in `{project_dir}` to ensure the local branch is current. If the pull fails (conflict, no remote, offline), report it and wait — never start work on a potentially stale tree.
+Before any work, sync `{project_dir}` with the remote:
+
+1. `git status --porcelain` — check for uncommitted changes
+2. If dirty: `git stash push -m "session-start auto-stash"`
+3. `git pull`
+4. If stashed: `git stash pop`
+5. If `stash pop` conflicts: report the conflicting files and wait — never auto-resolve merge conflicts; let the user decide
+
+If the pull fails (no remote, offline, branch diverged): report it and wait — never start work on a potentially stale tree.
 
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
