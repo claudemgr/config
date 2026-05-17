@@ -12,14 +12,19 @@ You are a Go SERVER↔API migration auditor. The user has already replaced `AI.m
 
 ## Background: what changed between SERVER and API
 
-The API spec is identical to the SERVER spec except:
+The SERVER and API templates differ significantly. The API template is a **zero-auth open API server**:
 
-| Template | PART 17 |
-|----------|---------|
-| SERVER | ADMIN PANEL — full SSR HTML admin UI, isolated auth, separate admin sessions, admin-specific routes |
-| API | EMAIL & NOTIFICATIONS — no standalone HTML admin panel; admin operations are API-only (PART 14) |
+| Area | SERVER template | API template |
+|------|----------------|--------------|
+| PART 17 | ADMIN PANEL — full SSR HTML admin UI, isolated auth, separate admin sessions | EMAIL & NOTIFICATIONS — server notification emails only (no user account emails) |
+| Parts 18+ | Shift up by one vs API | Shift down by one vs SERVER |
+| Authentication | Full auth system: sessions, API tokens, agent tokens (adm_/usr_/org_ prefixes) | **None** — no auth layer at all; rate limiting is the sole abuse defense |
+| Admin API endpoints | PART 14: full admin API (`/api/{api_version}/server/...`) | **None** — no admin API endpoints; no admin operations via HTTP |
+| Configuration | Admin WebUI + server.yml + database sync | **File-only**: server.yml with hot-reload; no DB config sync, no admin WebUI |
+| Users / Orgs / Custom domains | SERVER PARTs 34–36 | **Absent** — no user management, no orgs, no custom domains |
+| Agent auth | Agent tokens required (`adm_agt_/usr_agt_/org_agt_` scopes) | **None** — agents connect without tokens |
 
-Parts 18 onward shift by one number (SERVER 18+ = API 17+). Everything else is equivalent.
+Parts 18 onward shift by one number (SERVER 18+ = API 17+). The PART 17 structural difference (Admin Panel vs Email) is accompanied by the removal of the entire auth/admin/user subsystem in API.
 
 ---
 
@@ -67,10 +72,17 @@ grep -rn -- "//go:embed.*admin" "{project_dir}/src" 2>/dev/null
 grep -rn -- "PART 17.*Admin\|Admin Panel\|frontend-rules" "{project_dir}/.claude" 2>/dev/null
 ```
 
-### Admin API endpoints (PART 14 — must be preserved in both directions)
+### Auth and admin API endpoints (direction-dependent)
 
 ```bash
-grep -rn -- "/api/.*admin\|adminAPI\|AdminAPI" "{project_dir}/src" 2>/dev/null | grep -v "_test\.go" | head -20
+# Admin API routes (present in SERVER, absent in API)
+grep -rn -- "/api/.*admin\|adminAPI\|AdminAPI\|/server/config" "{project_dir}/src" 2>/dev/null | grep -v "_test\.go" | head -20
+
+# Auth middleware, session handling, token validation
+grep -rn -- "AuthMiddleware\|SessionMiddleware\|TokenValidat\|BearerToken\|apiToken\|agentToken" "{project_dir}/src" 2>/dev/null | grep -v "_test\.go" | head -20
+
+# Agent token fields and --token flag in CLI/agent binaries
+grep -rn -- "agent.*token\|--token\|AGENT_TOKEN\|adm_agt\|usr_agt\|org_agt" "{project_dir}/src" 2>/dev/null | grep -v "_test\.go" | head -20
 ```
 
 ### Part number references in rule files and docs
@@ -131,10 +143,16 @@ For each `.claude/rules` file or `docs/` file that referenced SERVER's PART 17 (
 - Update the PART reference: SERVER's `16, 17` (Web Frontend, Admin Panel) → API's `16` (Web Frontend)
 - Update `docs/admin.md` if it documented the HTML admin panel UI — rewrite to document admin API endpoints instead
 
-**Group D — Verify admin API endpoints (PART 14)**
+**Group D — Remove auth system and admin API endpoints**
 
-- Confirm every admin operation that was previously reachable via the HTML admin panel is also reachable via an API endpoint
-- List any admin operations that exist only in the HTML layer and have no API equivalent — these need new API endpoints added per PART 14
+Read AI.md PART 11 in full (Security & Logging for the API template — zero-auth). For each auth artifact found:
+- Remove all admin API routes (`/api/{api_version}/server/...`, `/api/{api_version}/admin/...`)
+- Remove auth middleware (session validation, token validation, bearer token parsing)
+- Remove agent token fields and `--token` CLI flag from agent binaries
+- Remove `{PROJECT_NAME}_AGENT_TOKEN` env var handling
+- Remove admin password/token storage from the database schema
+- Verify no `adm_agt_/usr_agt_/org_agt_` token prefixes remain anywhere
+- Remove ConfigManager DB sync (file-only hot-reload per the API spec)
 
 **Group E — Part number drift**
 
@@ -158,13 +176,14 @@ Read AI.md PART 17 in full. For each admin panel feature specified:
 - Add `//go:embed` directive for admin templates
 - Add admin session handling separate from API token auth — admin sessions use their own cookie/store
 
-**Group B — Remove Email & Notifications infrastructure**
+**Group B — Migrate Email & Notifications to SERVER scope**
 
-For each email/notification artifact found that has no equivalent in the SERVER spec:
-- Remove SMTP client and email template rendering code
-- Remove notification queue and delivery logic
-- Remove email-related config fields that are SERVER-spec absent
-- Remove email handler tests with no SERVER equivalent
+Read AI.md PART 17 in full (Admin Panel for SERVER). The SERVER spec uses email for system notifications AND user account events (password reset, email verification, login alerts). For each email artifact in the API codebase:
+- Expand email types to include account emails (password reset, email verification, login alerts)
+- Add `{admin_email}` (notifies server admin) alongside `{notification_reply_to}`
+- Add user account email templates that were absent in the API template
+- Add email-related config fields specific to SERVER (admin email recipient, account email events)
+- Keep server notification emails (backup, SSL, scheduler errors) — these exist in both templates
 
 **Group C — Update rule files and docs**
 
@@ -172,9 +191,16 @@ For each `.claude/rules` file or `docs/` file that referenced API's PART 17 (Ema
 - Update the PART reference: API's `16` (Web Frontend) → SERVER's `16, 17` (Web Frontend, Admin Panel)
 - Add `docs/admin.md` documenting the HTML admin panel UI if it does not exist
 
-**Group D — Verify admin API endpoints (PART 14)**
+**Group D — Add auth system and admin API endpoints**
 
-- Admin API endpoints (PART 14) remain in both specs — confirm they are still present and intact
+Read AI.md PART 14 in full (Admin API for the SERVER template). For each auth/admin artifact required:
+- Add auth middleware (session validation, token validation, bearer token parsing)
+- Add admin API routes (`/api/{api_version}/server/...`) as specified in PART 14
+- Add agent token fields and `--token` CLI flag to agent binaries
+- Add `{PROJECT_NAME}_AGENT_TOKEN` env var handling
+- Add admin password/token storage to the database schema (argon2id hashing)
+- Add `adm_agt_/usr_agt_/org_agt_` token prefix generation and validation
+- Add ConfigManager DB sync alongside file-watch hot-reload
 - Admin HTML routes (PART 17) must not overlap with admin API routes — verify no path conflicts
 
 **Group E — Part number drift**
@@ -197,7 +223,9 @@ Direction: {SERVER → API | API → SERVER}
 Audit complete. TODO.AI.md written with N tasks across M groups.
 
 Admin panel artifacts found:     [yes/no — count if yes]
-Admin API endpoints verified:    [yes/no]
+Auth system artifacts found:     [yes/no — count if yes]
+Admin API endpoints found:       [yes/no — count if yes]
+Agent token artifacts found:     [yes/no — count if yes]
 Email/notification artifacts:    [yes/no — count if yes]
 Rule/doc files to update:        [count]
 Part number drift:               [yes/no]
@@ -209,6 +237,6 @@ Part number drift:               [yes/no]
 
 - **Read only** — do not modify any source file, only write `TODO.AI.md`
 - **Every task is completable independently** — no vague "update the code" items; cite the exact file and what changes
-- **Preserve admin API endpoints** — they belong to PART 14 and stay in both directions; only the HTML/SSR admin panel layer changes
+- **Admin API endpoints are direction-dependent** — SERVER has admin API endpoints (PART 14); API template has none. SERVER→API removes them; API→SERVER adds them. Do not assume they are preserved in both directions.
 - **Never touch IDEA.md** — project variables and business logic are unchanged by this migration
 - **If TODO.AI.md already exists** — add new tasks to it; do not overwrite existing items
