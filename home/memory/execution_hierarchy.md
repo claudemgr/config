@@ -26,15 +26,41 @@ Never run anything directly on the host unless no lower option works. Always use
 - Only remove resources created by the current project — never `docker system prune` or broad sweeps.
 - Identify resources by name/label/prefix before removing; if uncertain, list and ask.
 
+## Incus Instance Naming
+
+Every Incus instance started by AI must follow the same naming schema as Docker containers:
+
+```
+{project_name}-XXXX
+```
+
+where `XXXX` is a random 8-character lowercase alphanumeric suffix — identical to the Docker `--name` convention.
+
+```bash
+SUFFIX=$(tr -dc 'a-z0-9' </dev/urandom | head -c8)
+INSTANCE="{project_name}-${SUFFIX}"
+
+incus launch {image} "${INSTANCE}" --network {project_name}-test-net
+incus exec "${INSTANCE}" -- {command}
+# ... work ...
+incus delete --force "${INSTANCE}"
+```
+
+Rules:
+- Always generate the suffix before the launch command; store it in a variable
+- The instance name is the primary key for cleanup — record it immediately after launch
+- Never use generic names (`test`, `temp`, `dev`) that cannot be traced to a project
+- In Makefile targets: `SUFFIX=$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`
+
 ## Incus Network Isolation
 
 Test instances must run on an isolated network — never on the default bridge:
 
 ```bash
 incus network create {project_name}-test-net
-incus launch {image} {instance} --network {project_name}-test-net
+incus launch {image} {project_name}-XXXX --network {project_name}-test-net
 # ... run tests ...
-incus delete --force {instance}
+incus delete --force {project_name}-XXXX
 incus network delete {project_name}-test-net
 ```
 
@@ -60,14 +86,15 @@ Rules:
 - Containers in the test network can communicate by service name; no host port mapping required for inter-container traffic
 - Track the network name/ID alongside container IDs for cleanup
 
-## Container Lifetime
+## Container / Instance Lifetime
 
-Every container started by AI must have an explicit lifetime — never leave one running indefinitely:
+Every container or Incus instance started by AI must have an explicit lifetime — never leave one running indefinitely:
 
-- **Test containers:** stop and remove immediately after the test completes (pass or fail)
+- **Test containers / instances:** stop and remove immediately after the test completes (pass or fail)
 - **Build containers:** `--rm -it --name {project_name}-XXXX` on all `docker run` invocations; self-remove on exit, interactive-capable, named for traceability (`XXXX` = random 8-char suffix)
+- **Incus instances:** `incus launch {image} {project_name}-XXXX`; `incus delete --force {project_name}-XXXX` when done; same 8-char random suffix convention as Docker
 - **Long-running service containers (integration tests):** set a `--stop-timeout` and enforce it; if a container has not exited within 60s of `docker stop`, force-kill with `docker kill`
-- **No containers survive a session end** — if a container was started during a session, it must be stopped before the session ends
+- **No containers or instances survive a session end** — everything started during a session must be stopped before the session ends
 
 If a container must remain running after the session (e.g. a dev environment started at user request), document its name/ID explicitly and tell the user — never leave one silently running.
 
