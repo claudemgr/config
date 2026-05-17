@@ -224,7 +224,7 @@ Security is first-class from day one — never bolted on after. It must also be 
   - `tea` (Gitea CLI, MIT) — same operations on Gitea; also works against Forgejo (compatible API)
   - `glab` (GitLab CLI, MIT) — same operations on GitLab
   - Fall back to `curl -q -LSsf` only when the provider CLI is not installed or the operation has no CLI equivalent
-- **`act`** (nektos/act, MIT) — run GitHub Actions workflows locally before pushing; use `act -j {job}` to test a specific job. Never use `act` to bypass CI gates — it is a pre-push verification tool only.
+- **`act`** (nektos/act, MIT) — validate and run GitHub Actions workflows locally before pushing. Install: `setupmgr act`. Key uses: `act --list -W {file}` to validate a workflow file (parses YAML + resolves job graph, exits non-zero on errors); `act -j {job}` to run a specific job locally. **Required pre-commit**: if `.github/workflows/` files are staged, `act --list` must pass on each before `gitcommit` runs — the `validate-workflows.sh` hook enforces this automatically. Never use `act` to bypass CI gates — it is a pre-push verification tool only.
 - Use `python3` only when no purpose-built tool can handle the task cleanly
 - **curl default:** `curl -q -LSsf {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
 - **wget default:** `wget -q {url}` — `-q` suppresses all output except errors. Only omit `-q` or add `--show-progress` when a progress bar is explicitly needed.
@@ -279,6 +279,8 @@ Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor ·
 **Cadence:** one logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
 
 **Lint gate:** run the appropriate agent before committing — `script-lint` for shell, `go-lint` for Go, `rust-lint` for Rust. Do not commit if the linter reports violations.
+
+**Workflow gate:** if `.github/workflows/` files are staged, run `act --list -W {file}` on each before writing `COMMIT_MESS`. Fix every error before proceeding. The `validate-workflows.sh` PreToolUse hook enforces this automatically and will block `gitcommit` if any staged workflow fails validation.
 
 **CI/CD:** third-party GitHub Actions must be pinned to a full commit SHA — never a tag (`uses: actions/checkout@v4` is forbidden; `uses: actions/checkout@{sha}` is required).
 

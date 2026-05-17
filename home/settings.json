@@ -300,7 +300,9 @@
       "Bash(readelf:*)",
       "Bash(objdump:*)",
       "Bash(nm:*)",
-      "Bash(strip:*)"
+      "Bash(strip:*)",
+      "Bash(act:*)",
+      "Bash(setupmgr:*)"
     ],
     "deny": [
       "Bash(git commit:*)",
@@ -358,6 +360,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/no-force-push.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/validate-workflows.sh"
           }
         ]
       },
