@@ -1562,6 +1562,97 @@ grep -rn -- "golang.org/x/crypto/bcrypt" "{project_dir}/src" 2>/dev/null | grep 
 
 ---
 
+## Step 16 — Update IDEA.md
+
+After all code is written and `make build` passes, record the auth implementation as constraints in
+`{project_dir}/IDEA.md`.
+
+If `IDEA.md` does not exist, create it with the required three-section layout:
+
+```markdown
+## What this project is
+
+{project_name} — {one-sentence description inferred from go.mod and package names}
+
+## Project variables
+
+project_name: {project_name}
+internal_name: {project_name}
+internal_org: {org from go.mod module path}
+fqdn: {fqdn if discoverable, else "localhost"}
+data_dir: {data_dir}
+db_dir: {db_dir}
+
+## Constraints and non-negotiables
+```
+
+If `IDEA.md` already exists, read it first. Locate the `## Constraints and non-negotiables` section
+(or add it if missing). Append a block — never overwrite existing constraints:
+
+```markdown
+### Auth (built by go-auth-builder)
+
+Features installed: {comma-separated list of selected features}
+
+Non-negotiable rules — must not be changed or removed:
+- Password hashing: Argon2id only (time=3, memory=64MiB, threads=4, keyLen=32)
+- API token storage: SHA-256 hex hash only; raw token shown once then discarded
+- All password/token equality checks use subtle.ConstantTimeCompare
+- Auth error responses: identical body ("Invalid credentials") for wrong password and no-such-user
+- Dummy hash is always evaluated even when the user record is not found (timing defence)
+- Every auth endpoint is rate-limited with a sliding-window per-IP limiter
+- All SQL queries are parameterized; no string concatenation in query construction
+- Session cookies: HttpOnly + Secure + SameSite=Strict always set
+- No bcrypt, scrypt, MD5, or any SHA variant for password storage
+```
+
+---
+
+## Step 17 — Update SPEC.md
+
+After IDEA.md is written, open `{project_dir}/SPEC.md`. If it does not exist, create it (empty is
+fine — SPEC.md is allowed to exist with no content until a rule override is needed).
+
+Locate or create a section headed `## Auth overrides (go-auth-builder)`. Write the following block,
+replacing the feature list and PART numbers with what was actually built. The PART numbers come from
+grepping `{project_dir}/AI.md` for headers that match auth, users, admin, tokens, orgs, or domains:
+
+```bash
+# Identify which PARTs in AI.md cover the built auth features
+grep -n "^# PART" "{project_dir}/AI.md" | grep -iE -- "auth|admin|user|token|org|domain|session"
+```
+
+If AI.md does not exist or has no matching PART headers, omit the PART-lock section and write only
+the rule overrides below.
+
+Write to SPEC.md:
+
+```markdown
+## Auth overrides (go-auth-builder)
+
+Features installed: {comma-separated list}
+PARTs locked (do not modify without re-running go-auth-builder): {PART numbers found above, or "n/a"}
+
+### Non-negotiable rules — these override AI.md
+
+These rules were established when go-auth-builder scaffolded auth for this project. They must not
+be contradicted by AI.md updates or future template copies.
+
+- Password hashing: **Argon2id only** — never bcrypt, scrypt, or any MD5/SHA variant
+- Token storage: SHA-256 hex hash only; raw token is single-use and never stored or logged
+- Equality: `subtle.ConstantTimeCompare` on every hash or token comparison — no `==`
+- Anti-enumeration: identical 401 body and always-hash-on-miss regardless of lookup result
+- Rate limiting: sliding-window per-IP on every auth endpoint (see src/middleware/ratelimit.go)
+- SQL: parameterized queries everywhere — no string interpolation in any query
+- Session cookies: HttpOnly + Secure + SameSite=Strict — no exceptions
+- Scope: token endpoints enforce explicit scope list; missing scope → 403, not 401
+```
+
+SPEC.md wins over AI.md by convention. Writing these rules here means template re-copies of AI.md
+cannot silently revert these security decisions.
+
+---
+
 ## Rules
 
 - **Argon2id only** — never bcrypt, scrypt, MD5/SHA for passwords (time=3, mem=64MiB, threads=4)
@@ -1576,3 +1667,5 @@ grep -rn -- "golang.org/x/crypto/bcrypt" "{project_dir}/src" 2>/dev/null | grep 
 - **Discover before creating** — check whether files already exist; extend rather than overwrite
 - **Build order** — 1 → 3 → 2 → 4 → 5 (respect dependencies)
 - **Self-contained** — this agent carries its complete spec; never read any external spec or template file
+- **Always write IDEA.md and SPEC.md** — Steps 16 and 17 are mandatory; never skip them even if build or tests fail (record what was built regardless)
+- **Append, never overwrite** — both IDEA.md and SPEC.md may already have content; add to them, do not replace existing sections
