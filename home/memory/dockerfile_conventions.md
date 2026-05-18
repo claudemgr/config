@@ -1,12 +1,77 @@
 ---
 name: Dockerfile conventions
-description: Structure, labels, and patterns for CasjaysDev Dockerfiles
+description: Structure, annotations, and patterns for CasjaysDev Dockerfiles
 type: user
 ---
 
 ## Location
 
-Always at `docker/Dockerfile` (and `docker/Dockerfile.dev` for dev variant). Never in the repo root — that is a forbidden location per `~/.claude/memory/project_files.md`.
+Always at `docker/Dockerfile` (and `docker/Dockerfile.dev` for dev variant, `docker/Dockerfile.build` for the toolchain image). Never in the repo root — that is a forbidden location per `~/.claude/memory/project_files.md`.
+
+## Dockerfile.build — Toolchain Image
+
+`docker/Dockerfile.build` is the toolchain image. It is tagged `{project_org}/{project_name}:build` and contains the entire toolchain required to build, test, lint, and scan the project (compiler, test runner, linter, vulnerability scanner, SBOM tool, etc.).
+
+### Rules
+
+- **Built monthly** via a dedicated `.github/workflows/build-toolchain.yml` (and equivalent on other providers). Pushed to the registry on schedule and on `workflow_dispatch`.
+- **Must exist before any workflow runs.** CI workflows do NOT install tools inline — they pull this image. If the build image is absent, workflows fail fast with a clear error. Never install the toolchain in a workflow step; put it in this image.
+- **Tag is always `:build`** — never pinned to a version tag; always the latest monthly build.
+- **Fork-portable** — the workflow that builds this image uses `github.repository_owner` / `github.event.repository.name` (or equivalent provider variables), never hardcoded org or project name.
+
+### Minimum Dockerfile.build structure
+
+```dockerfile
+FROM golang:alpine
+
+RUN apk add --no-cache \
+    bash \
+    git \
+    make \
+    && go install golang.org/x/vuln/cmd/govulncheck@latest \
+    && go install github.com/cyclonedx/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+
+WORKDIR /build
+```
+
+Swap `golang:alpine` for `rust:alpine` (plus `cargo-audit`, `cargo-cyclonedx`) on Rust projects. Every tool the project's CI uses must be pre-installed here.
+
+### Monthly build workflow (GitHub Actions pattern)
+
+```yaml
+name: Build Toolchain Image
+on:
+  schedule:
+    - cron: '0 4 1 * *'  # 1st of each month at 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
+        with:
+          context: .
+          file: docker/Dockerfile.build
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:build
+```
+
+---
 
 ## Structure
 
@@ -53,29 +118,83 @@ ARG VERSION=dev
 ARG BUILD_DATE
 ARG VCS_REF
 ARG LICENSE=MIT
-
-# Static labels
-LABEL maintainer="{org} <{org}@casjay.pro>" \
-      org.opencontainers.image.vendor="{org}" \
-      org.opencontainers.image.authors="{org}" \
-      org.opencontainers.image.title="{name}" \
-      org.opencontainers.image.base.name="{name}" \
-      org.opencontainers.image.description="Containerized version of {name}" \
-      org.opencontainers.image.url="https://github.com/{org}/{name}" \
-      org.opencontainers.image.source="https://github.com/{org}/{name}" \
-      org.opencontainers.image.documentation="https://github.com/{org}/{name}" \
-      org.opencontainers.image.vcs-type="Git" \
-      com.github.containers.toolbox="false"
-
-# Dynamic labels (from ARGs)
-LABEL org.opencontainers.image.licenses="${LICENSE}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.schema-version="${VERSION}" \
-      org.opencontainers.image.revision="${VCS_REF}"
 ```
 
-Static labels (names, URLs) and dynamic labels (version, date, revision) are always split into two separate `LABEL` blocks.
+**No `LABEL` blocks in the Dockerfile.** Metadata is applied as OCI annotations at build time — see [OCI Annotations](#oci-annotations) below. `LABEL` applies only to the individual per-platform image layer; multiarch manifest indexes do not inherit labels, so they appear missing on multiarch pulls. Annotations are the correct mechanism for multiarch image metadata.
+
+## OCI Annotations
+
+All image metadata uses OCI annotations applied via `--annotation` flags on `docker buildx build`, not `LABEL` in the Dockerfile. Annotations attach to the manifest index (the multiarch top-level manifest) and are visible on all platforms.
+
+### Annotations passed at build time
+
+Split into static (names, URLs) and dynamic (version, date, revision) — pass both sets to every `docker buildx build` invocation:
+
+**Static annotations** (substituted from build-time variables — never hardcoded):
+```
+--annotation "maintainer={project_org} <{project_org}@casjay.pro>"
+--annotation "org.opencontainers.image.vendor={project_org}"
+--annotation "org.opencontainers.image.authors={project_org}"
+--annotation "org.opencontainers.image.title={project_name}"
+--annotation "org.opencontainers.image.base.name={project_name}"
+--annotation "org.opencontainers.image.description=Containerized version of {project_name}"
+--annotation "org.opencontainers.image.url=https://github.com/{project_org}/{project_name}"
+--annotation "org.opencontainers.image.source=https://github.com/{project_org}/{project_name}"
+--annotation "org.opencontainers.image.documentation=https://github.com/{project_org}/{project_name}"
+--annotation "org.opencontainers.image.vcs-type=Git"
+--annotation "com.github.containers.toolbox=false"
+```
+
+**Dynamic annotations** (from build-time environment):
+```
+--annotation "org.opencontainers.image.licenses=${LICENSE}"
+--annotation "org.opencontainers.image.created=${BUILD_DATE}"
+--annotation "org.opencontainers.image.version=${VERSION}"
+--annotation "org.opencontainers.image.schema-version=${VERSION}"
+--annotation "org.opencontainers.image.revision=${VCS_REF}"
+```
+
+### In GitHub Actions — use `docker/metadata-action` annotations output
+
+```yaml
+- uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6.0.0
+  id: meta
+  with:
+    images: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+    annotations: |
+      maintainer=${{ github.repository_owner }} <${{ github.repository_owner }}@casjay.pro>
+      org.opencontainers.image.vendor=${{ github.repository_owner }}
+      org.opencontainers.image.authors=${{ github.repository_owner }}
+      org.opencontainers.image.title=${{ github.event.repository.name }}
+      org.opencontainers.image.description=Containerized version of ${{ github.event.repository.name }}
+      org.opencontainers.image.url=${{ github.event.repository.html_url }}
+      org.opencontainers.image.source=${{ github.event.repository.html_url }}
+      org.opencontainers.image.documentation=${{ github.event.repository.html_url }}
+      org.opencontainers.image.vcs-type=Git
+      com.github.containers.toolbox=false
+
+- uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
+  with:
+    annotations: ${{ steps.meta.outputs.annotations }}
+    labels: ""   # no labels — annotations only
+    tags: ${{ steps.meta.outputs.tags }}
+```
+
+Note: `github.repository_owner`, `github.event.repository.name`, and `github.event.repository.html_url` are dynamic — they work correctly after a fork without any changes.
+
+## Portability Rule
+
+**No hardcoded org, project name, site, or registry values anywhere in Dockerfiles, workflows, or Makefiles** (comments and license files exempt). Use build-time ARGs, environment variables, or provider-supplied context variables:
+
+| Context | How to reference |
+|---------|-----------------|
+| Dockerfile | `ARG PROJECT_ORG` / `ARG PROJECT_NAME` — passed via `--build-arg` |
+| GitHub Actions | `${{ github.repository_owner }}` / `${{ github.event.repository.name }}` |
+| GitLab CI | `$CI_REGISTRY_IMAGE`, `$CI_PROJECT_NAMESPACE`, `$CI_PROJECT_NAME` |
+| Jenkinsfile | `${env.JOB_NAME}`, `${env.GIT_URL}` — parse org/name from these |
+| Makefile | `PROJECT_ORG ?= $(shell git remote get-url origin | ...)` |
+
+This ensures workflows function correctly after a fork without editing any values.
 
 ## Required Patterns
 

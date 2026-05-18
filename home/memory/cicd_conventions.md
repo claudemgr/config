@@ -148,16 +148,18 @@ stages:
 
 variables:
   CGO_ENABLED: "0"
+  # Build image — toolchain pre-installed; never install tools inline
+  BUILD_IMAGE: $CI_REGISTRY_IMAGE:build
 
 build:
   stage: build
-  image: golang:alpine
+  image: $BUILD_IMAGE
   script:
     - go build ./...
 
 test:
   stage: test
-  image: golang:alpine
+  image: $BUILD_IMAGE
   script:
     - go test ./...
 
@@ -171,9 +173,8 @@ secret-scan:
 
 vuln-scan:
   stage: security
-  image: golang:alpine
+  image: $BUILD_IMAGE
   script:
-    - go install golang.org/x/vuln/cmd/govulncheck@latest
     - govulncheck ./...
 
 release:
@@ -186,40 +187,51 @@ release:
 
 Security jobs run in the same stage (parallel by default in GitLab CI).
 
+`$CI_REGISTRY_IMAGE` resolves to the project's registry path automatically on any GitLab/Forgejo instance — no hardcoded org or project name.
+
 ### Jenkinsfile Structure
 
 Every project ships a `Jenkinsfile` using the declarative pipeline syntax:
 
 ```groovy
 pipeline {
-    agent { docker { image 'golang:alpine' } }
+    // Build image — toolchain pre-installed; resolve org/name from remote URL, no hardcoding
+    agent {
+        docker {
+            image "${sh(script: "git remote get-url origin | sed -E 's|.*[:/]([^/]+)/([^/.]+)(\\.git)?|\\1/\\2|'", returnStdout: true).trim()}:build"
+        }
+    }
 
     options {
         disableConcurrentBuilds()
         timeout(time: 30, unit: 'MINUTES')
     }
 
+    environment {
+        CGO_ENABLED = '0'
+    }
+
     stages {
         stage('Build') {
             steps {
-                sh 'CGO_ENABLED=0 go build ./...'
+                sh 'go build ./...'
             }
         }
         stage('Test') {
             steps {
-                sh 'CGO_ENABLED=0 go test ./...'
+                sh 'go test ./...'
             }
         }
         stage('Security') {
             parallel {
                 stage('Secret Scan') {
                     steps {
-                        sh 'docker run --rm -it --name trufflehog-$RANDOM -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
+                        sh 'docker run --rm -it --name "trufflehog-$(tr -dc \'a-z0-9\' </dev/urandom | head -c8)" -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
                     }
                 }
                 stage('Vuln Scan') {
                     steps {
-                        sh 'go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...'
+                        sh 'govulncheck ./...'
                     }
                 }
             }
@@ -234,7 +246,7 @@ pipeline {
 }
 ```
 
-Language-specific: swap the `golang:alpine` agent image and the build/test/vuln commands for Rust (`rust:alpine`, `cargo build`, `cargo test`, `cargo audit`) or Node.
+Language-specific: the `docker/Dockerfile.build` for Rust pre-installs `cargo-audit`, `cargo-cyclonedx`, etc. — swap `go build`/`go test`/`govulncheck` for `cargo build`/`cargo test`/`cargo audit`. The agent image resolves dynamically from the git remote — no hardcoded org or project name.
 
 ---
 
@@ -287,6 +299,67 @@ act -P ubuntu-latest=catthehacker/ubuntu:act-latest
 
 ---
 
+## Toolchain Image (build-toolchain.yml)
+
+Every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/{project_name}:build`. This image is built and pushed monthly so the toolchain stays current. It is the only image workflows use for build, test, lint, and security scan steps — no inline tool installation.
+
+### Required workflow: `.github/workflows/build-toolchain.yml`
+
+```yaml
+name: Build Toolchain Image
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'  # 1st of each month at 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
+        with:
+          context: .
+          file: docker/Dockerfile.build
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:build
+```
+
+- No hardcoded org or project name — `github.repository_owner` and `github.event.repository.name` resolve correctly after a fork
+- `cancel-in-progress: false` — toolchain pushes must not be interrupted mid-push
+- `linux/amd64,linux/arm64` always — the toolchain image must match the platforms the project targets
+
+### Equivalent on other providers
+
+| Provider | How |
+|----------|-----|
+| GitLab | Monthly pipeline schedule → job using `$CI_REGISTRY_IMAGE:build` target and `kaniko` or `docker:dind` |
+| Gitea / Forgejo | Same GitHub Actions YAML with `${{ gitea.repository_owner }}` / `${{ gitea.event.repository.name }}` |
+| Jenkins | Monthly cron trigger: `cron('0 4 1 * *')` → `docker.build("${org}/${name}:build", "-f docker/Dockerfile.build .")` then `docker.push()` |
+
+---
+
 ## General Rules
 
 | Rule | Description |
@@ -298,6 +371,8 @@ act -P ubuntu-latest=catthehacker/ubuntu:act-latest
 | **Docker builds on every push** | Any branch push triggers Docker image build |
 | **Docker tags** | Any push → `devel`, `{commit}`; beta → adds `beta`; tag → `{version}`, `latest`, `YYMM`, `{commit}` |
 | **Workflow permissions** | Default to read-only / least privilege; grant write only to the specific release/publish job that needs it |
+| **Use build image — never install tools inline** | Workflows pull `{project_org}/{project_name}:build` for all build/test/lint/scan steps. Never `apk add`, `apt-get`, `go install`, `cargo install`, or any inline tool install in a workflow step. All tooling lives in `docker/Dockerfile.build`, rebuilt monthly |
+| **Workflow portability — no hardcoded values** | Org name, project name, registry, official site: never hardcoded. Use provider-supplied variables so the workflow works after a fork without edits. GitHub: `github.repository_owner` / `github.event.repository.name`. GitLab: `$CI_REGISTRY_IMAGE` / `$CI_PROJECT_NAMESPACE` / `$CI_PROJECT_NAME`. Jenkins: parse from `${env.GIT_URL}` |
 
 ## Workflow Permissions
 
