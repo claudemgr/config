@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Comprehensive project health audit — security, code quality, logic correctness, documentation completeness, and spec compliance. Triggered by "audit", "check compliance", or "verify project". Fixes issues directly. Tracks >5 issues in AUDIT.AI.md.
+description: Comprehensive project health audit — security, code quality, logic correctness, documentation completeness, spec compliance, and code flow trace (call graph, env vars, visibility, data flow). Triggered by "audit", "check compliance", or "verify project". Fixes issues directly. Tracks >5 issues in AUDIT.AI.md.
 model: opus
 ---
 
@@ -229,7 +229,90 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 ---
 
-## Fix Everything Found
+## Pass 6: Code Flow Trace
+
+**Goal: trace how the code actually flows — calls, data, env, visibility — and verify each link in the chain is correct.**
+
+This pass is not about whether code is clean or secure. It is about whether it is *correct at the structural level*: every call reaches the right target, every env var that is read is defined, every function is as visible as it needs to be and no more.
+
+### Call graph correctness
+
+For each non-trivial function call A → B:
+- Does B exist? (not a dead stub, not renamed, not removed)
+- Does B do what A expects? Check B's actual implementation, not its name
+- Is B the *right* function for what A is trying to do? (e.g., calling a case-insensitive compare when case-sensitive is required)
+- Does A handle all of B's return values — including error returns and edge-case returns?
+- Does A pass arguments in the right order and type? (silent type coercions, swapped args)
+
+Flag: calls that reach a stub, calls that ignore a meaningful return value, calls where the argument order is surprising relative to the function signature.
+
+### Environment variable completeness
+
+Grep every env var read in the codebase:
+
+| Language | Pattern |
+|----------|---------|
+| Go | `os.Getenv(`, `os.LookupEnv(` |
+| Rust | `std::env::var(`, `env::var(` |
+| Node/TS | `process.env.` |
+| Python | `os.getenv(`, `os.environ[`, `os.environ.get(` |
+| Shell | `$VAR`, `${VAR}`, `${VAR:-default}` |
+
+For each env var found:
+- Is it documented in `README.md`, `IDEA.md`, or the binary's `--help`?
+- Is it set in `docker-compose.yml` (with a sane default) or documented as required?
+- Is it used with a default fallback (`os.Getenv("X")` with no check vs `os.LookupEnv("X")` with a missing-key branch)?
+
+Flag: env vars read but not documented; env vars documented but never read; env vars read without a default when one is clearly needed.
+
+### Visibility audit
+
+**Go:** check every exported symbol (capitalized name at package level):
+- Is it called from outside its own package? If not, it should be unexported
+- Is it part of an interface or expected by a test file only? — note it, do not blindly unexport
+- Is an unexported function or type being tested via `_test.go` — is `package foo_test` (black-box) or `package foo` (white-box) the right choice?
+
+**Rust:** check every `pub` item:
+- Is it called from outside its own module?
+- `pub(crate)` vs `pub` — is the wider visibility intentional?
+- `pub` on struct fields — are they intentionally part of the public API or should they be accessed via methods?
+
+**Node/TS:** check every `export`:
+- Is the exported symbol imported anywhere outside the module?
+- `export default` vs named export — is the choice intentional and consistent?
+
+Flag: exported symbols with no external callers (dead public API); unexported symbols that should be exported (reachability broken).
+
+### Interface and trait completeness
+
+**Go:** for every `interface` definition:
+- List all types that claim to implement it
+- Verify each method is actually implemented (not just the signature — check the body does something meaningful)
+- Check whether any method of the interface is never called by any consumer — may indicate a dead interface requirement
+
+**Rust:** for every `trait` with a `dyn Trait` usage:
+- Verify the `impl Trait for ConcreteType` is complete and correct
+- Check `#[allow(unused)]` on trait methods — silent dead weight
+
+**Go/Rust/TS:** for every mock or stub implementation used in tests — does it faithfully represent the real behavior? A mock that always returns `nil`/`None`/`undefined` hides bugs in callers.
+
+Flag: interface methods that are never called; mock implementations that are too permissive or silently incomplete.
+
+### Data flow — input to output
+
+Trace each user-controlled input (HTTP param, CLI arg, env var, file read, stdin) to its final use:
+- Is it validated (type, range, format) before it reaches any logic?
+- Does it flow into a storage write, network call, or command execution without sanitization?
+- Does it appear in a log or error message in a way that could leak PII or credentials?
+- Does it flow into a response/output without output encoding (HTML, JSON, SQL)?
+
+This is not a repeat of the injection check in Pass 1 — focus here on whether the *shape* of the data matches what each consumer expects, not just whether it is sanitized.
+
+Flag: inputs that skip validation; inputs that change type silently (string → int coercion, nil coalescence); inputs that appear in logs.
+
+---
+
+
 
 **Fix issues directly. Do not produce a findings-only report unless the user explicitly asked for analysis-only.**
 
@@ -251,6 +334,12 @@ For each issue found:
 | Triple sync out of date | Sync `__help()` + man page + completions together |
 | Forbidden file/dir | Flag it: tell the user what it is, why it's forbidden, and where it belongs — do NOT delete without explicit confirmation |
 | Spec mismatch | Fix code or update IDEA.md, depending on which is wrong |
+| Wrong call target | Fix the call to use the correct function/method |
+| Ignored return value | Add handling for the ignored error or meaningful return |
+| Undocumented env var | Add it to README/IDEA.md and docker-compose.yml with a default |
+| Dead public API | Unexport the symbol; update all call sites |
+| Visibility too wide | Narrow `pub` → `pub(crate)` or unexported; update callers |
+| Missing input validation | Add type/range/format check at the entry point |
 
 **Red flags — stop and ask the user:**
 - Fixing a security issue requires changing public API contracts or user-visible behavior
@@ -290,6 +379,9 @@ Started: {ISO 8601 date}
 - [ ] {component}: {issue}
 
 ## Pass 5: Spec Compliance
+- [ ] {component}: {issue}
+
+## Pass 6: Code Flow Trace
 - [ ] {component}: {issue}
 
 ## Completed

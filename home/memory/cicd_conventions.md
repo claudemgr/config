@@ -303,6 +303,63 @@ act -P ubuntu-latest=catthehacker/ubuntu:act-latest
 
 Every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/{project_name}:build`. This image is built and pushed monthly so the toolchain stays current. It is the only image workflows use for build, test, lint, and security scan steps — no inline tool installation.
 
+### Build image existence gate — required in every workflow
+
+**No workflow may proceed if the build image does not exist.** Every workflow (`build.yml`, `release.yml`, `security.yml`) MUST start with an `ensure-build-image` job. All subsequent jobs `needs: ensure-build-image` and use `${{ needs.ensure-build-image.outputs.image }}` as their container.
+
+If the image is missing (first push, forked repo, registry cleared), `ensure-build-image` builds and pushes it inline before any other job runs. This is the only place inline building of the toolchain image is permitted — and only as a recovery path.
+
+```yaml
+jobs:
+  ensure-build-image:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    outputs:
+      image: ${{ steps.check.outputs.image }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - id: check
+        name: Ensure build image exists
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:build"
+          if ! docker pull "$IMAGE" 2>/dev/null; then
+            echo "::notice::Build image not found — building from docker/Dockerfile.build"
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              -f docker/Dockerfile.build \
+              --push \
+              -t "$IMAGE" \
+              .
+          fi
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: ensure-build-image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.ensure-build-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - run: go build ./...
+      # ... rest of build steps
+```
+
+Every job that uses the build image must follow this pattern:
+- `needs: ensure-build-image`
+- `container: image: ${{ needs.ensure-build-image.outputs.image }}`
+
 ### Required workflow: `.github/workflows/build-toolchain.yml`
 
 ```yaml
