@@ -141,7 +141,7 @@ Commit: `gitcommit --dir {project_dir} all`
 
 | Gate | GitHub / Gitea / Forgejo | GitLab | Jenkins |
 |------|--------------------------|--------|---------|
-| Secret scan | `trufflesecurity/trufflehog@{sha}` action; `fetch-depth: 0` | Docker job: `trufflesecurity/trufflehog:latest`; `GIT_DEPTH: 0` | Docker step inside `Security` stage |
+| Secret scan | `trufflesecurity/trufflehog@{sha}` action; `with: base: ${{ github.event.before }}, head: ${{ github.event.after }}`; `fetch-depth: 0` — **never** `base: ${{ github.event.repository.default_branch }}` (resolves to HEAD after push, skips scan) | Docker job: `trufflesecurity/trufflehog:latest`; `GIT_DEPTH: 0` | Docker step inside `Security` stage |
 | Workflow policy | Shell step: verify all `uses:` are 40-char SHA; block `pull_request_target` | Script step: verify Docker image digests are pinned; block untrusted variable injection | Groovy step: verify Docker image digests in `Jenkinsfile` |
 
 ### Conditional gates (add only when manifest exists)
@@ -151,7 +151,7 @@ Commit: `gitcommit --dir {project_dir} all`
 | Go vuln scan | `go.sum` present | `govulncheck ./...` |
 | Rust vuln scan | `Cargo.lock` present | `cargo audit` |
 | Node vuln scan | `package-lock.json` present | `npm audit --audit-level=high` |
-| Container scan | Dockerfile present | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
+| Container scan | Dockerfile present | `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasecurity/trivy:0.70.0 image --exit-code 1 --severity CRITICAL,HIGH {image}` (GitLab: use `image: aquasecurity/trivy:0.70.0` job image instead) |
 
 ### Hard rules
 

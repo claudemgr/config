@@ -90,6 +90,18 @@ truffleHog is the mandatory scanner on all providers (Apache-2.0, no license key
 
 Always run with `fetch-depth: 0` (GitHub/Gitea/Forgejo) or `GIT_DEPTH: 0` (GitLab) so the full commit history is scanned.
 
+**GitHub / Gitea / Forgejo composite action — required `with:` params:**
+
+```yaml
+- uses: trufflesecurity/trufflehog@{sha}
+  with:
+    base: ${{ github.event.before }}
+    head: ${{ github.event.after }}
+    extra_args: --only-verified
+```
+
+**Never use `base: ${{ github.event.repository.default_branch }}`** — after a push, `default_branch` resolves to the commit that was just pushed (same as HEAD), triggering truffleHog's "BASE and HEAD commits are the same" guard and skipping the scan entirely. Use `github.event.before` / `github.event.after` to pass the actual pre/post-push SHAs.
+
 ### Dependency Update Automation
 
 **Renovate** is the only supported tool — AGPL-3.0 licensed, free for self-hosted use and free for public repos via the hosted app. It works on GitHub, GitLab, Gitea, Forgejo, and Bitbucket with a single `renovate.json` config file.
@@ -503,9 +515,39 @@ Renovate covers `github-actions` ecosystem updates automatically via `pinDigests
 | `vuln-scan` (Go) | govulncheck | `go.sum` present | `govulncheck ./...` |
 | `vuln-scan` (Rust) | cargo audit | `Cargo.lock` present | `cargo audit` |
 | `vuln-scan` (Node) | npm audit | `package-lock.json` present | `npm audit --audit-level=high` |
-| `image-scan` | Trivy | Dockerfile present | `trivy image --exit-code 1 --severity CRITICAL,HIGH {image}` |
+| `image-scan` | Trivy | Dockerfile present | See per-provider examples below |
 
 A critical or high CVE in a direct dependency is a hard build failure — not a warning. The `image-scan` job requires the image to be built first; run it after `docker/build-push-action` in the same job or declare `needs: build`.
+
+**Trivy invocation per provider** — always use the Docker image, never `wget` a release binary (versions disappear from releases):
+
+```yaml
+# GitHub / Gitea / Forgejo (Actions step)
+- name: Scan image
+  run: |
+    docker run --rm \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      aquasecurity/trivy:0.70.0 image \
+      --exit-code 1 --severity CRITICAL,HIGH {image}
+```
+
+```yaml
+# GitLab CI job
+image-scan:
+  stage: security
+  image: aquasecurity/trivy:0.70.0
+  script:
+    - trivy image --exit-code 1 --severity CRITICAL,HIGH {image}
+```
+
+```groovy
+// Jenkins declarative pipeline step
+docker.image('aquasecurity/trivy:0.70.0').inside('--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock') {
+    sh 'trivy image --exit-code 1 --severity CRITICAL,HIGH {image}'
+}
+```
+
+Current stable Trivy version: **0.70.0**. Update this when Renovate opens a digest bump PR for `aquasecurity/trivy`.
 
 See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commit checks, and the full vulnerability scanning policy.
 
