@@ -53,6 +53,7 @@ Flag use of `egrep`, `fgrep`, or `rgrep` — these aliases may not exist on all 
 ### Version stamp
 - `@@Version` in the header must match the `VERSION=` assignment in the script body. Flag mismatches.
 - Version format must be either the literal placeholder `YYYYMMDDHHMM-git` (not yet stamped) or a real 12-digit timestamp matching `[0-9]{12}-git` (already stamped at runtime). Both are valid. Flag any other format. Never report a real timestamp like `202605172147-git` as a violation.
+- **When fixing lint violations in a script**, always update `VERSION=` to the current timestamp (`date +'%Y%m%d%H%M-git'`) and update `@@Version` in the header to match. Never leave a stale timestamp after making changes.
 
 ### Line length
 - Lines ≤180 characters must not be broken across multiple lines unless they contain an embedded multi-line program (awk, python, heredoc).
