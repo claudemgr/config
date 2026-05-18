@@ -40,7 +40,8 @@ VERSION="YYYYMMDDHHMM-git"
 - `@@Created` — full weekday + date + time + timezone: `Wednesday, May 13, 2026 10:58 EDT`
 - `@@Template` — template name if used; otherwise `shell/bash`, `shell/sh`, `shell/zsh`, `shell/fish`
 - There IS a separator line after the shellcheck disable line
-- `VERSION="YYYYMMDDHHMM-git"` is the **literal placeholder string** — AI must write it exactly as `YYYYMMDDHHMM-git`, never substitute an actual date/time. The script itself replaces it at runtime via git hook or build step. When `--version` is called, this string is printed as-is unless replaced.
+- `VERSION="YYYYMMDDHHMM-git"` is the **literal placeholder string** — AI must write it exactly as `YYYYMMDDHHMM-git` in new scripts, never substitute an actual date/time. The script itself replaces it at runtime via git hook or build step. When `--version` is called, this string is printed as-is unless replaced.
+- **Never revert a real timestamp to the placeholder** — if a script already contains a real 12-digit timestamp like `VERSION="202605172147-git"`, that is a valid runtime-stamped value. Never replace it with `YYYYMMDDHHMM-git`. The placeholder is only for newly created scripts that have not yet been stamped.
 - The `shellcheck disable` line only appears in shells shellcheck supports — see table below
 
 ### Shell-specific differences
