@@ -42,7 +42,7 @@ VERSION="YYYYMMDDHHMM-git"
 - There IS a separator line after the shellcheck disable line
 - `VERSION="YYYYMMDDHHMM-git"` is the **literal placeholder string** — AI must write it exactly as `YYYYMMDDHHMM-git` in new scripts, never substitute an actual date/time. The script itself replaces it at runtime via git hook or build step. When `--version` is called, this string is printed as-is unless replaced.
 - **Never revert a real timestamp to the placeholder** — if a script already contains a real 12-digit timestamp like `VERSION="202605172147-git"`, that is a valid runtime-stamped value. Never replace it with `YYYYMMDDHHMM-git`. The placeholder is only for newly created scripts that have not yet been stamped.
-- **Update the timestamp on every edit** — whenever AI edits an existing script, update both the `##@Version` header field and the `VERSION=` assignment to the current date/time: `VERSION="$(date +'%Y%m%d%H%M-git')"` resolves the value; write the resolved timestamp (e.g. `VERSION="202605172147-git"`), not the shell expression. Also update `@@Changelog` with a one-line summary of what changed.
+- **Update the timestamp on every edit** — whenever AI edits an existing script, update exactly two things: (1) the `##@Version` line in the header, and (2) the first `VERSION=` assignment that appears after the header block. Set both to the current timestamp, e.g. `202605172147-git` (run `date +'%Y%m%d%H%M-git'` to get the value). Write the resolved value, not the shell expression. Do not touch any other `VERSION=` occurrences elsewhere in the script.
 - The `shellcheck disable` line only appears in shells shellcheck supports — see table below
 
 ### Shell-specific differences
@@ -184,7 +184,7 @@ Never leave `IFS` modified globally — it causes silent splitting bugs in subse
 - **Comments**: always ABOVE the code they describe — NEVER inline at end of line
 - **Control flow**: always use `if/elif/else` — never `&&`/`||` chains for logic flow. `&&`/`||` are acceptable only for one-liner guards (`command || return 1`) not as substitutes for `if/elif/else` blocks
 - **Newlines**: always add a newline at end of file
-- **Headers**: update `@@Version` to the current timestamp (`date +'%Y%m%d%H%M-git'`) and `@@Changelog` with a one-line summary on every change
+- **Headers**: update `##@Version` to the current timestamp (`date +'%Y%m%d%H%M-git'`) and the first `VERSION=` assignment after the header on every change — only those two, nothing else
 - **Line length**: if a complete command is ≤180 characters, write it on a single line — including pipelines. Only split when the line exceeds 180 characters, or when the command contains an embedded program that inherently spans lines (e.g. a multi-line `awk` or `sed` script)
 
 ## Exit Codes
