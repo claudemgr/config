@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  YYYYMMDDHHMM-git
+##@Version           :  202605181200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -15,7 +15,10 @@
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+VERSION="202605181200-git"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
 INPUT="$(cat)"

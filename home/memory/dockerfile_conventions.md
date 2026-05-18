@@ -221,6 +221,9 @@ COPY --from=builder /app /usr/local/bin/{name}
 COPY docker/rootfs/ /
 
 # Copy Dockerfile into image for reference
+# NOTE: if the image declares a non-root USER (see "Non-root User" below), /root/Dockerfile is
+# not readable by the runtime user. In that case copy to a world-readable path instead, e.g.
+# COPY docker/Dockerfile /usr/local/share/{name}/Dockerfile
 COPY docker/Dockerfile /root/Dockerfile
 
 # Make all binaries executable
@@ -288,7 +291,7 @@ Rules:
 - **Same image structure as release** — not a toolchain image; the compiled binary is baked in, not mounted at runtime
 - **Binary runs in debug mode** — pass debug flags via `ENV` or `CMD`; do not change the image structure
 - **Pushed to the registry** as `{project_org}/{project_name}:devel` — same cadence as the release image
-- **No source mount, no hot-reload** — source is compiled into the image at build time; for live-reload development use the compose dev service with the build image
+- **No source mount, no hot-reload** — source is compiled into the image at build time; for live-reload development use the compose dev service with the `:devel` image
 - Starts with `tini → entrypoint.sh → {binary} --debug` (or equivalent debug flag for the project)
 
 ---

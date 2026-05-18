@@ -24,12 +24,13 @@ stages:
 variables:
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
+  BUILD_IMAGE: "$CI_REGISTRY_IMAGE:build"
 
 default:
-  image: golang:alpine   # override per-job as needed
-  before_script:
-    - apk add --no-cache git bash
+  image: $BUILD_IMAGE   # toolchain image baked from docker/Dockerfile.build
 ```
+
+**Toolchain image gate (`ensure-build-image`):** every pipeline must begin with a job that confirms `$BUILD_IMAGE` exists in the registry and builds + pushes it from `docker/Dockerfile.build` if missing — analogous to the GitHub Actions `ensure-build-image` job in `cicd_conventions.md`. Subsequent jobs `needs: [ensure-build-image]` and run inside `$BUILD_IMAGE`. **Never `apk add` / `go install` / `cargo install` inline** — all tooling lives in the build image, rebuilt monthly via the equivalent `build-toolchain` scheduled pipeline.
 
 **Trigger rules:**
 - Branch pushes: `rules: - if: $CI_COMMIT_BRANCH`
@@ -110,9 +111,8 @@ secret-scan:
 
 vuln-scan:
   stage: security
-  image: golang:alpine    # adjust for Rust (rust:alpine + cargo audit) or Node
+  image: $BUILD_IMAGE     # govulncheck/cargo-audit/npm audit pre-installed in the build image
   script:
-    - go install golang.org/x/vuln/cmd/govulncheck@latest
     - govulncheck ./...
   rules:
     - if: $CI_COMMIT_BRANCH

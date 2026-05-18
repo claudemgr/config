@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  YYYYMMDDHHMM-git
+##@Version           :  202605181200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -15,7 +15,10 @@
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+VERSION="202605181200-git"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
 INPUT="$(cat)"
@@ -147,9 +150,12 @@ ALWAYS_ALLOW_BASENAMES = {
     # Nix
     "flake.nix", "flake.lock", "default.nix", "shell.nix",
     # Docs (project-standard names)
+    # CHANGELOG.md / CHANGES.md are explicitly allowed at any path (root or .github/).
     "CHANGELOG.md", "CHANGELOG.txt", "CHANGES.md", "CHANGES.txt",
-    "CONTRIBUTING.md", "CONTRIBUTING.txt",
-    "SECURITY.md",
+    # CONTRIBUTING / CODE_OF_CONDUCT / SECURITY / PULL_REQUEST_TEMPLATE
+    # are only auto-allowed when nested under .github/ (or other dotfile dirs
+    # in ALWAYS_ALLOW_PATH_PATTERNS). At repo root they fall through to the
+    # confirmation prompt below.
     "AUTHORS", "AUTHORS.md", "CONTRIBUTORS", "CONTRIBUTORS.md",
     "NOTICE", "NOTICE.md", "NOTICE.txt",
     "LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING",
@@ -221,6 +227,10 @@ FORBIDDEN_BASENAMES = {
     "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
     "id_rsa.pub", "id_ed25519.pub",
     ".DS_Store", "Thumbs.db", "desktop.ini",
+    # These are allowed under .github/ (auto-allowlisted by path pattern) but
+    # require confirmation at repo root or anywhere else.
+    "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
+    "SECURITY.md", "PULL_REQUEST_TEMPLATE.md",
 }
 
 FORBIDDEN_EXTENSIONS = {

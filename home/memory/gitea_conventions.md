@@ -45,6 +45,18 @@ Use `${{ gitea.* }}` instead of `${{ github.* }}` — they are structurally iden
 
 ---
 
+## Build Image Gate (`ensure-build-image`)
+
+Same rule as `cicd_conventions.md`: every workflow in `.gitea/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Gitea package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
+
+A separate scheduled workflow at `.gitea/workflows/build-toolchain.yml` rebuilds the `:build` image monthly so the toolchain stays current — analogous to the GitHub `build-toolchain.yml` documented in `cicd_conventions.md`. Push it to the Gitea registry using `${{ secrets.GITEA_TOKEN }}` as the registry password.
+
+OCI annotations on every image pushed by these workflows: `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.created`, `org.opencontainers.image.licenses` — populate from `${{ gitea.repository }}`, `${{ gitea.sha }}`, build timestamp, and the project license.
+
+**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image.
+
+---
+
 ## Workflow Skeleton
 
 ```yaml
@@ -60,15 +72,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4   # act runner resolves from gitea mirror or local cache
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2 — act runner resolves from gitea mirror or local cache
       - name: Build
-        run: make build
+        run: go build ./...
 ```
 
 **SHA pinning:** Gitea's act runner resolves actions from Gitea's own mirror of `actions/` repos (or a configured action cache server). Pin to a full commit SHA exactly as you would on GitHub:
 
 ```yaml
-- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 ```
 
 Never use a tag reference (`@v4`) — tags are mutable. Always pin to the commit SHA.
@@ -77,20 +89,23 @@ Never use a tag reference (`@v4`) — tags are mutable. Always pin to the commit
 
 ## Secret Scanning (truffleHog)
 
+Use the `trufflesecurity/trufflehog@{sha}` composite action — never inline `docker run`. Workflows use the `:build` toolchain image; tooling must not be installed at job time.
+
 ```yaml
 secret-scan:
+  needs: ensure-build-image
   runs-on: ubuntu-latest
+  container:
+    image: ${{ needs.ensure-build-image.outputs.image }}
   steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       with:
         fetch-depth: 0
-    - name: truffleHog scan
-      run: |
-        docker run --rm -it \
-          --name trufflehog-$RANDOM \
-          -v "${{ gitea.workspace }}:/repo" \
-          trufflesecurity/trufflehog:latest \
-          git file:///repo --since-commit HEAD~1 --fail
+    - uses: trufflesecurity/trufflehog@{sha}
+      with:
+        base: ${{ gitea.event.before }}
+        head: ${{ gitea.event.after }}
+        extra_args: --only-verified
 ```
 
 truffleHog is Apache-2.0 — no license key required. Never substitute gitleaks (commercial license for org repos).
@@ -182,7 +197,7 @@ Location: `.gitea/PULL_REQUEST_TEMPLATE.md`
 ## Checklist
 
 - [ ] Tests added/updated
-- [ ] `make test` passes locally
+- [ ] Tests pass locally inside the `:build` toolchain image
 - [ ] No TODO/FIXME left in committed code
 - [ ] SECURITY.md updated if this change is security-relevant
 ```
@@ -237,7 +252,7 @@ release:
   runs-on: ubuntu-latest
   if: startsWith(gitea.ref, 'refs/tags/v')
   steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Validate tag
       run: |
         tag="${{ gitea.ref_name }}"
@@ -246,7 +261,7 @@ release:
           exit 1
         fi
     - name: Build release binaries
-      run: make release
+      run: go build -o "binaries/${{ gitea.event.repository.name }}-${{ gitea.ref_name }}" ./...
     - name: Create Gitea release
       env:
         GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}

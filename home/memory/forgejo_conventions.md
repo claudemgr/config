@@ -45,6 +45,18 @@ Forgejo exposes both `forgejo.*` and `github.*` namespaces in workflows. Use `fo
 
 ---
 
+## Build Image Gate (`ensure-build-image`)
+
+Same rule as `cicd_conventions.md`: every workflow in `.forgejo/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Forgejo package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
+
+A separate scheduled workflow at `.forgejo/workflows/build-toolchain.yml` rebuilds the `:build` image monthly so the toolchain stays current — analogous to the GitHub `build-toolchain.yml` documented in `cicd_conventions.md`. Push it to the Forgejo registry using `${{ secrets.FORGEJO_TOKEN }}` as the registry password.
+
+OCI annotations on every image pushed by these workflows: `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.created`, `org.opencontainers.image.licenses` — populate from `${{ forgejo.repository }}`, `${{ forgejo.sha }}`, build timestamp, and the project license.
+
+**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image.
+
+---
+
 ## Workflow Skeleton
 
 ```yaml
@@ -62,9 +74,9 @@ jobs:
     container:
       image: golang:alpine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Build
-        run: make build
+        run: go build ./...
 ```
 
 Forgejo runner labels differ from GitHub-hosted runners. Common self-hosted labels: `docker`, `ubuntu-latest`, `native`. Check the instance's runner configuration — do not assume `ubuntu-latest` is available on every Forgejo deployment.
@@ -72,7 +84,7 @@ Forgejo runner labels differ from GitHub-hosted runners. Common self-hosted labe
 **SHA pinning:** Pin actions to a full commit SHA:
 
 ```yaml
-- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 ```
 
 Forgejo instances may mirror `actions/` from Codeberg, Forgejo's own action cache, or a configured upstream. Confirm with the instance admin which action mirror is in use. Tags are mutable regardless of source — always pin to the SHA.
@@ -81,24 +93,23 @@ Forgejo instances may mirror `actions/` from Codeberg, Forgejo's own action cach
 
 ## Secret Scanning (truffleHog)
 
+Use the `trufflesecurity/trufflehog@{sha}` composite action — never `apk add` + `docker run` inline. The build toolchain image (`{project_org}/{project_name}:build`) and any other tooling must come from a pre-built image, never installed during the job.
+
 ```yaml
 secret-scan:
+  needs: ensure-build-image
   runs-on: docker
   container:
-    image: alpine:latest
+    image: ${{ needs.ensure-build-image.outputs.image }}
   steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       with:
         fetch-depth: 0
-    - name: Install truffleHog
-      run: apk add --no-cache docker-cli
-    - name: truffleHog scan
-      run: |
-        docker run --rm -it \
-          --name trufflehog-$RANDOM \
-          -v "${{ forgejo.workspace }}:/repo" \
-          trufflesecurity/trufflehog:latest \
-          git file:///repo --since-commit HEAD~1 --fail
+    - uses: trufflesecurity/trufflehog@{sha}
+      with:
+        base: ${{ forgejo.event.before }}
+        head: ${{ forgejo.event.after }}
+        extra_args: --only-verified
 ```
 
 truffleHog is Apache-2.0 — no license key required. Never substitute gitleaks (commercial license for org repos).
@@ -188,7 +199,7 @@ Location: `.forgejo/PULL_REQUEST_TEMPLATE.md` (preferred on Forgejo) or `.gitea/
 ## Checklist
 
 - [ ] Tests added/updated
-- [ ] `make test` passes locally
+- [ ] Tests pass locally inside the `:build` toolchain image
 - [ ] No TODO/FIXME left in committed code
 - [ ] SECURITY.md updated if this change is security-relevant
 ```
@@ -233,7 +244,7 @@ release:
   runs-on: docker
   if: startsWith(forgejo.ref, 'refs/tags/v')
   steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     - name: Validate tag
       run: |
         tag="${{ forgejo.ref_name }}"
@@ -242,7 +253,7 @@ release:
           exit 1
         fi
     - name: Build release binaries
-      run: make release
+      run: go build -o "binaries/${{ forgejo.event.repository.name }}-${{ forgejo.ref_name }}" ./...
     - name: Create Forgejo release
       env:
         FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}

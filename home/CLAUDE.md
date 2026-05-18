@@ -130,7 +130,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **One run, then fix** — run build/test once per change; don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
-- Execution hierarchy: QEMU/KVM > Incus > Docker > host — Docker uses official alpine variants (`golang:alpine`, `rust:alpine`); Incus for systemd/distro tests; QEMU/KVM for full OS. See `~/.claude/memory/execution_hierarchy.md`
+- **Project toolchain image first** — before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `golang:alpine` / `rust:alpine` / `node:alpine` container. Generic alpine variants are only fallback for projects without `docker/Dockerfile.build`. This is consistent with the "no host toolchain" rule below.
+- Execution hierarchy: QEMU/KVM > Incus > Docker > host — Docker uses the project's `:build` toolchain image when present, otherwise official alpine variants (`golang:alpine`, `rust:alpine`); Incus for systemd/distro tests; QEMU/KVM for full OS. See `~/.claude/memory/execution_hierarchy.md`
 - Dev images: rolling tags — never pinned
 - Target `linux/amd64` + `linux/arm64` by default
 - Builds are reproducible in containers; nothing depends on host-installed toolchain
@@ -139,6 +140,7 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Cleanup: never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images
 - Temp dirs: never hardcode `/tmp`; use `$TMPDIR`/`os.TempDir()`/`std::env::temp_dir()`; always org-prefixed — see `~/.claude/memory/tempdir_conventions.md`
 - **`docker run` must use `--rm -it --name {project_name}-XXXX`** — every build/test container must self-remove on exit, be interactive-capable, and carry a traceable name; `XXXX` is a random suffix (Makefile: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`); no orphaned containers
+- **`XXXX` vs `XXXXXX` — two different conventions, both correct.** `XXXX` (literal 4-char token in docs) denotes the 8-char random suffix produced by `tr -dc 'a-z0-9' </dev/urandom | head -c8` for docker container / incus instance names. `XXXXXX` (literal 6 X's) is the `mktemp` placeholder — `mktemp` replaces each X with a random char, so a 6-X suffix yields a 6-char random string. Different mechanisms, different contexts; do not normalize one to the other.
 - **Toolchain containers must mount their package cache** — declare cache paths with `?=` (e.g. `NPM_CACHE ?= $(HOME)/.npm`) so host env vars with custom locations are honored; `@mkdir -p $(CACHE_DIR)` before every `docker run`; mount with `-v $(CACHE_DIR):/container/path`; see `~/.claude/memory/makefile_conventions.md` for the full table
 - **Test container network isolation** — always create a named bridge network for tests; never use the default bridge or `--network host`
 

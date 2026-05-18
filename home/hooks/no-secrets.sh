@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  YYYYMMDDHHMM-git
+##@Version           :  202605181200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -22,7 +22,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="YYYYMMDDHHMM-git"
+VERSION="202605181200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -57,8 +57,9 @@ if basename in ALLOWED_TEMPLATES:
     sys.exit(0)
 
 # Select content to scan based on tool.
+# Write tool uses "content"; Edit tool uses "new_string".
 if tool_name == "Write":
-    content = tool_input.get("new_content", "") or ""
+    content = tool_input.get("content", "") or ""
 elif tool_name == "Edit":
     content = tool_input.get("new_string", "") or ""
 else:

@@ -685,7 +685,7 @@ See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commi
 
 ## Common Action Reference SHAs
 
-Verified node24 SHAs as of 2025-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Renovate opens a PR — always re-verify the runtime after updating.
+Verified node24 SHAs as of 2026-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Renovate opens a PR — always re-verify the runtime after updating.
 
 | Action | Tag | SHA |
 |--------|-----|-----|

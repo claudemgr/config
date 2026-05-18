@@ -29,12 +29,13 @@ The only exception: report-only files created by AI itself during the current se
 | `SUMMARY.md` | Unnecessary — `AI.md` is the spec |
 | `COMPLIANCE.md` | Unnecessary — compliance is in `AI.md` |
 | `NOTES.md` | Use `PLAN.md`, `PLAN.AI.md`, `TODO.md`, or `TODO.AI.md` as appropriate |
-| `CHANGELOG.md` | Use GitHub/Gitea releases instead |
 | `AUDIT.md`, `REPORT.md`, `ANALYSIS.md` | Don't create report-only docs — fix issues directly. Temporary `AUDIT.AI.md` is the explicit-audit exception |
-| `CONTRIBUTING.md` in root | Belongs in `.github/` |
-| `CODE_OF_CONDUCT.md` in root | Belongs in `.github/` |
-| `SECURITY.md` in root | Belongs in `.github/` |
-| `PULL_REQUEST_TEMPLATE.md` in root | Belongs in `.github/` |
+| `CONTRIBUTING.md` in root | Belongs in `.github/` (allowed there) |
+| `CODE_OF_CONDUCT.md` in root | Belongs in `.github/` (allowed there) |
+| `SECURITY.md` in root | Belongs in `.github/` (allowed there) |
+| `PULL_REQUEST_TEMPLATE.md` in root | Belongs in `.github/` (allowed there) |
+
+**`CHANGELOG.md` is allowed** at any path — root, `.github/`, or anywhere else. It is not a forbidden report-only doc; it is a release log distinct from GitHub/Gitea releases and may coexist with them.
 | `Dockerfile` in root | Belongs in `docker/Dockerfile` |
 | `docker-compose.yml` in root | Belongs in `docker/docker-compose.yml` |
 | `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary. **Exception:** `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` are allowed — they are safe templates for users to copy |
