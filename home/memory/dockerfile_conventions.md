@@ -6,7 +6,16 @@ type: user
 
 ## Location
 
-Always at `docker/Dockerfile` (and `docker/Dockerfile.dev` for dev variant, `docker/Dockerfile.build` for the toolchain image). Never in the repo root — that is a forbidden location per `~/.claude/memory/project_files.md`.
+All Docker assets live under `docker/`. Never in the repo root — that is a forbidden location per `~/.claude/memory/project_files.md`.
+
+**`docker/Dockerfile*` and `docker/rootfs*` are project-specific.** Not every project needs a toolchain image, a devel image, or a rootfs overlay. Include only what the project actually requires:
+
+| File | Tag | Required? |
+|------|-----|-----------|
+| `docker/Dockerfile` | `:latest` / `:release` | When the project ships a container image |
+| `docker/Dockerfile.build` | `:build` | When the project has a CI toolchain image |
+| `docker/Dockerfile.dev` | `:devel` | When the project ships a debug-mode image |
+| `docker/rootfs/` | — | When the image needs a filesystem overlay |
 
 ## Dockerfile.build — Toolchain Image
 
@@ -270,15 +279,17 @@ Rules:
 - Never `source` secrets or credentials — use environment variables injected at runtime
 - Always executable (`chmod 755`)
 
-## Dockerfile.dev
+## Dockerfile.dev — Devel Image
 
-`docker/Dockerfile.dev` is the development variant. It shares the same base as the production build but adds dev tooling and omits release optimizations. Minimum required differences from `docker/Dockerfile`:
+`docker/Dockerfile.dev` builds the `:devel` image. It is structurally identical to the production `Dockerfile` (same base, same binary, same entrypoint) but runs the binary in debug mode — verbose logging, debug flags enabled, assertions active, no production hardening.
 
-- Uses the builder stage image directly (`FROM golang:alpine` / `FROM rust:alpine`) — no separate runtime stage
-- Includes dev dependencies (debugger, test runner, linter)
-- Mounts source at runtime via compose volume — does not `COPY . .` for source (only for deps)
-- Never pushed to a registry; for local use only
-- No `USER` restriction needed (dev containers often need write access to the mounted source)
+Rules:
+
+- **Same image structure as release** — not a toolchain image; the compiled binary is baked in, not mounted at runtime
+- **Binary runs in debug mode** — pass debug flags via `ENV` or `CMD`; do not change the image structure
+- **Pushed to the registry** as `{project_org}/{project_name}:devel` — same cadence as the release image
+- **No source mount, no hot-reload** — source is compiled into the image at build time; for live-reload development use the compose dev service with the build image
+- Starts with `tini → entrypoint.sh → {binary} --debug` (or equivalent debug flag for the project)
 
 ---
 
@@ -299,15 +310,12 @@ Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never c
 
 ### Dev Compose (`docker-compose.dev.yml`)
 
+Uses the `:devel` image (built from `docker/Dockerfile.dev`) — the binary runs in debug mode with verbose output.
+
 ```yaml
 services:
   {name}:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.dev
-    volumes:
-      - ..:/build                   # source mounted for hot-reload
-      - /build/node_modules         # anonymous volume keeps deps inside container (Node only)
+    image: ghcr.io/{org}/{name}:devel
     environment:
       - DEBUG=1
     ports:
