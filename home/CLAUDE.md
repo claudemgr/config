@@ -78,6 +78,8 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - **No commented-out code** — delete it; git history is the undo mechanism
 - **No comments in JSON** — JSON has no comment syntax; they break parsers
 - **Singular directory names** — `handler/`, `model/`, `middleware/` not `handlers/`/`models/`; exception: tooling dirs follow community convention (`scripts/`, `tests/`, `completions/`)
+- **Search before write** — any code that adds a value, entry, or setting to a file must first search for an existing occurrence across all candidate locations (base file + any drop-in directories). Replace in place if found; only create/append if not found anywhere. Exception: operations that explicitly overwrite the entire file are exempt. Applies to all languages and contexts — shell, Go, Rust, Python, Node, config management, CI scripts, everything. See `script_conventions.md` for the drop-in pattern reference table and shell examples.
+- **Create parent directories before writing** — any code that creates or writes a file must ensure the parent directory exists first. A "no such file or directory" error from a missing parent is always a bug. Use the appropriate call for the language: `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll(filepath.Dir(p), 0o755)` (Go) · `fs::create_dir_all(p.parent().unwrap())?` (Rust) · `path.parent.mkdir(parents=True, exist_ok=True)` (Python) · `fs.mkdirSync(path.dirname(f), { recursive: true })` (Node).
 
 ## Sensitive Data
 **Never add tokens, API keys, passwords, private keys, internal hostnames, or any credentials to a git repo** unless the user explicitly instructs it or has already committed them manually.
