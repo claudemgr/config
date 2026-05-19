@@ -23,8 +23,10 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 
 ### Rules
 
+- **Base is always the official toolchain image** — `golang:alpine` for Go, `rust:alpine` for Rust, `node:alpine` for Node, etc. Never use a custom or project-specific image as the base; it must pull from the public registry.
+- **Must be fully functional before committing any CI workflow that uses it.** Bootstrap order: (1) commit only `docker/Dockerfile.build`; (2) trigger `build-toolchain.yml` via `workflow_dispatch` and verify the image is in the registry; (3) only then commit `ci.yml`, `release.yml`, and any other workflow that pulls it. CI workflows that arrive before the image exists will fail immediately with no recovery path.
+- **CI workflows pull, never build, this image.** The `ensure-build-image` job is pull-only and fails fast if the image is missing — it never builds inline. If the image is absent, the job fails with an actionable error telling the operator to trigger `build-toolchain.yml`. Wasting CI minutes on an uncontrolled inline build is forbidden.
 - **Built monthly** via a dedicated `.github/workflows/build-toolchain.yml` (and equivalent on other providers). Pushed to the registry on schedule and on `workflow_dispatch`.
-- **Must exist before any workflow runs.** CI workflows do NOT install tools inline — they pull this image. If the build image is absent, workflows fail fast with a clear error. Never install the toolchain in a workflow step; put it in this image.
 - **Tag is always `:build`** — never pinned to a version tag; always the latest monthly build.
 - **Fork-portable** — the workflow that builds this image uses `github.repository_owner` / `github.event.repository.name` (or equivalent provider variables), never hardcoded org or project name.
 
