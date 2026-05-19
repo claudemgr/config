@@ -112,7 +112,6 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, do NOT retry the same command. Tell the user what was blocked and what it would destroy; only the user decides whether to proceed
 - Verify APIs/flags exist before using them; cite file:line for any code reference
 - Run code before calling it done; iterate until verification actually passes
-- Plan (use plan mode) for genuinely ambiguous requirements or architectural decisions with real tradeoffs — not simply because a task touches many files
 - **kill scoping** — `kill $PID` is only allowed when `$PID` was explicitly captured at launch (`PID=$!` or equivalent) in the current task. `pkill`/`killall` and `kill $(pgrep ...)` are always blocked by `protect-host.sh` — they target processes by name and can hit unrelated host processes. If you need to stop a process you didn't launch, stop and tell the user.
 - **systemctl gate** — `systemctl status`, `is-active`, `is-enabled`, `cat`, `show`, and all `--user` variants are always OK without confirmation. `systemctl restart/stop/start/reload/disable/enable/mask` on host services (without `--user`) require explicit user confirmation before running — these affect running services and can disrupt other workloads. `protect-host.sh` blocks these automatically.
 
@@ -230,7 +229,7 @@ Security is first-class from day one — never bolted on after. It must also be 
   - `gh` (GitHub CLI, Apache-2.0) — issues, PRs, releases, repo ops on GitHub
   - `tea` (Gitea CLI, MIT) — same operations on Gitea; also works against Forgejo (compatible API)
   - `glab` (GitLab CLI, MIT) — same operations on GitLab
-  - Fall back to `curl -q -LSsf` only when the provider CLI is not installed or the operation has no CLI equivalent
+  - Fall back to `curl` (see curl default below) only when the provider CLI is not installed or the operation has no CLI equivalent
 - **`act`** (nektos/act, MIT) — validate and run GitHub Actions workflows locally before pushing. Install: `setupmgr act`. Key uses: `act --list -W {file}` to validate a workflow file (parses YAML + resolves job graph, exits non-zero on errors); `act -j {job}` to run a specific job locally. **Required pre-commit**: if `.github/workflows/` files are staged, `act --list` must pass on each before `gitcommit` runs — the `validate-workflows.sh` hook enforces this automatically. Never use `act` to bypass CI gates — it is a pre-push verification tool only.
 - Use `python3` only when no purpose-built tool can handle the task cleanly
 - **curl default:** `curl -q -LSs {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Never add `-f`/`--fail` by default — it suppresses the response body on HTTP errors, hiding diagnostic information. Only add `-f` in scripts or Makefiles where silent failure and a non-zero exit code are explicitly the right behaviour. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
