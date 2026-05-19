@@ -173,6 +173,63 @@ IFS="${old_IFS}"
 
 Never leave `IFS` modified globally — it causes silent splitting bugs in subsequent code that expects word-splitting behavior.
 
+## Idempotent Config Writes
+
+When a script sets a config value in a file that participates in a **drop-in override pattern**, always search all candidate locations before writing:
+
+1. **Search all locations** — grep for the key/setting across every file in the pattern
+2. **If found anywhere** — replace/update in place; never add a duplicate
+3. **Only if not found anywhere** — append to or create the appropriate drop-in file
+
+This prevents duplicate entries scattered across multiple files, which causes unpredictable precedence and hard-to-debug behaviour.
+
+**Common drop-in patterns:**
+
+| Base file | Drop-in directory |
+|-----------|------------------|
+| `/etc/sysctl.conf` | `/etc/sysctl.d/*.conf` |
+| `/etc/security/limits.conf` | `/etc/security/limits.d/*.conf` |
+| `/etc/profile` | `/etc/profile.d/*.sh` |
+| `/etc/environment` | `/etc/environment.d/*.conf` (systemd only) |
+| `/etc/sudoers` | `/etc/sudoers.d/*` |
+| `/etc/ssh/sshd_config` | `/etc/ssh/sshd_config.d/*.conf` |
+| `/etc/hosts` | No drop-in — edit directly |
+| `/etc/pam.d/{service}` | No drop-in — edit directly |
+
+**Example — setting a sysctl value:**
+
+```bash
+_key="net.ipv4.ip_forward"
+_val="1"
+_setting="${_key} = ${_val}"
+_found_in=""
+
+for _f in /etc/sysctl.conf /etc/sysctl.d/*.conf; do
+  [ -f "${_f}" ] || continue
+  if grep -qF -- "${_key}" "${_f}"; then
+    _found_in="${_f}"
+    break
+  fi
+done
+
+if [ -n "${_found_in}" ]; then
+  # Found — replace in place
+  sed -i "s|^[# ]*${_key}.*|${_setting}|" "${_found_in}"
+else
+  # Not found anywhere — write a new drop-in
+  printf '%s\n' "${_setting}" > /etc/sysctl.d/99-projectname.conf
+fi
+
+sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
+```
+
+**Rules:**
+- Prefer a drop-in file over editing the base file — keeps changes isolated and easy to remove
+- Use a consistent drop-in filename (`99-{project_name}.conf`) so the script's changes are identifiable
+- Replace with `sed -i` anchored to the key — never line-number-based replacement
+- Apply the change immediately after writing when the subsystem supports it (`sysctl -p`, `source`, etc.)
+- The same search-before-write logic applies to any structured config: `/etc/hosts` entries, `sudoers` rules, PAM lines, `authorized_keys`, etc.
+
 ## Code Standards
 
 - **Functions**: ALL functions prefixed with `__` regardless of shell — `__my_function() {}` (bash/sh/zsh), `function __my_function` (fish). No exceptions.
