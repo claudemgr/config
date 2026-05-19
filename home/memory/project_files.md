@@ -42,6 +42,7 @@ The only exception: report-only files created by AI itself during the current se
 | `server.yml`, `cli.yml` | Config files are runtime-generated, never in repo |
 | `.env`, `app.env`, `default.env` | Never committed — must always be in `.gitignore`. Use `.env.example` / `.env.sample` variants for committed templates |
 | `.claude/settings.local.json` | Personal Claude Code overrides — gitignored, never committed |
+| `.claude/backups/`, `.claude/cache/`, `.claude/file-history/`, `.claude/history.jsonl`, `.claude/projects/`, `.claude/statsFile`, `.claude/*.lock` | Claude Code runtime files — gitignored, never committed |
 | `.cursor/settings.json` | Personal Cursor settings — gitignored, never committed |
 | `.windsurf/settings.json` | Personal Windsurf settings — gitignored, never committed |
 | `.aider.chat.history.md`, `.aider.input.history`, `.aider.llm.history` | Aider personal history — gitignored, never committed |
@@ -109,6 +110,7 @@ These are the only files that belong at the project root:
 | `.github/` | Optional | GitHub-specific files (workflows, templates, etc.) |
 | `install.sh` | Optional | Standalone installer script — allowed when the repo is primarily an install script with README and LICENSE |
 | `.editorconfig` | Optional | Editor formatting rules — permitted, but settings must match the project's existing style conventions |
+| `contrib/` | Optional | Community contributions, examples, and third-party integrations — content is not part of the core project and is not covered by the main test/lint gates |
 
 ---
 

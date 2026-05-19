@@ -127,6 +127,15 @@ docker/volumes/
 
 # AI tool — Claude Code (personal/secret only)
 .claude/settings.local.json
+# Claude Code runtime files — session data, edit history, backups, cache
+.claude/backups/
+.claude/cache/
+.claude/file-history/
+.claude/history.jsonl
+.claude/.credentials.json
+.claude/projects/
+.claude/statsFile
+.claude/*.lock
 
 # AI tool — Cursor (personal/secret only)
 .cursor/settings.json

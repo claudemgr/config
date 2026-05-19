@@ -80,6 +80,24 @@ $RECYCLE.BIN/
 
 # AI tool — Claude Code (personal/secret only)
 .claude/settings.local.json
+# Claude Code runtime files — session data, edit history, backups, cache
+.claude/backups/
+.claude/cache/
+.claude/file-history/
+.claude/history.jsonl
+.claude/.credentials.json
+.claude/projects/
+.claude/statsFile
+.claude/*.lock
+# claudemgr/config specific — home/ maps to ~/.claude/; ignore runtime dirs there too
+home/backups/
+home/cache/
+home/file-history/
+home/history.jsonl
+home/.credentials.json
+home/projects/
+home/statsFile
+home/*.lock
 
 # AI tool — Cursor (personal/secret only)
 .cursor/settings.json
