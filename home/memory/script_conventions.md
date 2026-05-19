@@ -703,6 +703,132 @@ __download_all_scripts_from_github() {
 }
 ```
 
+### `__does_host_have_valid_ip6`
+
+Returns 0 if the host has at least one global-scope IPv6 address, 1 otherwise.
+
+```bash
+__does_host_have_valid_ip6() {
+  local addr
+  addr="$(ip -6 addr show scope global 2>/dev/null | awk '/inet6/ {print $2; exit}')"
+  [[ -n "$addr" ]] && return 0
+  return 1
+}
+```
+
+### `__get_network_device`
+
+Returns the name of the network device that holds the global default route. Accepted prefixes: `eth*`, `en*`, `wg*`, `br*`, `vmbr*`. Excluded: `incus*`, `docker*`, `lo`, `veth*`, and all other virtual devices. Returns 1 if no suitable device is found.
+
+```bash
+__get_network_device() {
+  local dev candidate
+  # Prefer the device on the default IPv4 route
+  candidate="$(ip route show default 2>/dev/null | awk '/^default/ {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+  case "${candidate:-}" in
+    eth*|en*|wg*|br*|vmbr*) printf '%s\n' "$candidate"; return 0 ;;
+  esac
+  # Fallback: first UP device matching allowed prefixes
+  while IFS= read -r dev; do
+    case "$dev" in
+      eth*|en*|wg*|br*|vmbr*) printf '%s\n' "$dev"; return 0 ;;
+    esac
+  done < <(ip link show up 2>/dev/null | awk -F': ' '/^[0-9]+:/ {print $2}' | cut -d'@' -f1)
+  return 1
+}
+```
+
+### `__is_ip4_public`
+
+Returns 0 if `$1` is a public (globally routable) IPv4 address, 1 if private, reserved, or invalid. Covers RFC1918, loopback, link-local, CGNAT (100.64/10), and multicast/reserved (224+).
+
+```bash
+__is_ip4_public() {
+  local ip="${1:-}"
+  [[ -z "$ip" ]] && return 1
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  local a b c d
+  IFS='.' read -r a b c d <<< "$ip"
+  (( a == 0 )) && return 1                              # 0.0.0.0/8
+  (( a == 10 )) && return 1                             # 10.0.0.0/8
+  (( a == 127 )) && return 1                            # 127.0.0.0/8 loopback
+  (( a == 100 && b >= 64 && b <= 127 )) && return 1    # 100.64.0.0/10 CGNAT
+  (( a == 169 && b == 254 )) && return 1               # 169.254.0.0/16 link-local
+  (( a == 172 && b >= 16 && b <= 31 )) && return 1     # 172.16.0.0/12
+  (( a == 192 && b == 0 && c == 0 )) && return 1       # 192.0.0.0/24 IETF protocol
+  (( a == 192 && b == 0 && c == 2 )) && return 1       # 192.0.2.0/24 TEST-NET-1
+  (( a == 192 && b == 168 )) && return 1               # 192.168.0.0/16
+  (( a == 198 && b == 51 && c == 100 )) && return 1    # 198.51.100.0/24 TEST-NET-2
+  (( a == 203 && b == 0 && c == 113 )) && return 1     # 203.0.113.0/24 TEST-NET-3
+  (( a >= 224 )) && return 1                            # 224.0.0.0+ multicast/reserved
+  return 0
+}
+```
+
+### `__is_ip6_public`
+
+Returns 0 if `$1` is a public (globally routable) IPv6 address, 1 if private, reserved, or invalid. Excludes loopback (`::1`), unspecified (`::`), link-local (`fe80::/10`), unique-local (`fc00::/7`), and IPv4-mapped (`::ffff:`). Accepts only global unicast (`2000::/3`, i.e. addresses starting with `2` or `3`).
+
+```bash
+__is_ip6_public() {
+  local ip="${1:-}"
+  [[ -z "$ip" ]] && return 1
+  ip="${ip%%\%*}"          # strip zone ID (e.g. fe80::1%eth0)
+  local low="${ip,,}"      # lowercase for pattern matching
+  [[ "$low" == "::" || "$low" == "::1" ]] && return 1
+  [[ "$low" =~ ^fe[89ab][0-9a-f]?:  ]] && return 1    # fe80::/10 link-local
+  [[ "$low" =~ ^f[cd]               ]] && return 1    # fc00::/7  unique-local
+  [[ "$low" =~ ^::ffff:             ]] && return 1    # IPv4-mapped
+  [[ "$low" =~ ^[23]                ]] || return 1    # must be global unicast
+  return 0
+}
+```
+
+### `__get_hosts_ip4_address`
+
+Returns the host's public IPv4 address. If `IP4_ADDRESS` is already set in the environment, returns it immediately (no curl). Otherwise tries `ifcfg.us` → `ifconfig.co` → `checkip.amazonaws.com` in order, forcing IPv4 with `curl -4`. Returns 1 if all sources fail.
+
+```bash
+__get_hosts_ip4_address() {
+  if [[ -n "${IP4_ADDRESS:-}" ]]; then
+    printf '%s\n' "$IP4_ADDRESS"
+    return 0
+  fi
+  local ip url
+  for url in "https://ifcfg.us/ip" "https://ifconfig.co/ip" "https://checkip.amazonaws.com"; do
+    ip="$(curl -4 -q -LSs --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -n "$ip" ]] && __is_ip4_public "$ip"; then
+      printf '%s\n' "$ip"
+      return 0
+    fi
+  done
+  return 1
+}
+```
+
+### `__get_hosts_ip6_address`
+
+Returns the host's public IPv6 address. Skips entirely (returns 1) if `__does_host_have_valid_ip6` fails. If `IP6_ADDRESS` is already set in the environment, returns it immediately. Otherwise tries `ifcfg.us` → `ifconfig.co` → `api6.ipify.org` in order, forcing IPv6 with `curl -6`. Returns 1 if all sources fail.
+
+```bash
+__get_hosts_ip6_address() {
+  __does_host_have_valid_ip6 || return 1
+  if [[ -n "${IP6_ADDRESS:-}" ]]; then
+    printf '%s\n' "$IP6_ADDRESS"
+    return 0
+  fi
+  local ip url
+  for url in "https://ifcfg.us/ip" "https://ifconfig.co/ip" "https://api6.ipify.org"; do
+    ip="$(curl -6 -q -LSs --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -n "$ip" ]] && __is_ip6_public "$ip"; then
+      printf '%s\n' "$ip"
+      return 0
+    fi
+  done
+  return 1
+}
+```
+
 ## Testing
 
 Syntax checking is interpreter-aware — use the right tool per shebang:
