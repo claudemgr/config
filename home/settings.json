@@ -30,6 +30,7 @@
       "Edit(**/.env)",
       "Edit(**/app.env)",
       "Edit(**/default.env)",
+      "Edit(**/.no_push)",
       "Edit(**/settings.json)",
       "Edit(**/settings.local.json)",
       "WebSearch",
