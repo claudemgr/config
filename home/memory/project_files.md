@@ -88,29 +88,38 @@ The only exception: report-only files created by AI itself during the current se
 
 ## Allowed Root Files
 
-These are the only files that belong at the project root:
+This table covers files Claude actively manages and files with non-obvious placement rules. It is **not exhaustive** — language module files (`go.mod`, `Cargo.toml`, `package.json`, etc.), standard tooling configs, and project source directories (`src/`, `cmd/`, `docker/`, etc.) are implicitly allowed. Unknown files are **not** automatically forbidden; only files listed in the Forbidden tables above are flagged.
 
-| File | Required | Purpose |
-|------|:--------:|---------|
-| `AI.md` | ✓ | Project specification (THE HOW) — readonly template copy |
-| `SPEC.md` | Optional | Project-specific rule overrides — may be empty; only add content when a rule must contradict the template or global |
-| `IDEA.md` | ✓ | Project description, variables, business logic (THE WHAT) |
-| `CLAUDE.md` | ✓ | Short loader — points at `AI.md` and `IDEA.md` |
-| `README.md` | ✓ | Public documentation |
-| `LICENSE.md` | ✓ | Project license + third-party attributions |
-| `Makefile` | ✓ | Build entrypoint |
-| `PLAN.md` | Optional | Human-owned project plan |
-| `PLAN.AI.md` | Optional | AI-owned implementation plan |
-| `TODO.md` | Optional | Human-owned task list |
-| `TODO.AI.md` | Optional | AI-owned task list (required for 3+ tasks) |
-| `release.txt` | Optional | Canonical version string |
-| `version.txt` | Optional | Canonical version string (alias for `release.txt` — some projects use this name) |
-| `site.txt` | Optional | Official site/homepage URL |
-| `.gitignore` | ✓ | Git ignore rules |
-| `.github/` | Optional | GitHub-specific files (workflows, templates, etc.) |
-| `install.sh` | Optional | Standalone installer script — allowed when the repo is primarily an install script with README and LICENSE |
-| `.editorconfig` | Optional | Editor formatting rules — permitted, but settings must match the project's existing style conventions |
-| `contrib/` | Optional | Community contributions, examples, and third-party integrations — content is not part of the core project and is not covered by the main test/lint gates |
+| File / Dir | Category | Required | Purpose |
+|------------|----------|:--------:|---------|
+| `AI.md` | Spec | ✓ | Project specification (THE HOW) — readonly template copy |
+| `IDEA.md` | Spec | ✓ | Project description, variables, business logic (THE WHAT) |
+| `SPEC.md` | Spec | | Project-specific rule overrides — only add content when a rule must contradict the template or global default |
+| `CLAUDE.md` | Spec | ✓ | Short loader — points at `AI.md` and `IDEA.md` |
+| `README.md` | Docs | ✓ | Public documentation |
+| `LICENSE.md` | Docs | ✓ | Project license + third-party attributions |
+| `CHANGELOG.md` | Docs | | Release history — allowed at any path (root, `.github/`, etc.) |
+| `Makefile` | Build | ✓ | Build entrypoint |
+| `release.txt` | Version | | Canonical version string |
+| `version.txt` | Version | | Alias for `release.txt` — some projects use this name |
+| `site.txt` | Meta | | Official site/homepage URL |
+| `PLAN.md` | Planning | | Human-owned project plan |
+| `PLAN.AI.md` | Planning | | AI-owned implementation plan — deleted once work is fully committed |
+| `TODO.md` | Planning | | Human-owned task list |
+| `TODO.AI.md` | Planning | | AI-owned task list — required when tracking 3+ tasks |
+| `.gitignore` | VCS | ✓ | Git ignore rules |
+| `.gitattributes` | VCS | | Git attribute overrides (line endings, diff drivers, linguist hints) |
+| `.github/` | VCS | | GitHub-specific files (workflows, issue/PR templates, etc.) |
+| `.claude/` | AI tool | | Project-level Claude Code config — `settings.json` committed; `settings.local.json` gitignored |
+| `.aider.conf.yml` | AI tool | | Aider config — committed |
+| `.aiderignore` | AI tool | | Aider ignore rules — committed |
+| `.cursorrules` | AI tool | | Cursor rules — committed |
+| `.editorconfig` | Tool config | | Editor formatting rules — settings must match the project's existing style |
+| `.no_push` | Flag file | | Signals `gitcommit` to commit locally without pushing — gitignored, never committed |
+| `.no_git` | Flag file | | Signals tooling to skip git operations entirely — gitignored, never committed |
+| `.installed` | Flag file | | Marks a project as installed on this machine — gitignored, never committed |
+| `install.sh` | Script | | Standalone installer — allowed when the repo is primarily an install script |
+| `contrib/` | Dir | | Community contributions, examples, and third-party integrations — not covered by the main test/lint gates |
 
 ---
 
