@@ -27,9 +27,13 @@ file_path=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')
 # Resolve leading ~ to $HOME
 file_path="${file_path/#\~/$HOME}"
 
-# Only check paths under ~/.claude/
+# Only check paths under ~/.claude/ that have a home/ source equivalent
 case "$file_path" in
-  "$HOME/.claude/CLAUDE.md" | "$HOME/.claude/memory/"* | "$HOME/.claude/agents/"*)
+  "$HOME/.claude/CLAUDE.md" \
+  | "$HOME/.claude/settings.json" \
+  | "$HOME/.claude/memory/"* \
+  | "$HOME/.claude/agents/"* \
+  | "$HOME/.claude/hooks/"*)
     ;;
   *)
     exit 0

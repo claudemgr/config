@@ -34,8 +34,6 @@ The only exception: report-only files created by AI itself during the current se
 | `CODE_OF_CONDUCT.md` in root | Belongs in `.github/` (allowed there) |
 | `SECURITY.md` in root | Belongs in `.github/` (allowed there) |
 | `PULL_REQUEST_TEMPLATE.md` in root | Belongs in `.github/` (allowed there) |
-
-**`CHANGELOG.md` is allowed** at any path — root, `.github/`, or anywhere else. It is not a forbidden report-only doc; it is a release log distinct from GitHub/Gitea releases and may coexist with them.
 | `Dockerfile` in root | Belongs in `docker/Dockerfile` |
 | `docker-compose.yml` in root | Belongs in `docker/docker-compose.yml` |
 | `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary. **Exception:** `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` are allowed — they are safe templates for users to copy |
@@ -49,6 +47,8 @@ The only exception: report-only files created by AI itself during the current se
 | `.aider.tags.cache.v3/` | Aider symbol cache — gitignored, never committed |
 | `.continue/dev_data/`, `.continue/session.json`, `.continue/index/` | Continue personal data and indexes — gitignored, never committed |
 | `.codeium/` | Codeium auth/cache — gitignored, never committed |
+
+**`CHANGELOG.md` is allowed** at any path — root, `.github/`, or anywhere else. It is not a forbidden report-only doc; it is a release log distinct from GitHub/Gitea releases and may coexist with them.
 
 ## Forbidden Directories
 

@@ -159,7 +159,8 @@ When splitting strings by a custom delimiter, always save and restore `IFS`:
 
 ```bash
 # BAD — permanently changes IFS for the rest of the script
-IFS=':' read -ra parts <<< "${value}"
+IFS=':'
+read -ra parts <<< "${value}"
 
 # GOOD — IFS change is scoped to the read command only
 IFS=':' read -ra parts <<< "${value}"  # read is a builtin; IFS here is a command prefix, not global

@@ -12,8 +12,6 @@ Never hardcode the path to `gitcommit` (e.g., `/usr/local/bin/gitcommit`).
 
 ---
 
----
-
 **`gitcommit` creates the remote repo automatically.** If the GitHub remote does not exist, `gitcommit` creates it and sets the upstream — no manual `gh repo create` or `git remote set-url` step is needed before or after.
 
 ---

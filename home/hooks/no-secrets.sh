@@ -123,7 +123,6 @@ for label, pattern in PATTERNS:
         # 60-char context window around the match.
         ctx_start = max(0, start - 60)
         ctx_end   = min(len(content), end + 60)
-        context   = content[ctx_start:ctx_start] + content[ctx_start:ctx_end]
         # Exclude the matched value itself from the placeholder check so the
         # placeholder regex only fires on surrounding text.
         surrounding = content[ctx_start:start] + content[end:ctx_end]
