@@ -607,6 +607,102 @@ source /path/to/lib.sh
 
 **Exception:** profile/shell init scripts are explicitly designed to source files: `.bashrc`, `.bash_profile`, `.profile`, `.zshrc`, `.zshenv`, `.zprofile`, `.fishrc`, and analogues. These may use `source`/`.` freely.
 
+## Standard Utility Functions
+
+These functions are defined in scripts when needed — not included by default. Copy verbatim; do not rename or alter signatures. All variables are `local`; functions work as direct calls or in command substitution (`var="$(__determine_domain_name)"`).
+
+### `__determine_domain_name`
+
+Returns the runtime domain name. Tries `hostname -d` first; falls back to stripping the first label from `hostname -f`. Returns 1 if both fail.
+
+```bash
+__determine_domain_name() {
+  local domain
+  domain="$(hostname -d 2>/dev/null)"
+  if [[ -n "$domain" ]]; then
+    printf '%s\n' "$domain"
+    return 0
+  fi
+  local fqdn
+  fqdn="$(hostname -f 2>/dev/null)"
+  if [[ -n "$fqdn" ]] && [[ "$fqdn" == *.* ]]; then
+    printf '%s\n' "${fqdn#*.}"
+    return 0
+  fi
+  return 1
+}
+```
+
+### `__determine_hostname_name`
+
+Returns the runtime FQDN via `hostname -f`. Returns 1 if unavailable.
+
+```bash
+__determine_hostname_name() {
+  local fqdn
+  fqdn="$(hostname -f 2>/dev/null)"
+  if [[ -n "$fqdn" ]]; then
+    printf '%s\n' "$fqdn"
+    return 0
+  fi
+  return 1
+}
+```
+
+### `__validate__hosts_fqdn`
+
+Returns 0 if `$1` is a valid FQDN (`domain.tld` or `host.domain.tld`, etc.), 1 otherwise. Enforces: at least two labels, each label 1–63 chars, alphanumeric + interior hyphens only, total length ≤ 253.
+
+```bash
+__validate__hosts_fqdn() {
+  local fqdn="${1:-}"
+  [[ -z "$fqdn" ]] && return 1
+  [[ ${#fqdn} -gt 253 ]] && return 1
+  [[ "$fqdn" != *.* ]] && return 1
+  local label labels
+  local IFS='.'
+  read -ra labels <<< "$fqdn"
+  for label in "${labels[@]}"; do
+    [[ -z "$label" ]] && return 1
+    [[ ${#label} -gt 63 ]] && return 1
+    [[ "$label" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]] || return 1
+  done
+  return 0
+}
+```
+
+### `__download_all_scripts_from_github`
+
+Downloads every file from the `scripts/` directory of a GitHub repo via the API (paginated) and saves them to `$1` with `chmod 755`. Requires `curl` and `jq`.
+
+- `GITHUB_RAW_REPO` — `{userORorg}/{repo}` path; defaults to `{project_org}/{project_name}`
+- `$1` — destination directory; typically `/usr/local/bin` (system) or `~/.local/bin` (user)
+
+```bash
+__download_all_scripts_from_github() {
+  local dest="${1:?Usage: __download_all_scripts_from_github <dest_dir>}"
+  local GITHUB_RAW_REPO="${GITHUB_RAW_REPO:-{project_org}/{project_name}}"
+  local api_base="https://api.github.com/repos/${GITHUB_RAW_REPO}/contents/scripts"
+  local raw_base="https://raw.githubusercontent.com/${GITHUB_RAW_REPO}/main/scripts"
+  local page=1
+  local files file response
+
+  mkdir -p "$dest" || return 1
+
+  while :; do
+    response="$(curl -q -LSs "${api_base}?per_page=100&page=${page}")" || return 1
+    mapfile -t files < <(printf '%s' "$response" | jq -r '.[] | select(.type=="file") | .name')
+    [[ ${#files[@]} -eq 0 ]] && break
+    for file in "${files[@]}"; do
+      curl -q -LSs "${raw_base}/${file}" -o "${dest}/${file}" || return 1
+      chmod 755 "${dest}/${file}"
+    done
+    (( ${#files[@]} < 100 )) && break
+    (( page++ ))
+  done
+}
+```
+
 ## Testing
 
 Syntax checking is interpreter-aware — use the right tool per shebang:
