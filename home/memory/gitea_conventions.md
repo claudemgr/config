@@ -16,8 +16,8 @@ Gitea uses the same act runner as GitHub Actions. Workflow files live at:
 
 ```
 .gitea/workflows/ci.yml
-.gitea/workflows/security.yml
 .gitea/workflows/release.yml
+.gitea/workflows/build-toolchain.yml
 ```
 
 Syntax is GitHub Actions-compatible with minor differences noted below. All standard CI/CD gates apply identically.

@@ -64,9 +64,9 @@ Every project must provide the equivalent of three gates on every provider:
 
 | Gate | GitHub | GitLab | Gitea | Forgejo | Jenkins |
 |------|--------|--------|-------|---------|---------|
-| **Build + Test** | `build.yml` | `build` + `test` stages in `.gitlab-ci.yml` | `build.yml` | `build.yml` | `Build` + `Test` stages in `Jenkinsfile` |
-| **Security** | `security.yml` | `security` stage | `security.yml` | `security.yml` | `Security` stage (parallel steps) |
+| **Build + Test + Security** | `ci.yml` | `build` + `test` + `security` stages in `.gitlab-ci.yml` | `ci.yml` | `ci.yml` | `Build` + `Test` + `Security` stages in `Jenkinsfile` |
 | **Release** | `release.yml` | `release` stage (manual/tag-triggered) | `release.yml` | `release.yml` | `Release` stage (tag-triggered) |
+| **Toolchain** | `build-toolchain.yml` | Monthly pipeline schedule | `build-toolchain.yml` | `build-toolchain.yml` | Monthly cron trigger |
 
 ### Action / Step Pinning Per Provider
 
@@ -305,7 +305,7 @@ Every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/
 
 ### Build image existence gate — required in every workflow
 
-**No workflow may proceed if the build image does not exist.** Every workflow (`build.yml`, `release.yml`, `security.yml`) MUST start with an `ensure-build-image` job. All subsequent jobs `needs: ensure-build-image` and use `${{ needs.ensure-build-image.outputs.image }}` as their container.
+**No workflow may proceed if the build image does not exist.** Every workflow (`ci.yml`, `release.yml`) MUST start with an `ensure-build-image` job. All subsequent jobs `needs: ensure-build-image` and use `${{ needs.ensure-build-image.outputs.image }}` as their container.
 
 If the image is missing (first push, forked repo, registry cleared), `ensure-build-image` builds and pushes it inline before any other job runs. This is the only place inline building of the toolchain image is permitted — and only as a recovery path.
 
@@ -474,39 +474,35 @@ Third-party registry publishing uses repository secrets, not GitHub token permis
 
 GitHub Actions runs all jobs in parallel by default. Use `needs:` to enforce ordering when a job depends on another's output or must not run if a prior job failed.
 
-### `build.yml` job order
+### `ci.yml` job order
 
 ```
-lint ──────────────┐
-                   ├──→ build (needs: test) ──→ upload-artifacts (needs: build)
-test ──────────────┘
-  └──→ coverage (needs: test)
+ensure-build-image
+├── lint              (needs: ensure-build-image; skipped on schedule)
+├── test              (needs: ensure-build-image; skipped on schedule)
+├── secret-scan       (needs: ensure-build-image; always runs)
+├── workflow-policy   (needs: ensure-build-image; always runs)
+├── vuln-scan         (needs: ensure-build-image; conditional on manifest; always runs)
+├── build             (needs: [lint, test]; skipped on schedule)
+├── coverage          (needs: test; skipped on schedule)
+├── image-scan        (needs: build; conditional on Dockerfile; skipped on schedule)
+└── upload-artifacts  (needs: build; skipped on schedule)
 ```
 
-- `lint` and `test` run in parallel — neither depends on the other
-- `build` `needs: [test]` — never produce artifacts from untested code
-- `coverage` `needs: [test]` — parses test output
-- `upload-artifacts` `needs: [build]` — only upload if build succeeded
+`ci.yml` triggers on push to `main`, pull_request, and a weekly schedule (`cron: '0 6 * * 1'`). On the schedule event, `lint`, `test`, `build`, `coverage`, `image-scan`, and `upload-artifacts` skip via `if: github.event_name != 'schedule'` — only the security jobs (`secret-scan`, `workflow-policy`, `vuln-scan`) run. This ensures the security posture is checked weekly even without a code push.
+
+`ensure-build-image` always runs regardless of trigger — it is the gate for all other jobs. Security jobs (`secret-scan`, `workflow-policy`, `vuln-scan`) each independently `needs: ensure-build-image`, giving them parallelism among themselves while all depending on the gate. They do not depend on each other.
 
 ### `release.yml` job order
 
 ```
-build ──→ release (needs: build)
+ensure-build-image ──→ build ──→ release (needs: build)
 ```
 
 - `release` `needs: build` — never publish without a successful build + test
 - `build` job uses read-only permissions; `release` job has elevated permissions scoped to it only
 - `release.yml` always re-runs its own build inline — never relies on artifacts from a prior workflow run
-
-### `security.yml` job order
-
-```
-secret-scan ──┐
-vuln-scan    ──┤  (all parallel — no deps between them)
-policy-check ──┘
-```
-
-Security jobs are independent — run in parallel. No `needs:` required within `security.yml`.
+- `release.yml` owns its own `ensure-build-image` job — it does not depend on `ci.yml`
 
 ### Docker image ordering
 
@@ -528,9 +524,10 @@ jobs:
 
 GitHub Actions has no native cross-workflow `needs:`. Use branch protection instead:
 
-- `build.yml` and `security.yml` run on push/PR — branch protection requires both to pass before merge
-- `release.yml` triggers on tag — by the time a tag is cut, main has already passed build + security gates
-- Never use `workflow_run` to chain `release.yml` after `build.yml` — it is complex, fragile, and bypasses branch protection intent
+- `ci.yml` runs on push/PR — branch protection requires it to pass before merge. Because `ci.yml` contains both build/test and security jobs in a single workflow with proper `needs:` ordering, there is no cross-workflow race: `ensure-build-image` gates everything, security jobs run in parallel after the gate, and `build` runs only after `lint` and `test` pass.
+- `release.yml` triggers on tag — by the time a tag is cut, `ci.yml` has already passed on `main` (build + test + security all verified). `release.yml` is self-contained with its own `ensure-build-image` job.
+- `build-toolchain.yml` runs on a monthly schedule — it is independent and does not interact with `ci.yml` or `release.yml` job ordering.
+- Never use `workflow_run` to chain workflows — it is complex, fragile, and bypasses branch protection intent.
 
 ---
 
@@ -546,7 +543,7 @@ concurrency:
   cancel-in-progress: true
 ```
 
-Exception: release workflows (`release.yml`) must NOT cancel in progress — use `cancel-in-progress: false` to prevent a partial publish.
+Exception: `release.yml` must NOT cancel in progress — use `cancel-in-progress: false` to prevent a partial publish. `build-toolchain.yml` likewise uses `cancel-in-progress: false` — a toolchain push must not be interrupted mid-push.
 
 ### Caching
 
@@ -593,7 +590,7 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 
 ### Coverage gates
 
-`build.yml` must enforce a minimum coverage threshold. The threshold is defined in `{project_dir}/IDEA.md` under `## Business logic`. If not specified, default is 60%. CI must fail when coverage drops below the threshold — a passing build with uncovered code is a silent regression.
+`ci.yml` must enforce a minimum coverage threshold. The threshold is defined in `{project_dir}/IDEA.md` under `## Business logic`. If not specified, default is 60%. CI must fail when coverage drops below the threshold — a passing build with uncovered code is a silent regression.
 
 **Go:** use `go test -cover ./... | tee coverage.out` and parse the total; fail if below threshold.
 **Rust:** use `cargo tarpaulin` or `cargo llvm-cov`; fail if below threshold.
@@ -605,9 +602,9 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 | **Third-party action pinning** | External actions MUST be pinned to a full commit SHA — never float on `@main`, `@master`, or broad tags; verify runtime and maintenance status on every SHA update |
 | **No unsafe PR triggers** | Do NOT use `pull_request_target` for untrusted code execution, build, test, or artifact upload paths |
 | **Secrets never exposed to forks** | Fork PR workflows run without repo secrets, write tokens, publish steps, or deployment credentials |
-| **Secret scanning is mandatory** | Public repos run `truffleHog` on push/PR via `security.yml`; findings are blockers, not warnings. Use `trufflesecurity/trufflehog` (Apache-2.0, no license key). Never use `gitleaks` — requires a commercial license for org repos |
+| **Secret scanning is mandatory** | Public repos run `truffleHog` on push/PR/schedule via `ci.yml`; findings are blockers, not warnings. Use `trufflesecurity/trufflehog` (Apache-2.0, no license key). Never use `gitleaks` — requires a commercial license for org repos |
 | **Dependency updates are automated** | Public repos include dependency update automation for every ecosystem in use |
-| **Vulnerability scanning is mandatory** | `security.yml` MUST run the appropriate scanner(s) for every language in the repo; critical/high CVEs in direct deps are build blockers |
+| **Vulnerability scanning is mandatory** | `ci.yml` MUST run the appropriate scanner(s) for every language in the repo; critical/high CVEs in direct deps are build blockers |
 
 ### Third-party Action Pinning
 
@@ -629,9 +626,9 @@ Every external action (`uses: owner/action@...`) MUST be pinned to a full commit
 
 Renovate covers `github-actions` ecosystem updates automatically via `pinDigests: true` — but it only updates the SHA, not the runtime verification. The runtime check is always manual.
 
-### Vulnerability scanning in `security.yml`
+### Vulnerability scanning in `ci.yml`
 
-`security.yml` always runs on push and pull_request. Jobs are split into two tiers:
+The security jobs within `ci.yml` always run on push, pull_request, and the weekly schedule. Jobs are split into two tiers:
 
 **Always-required jobs (every public repo, no conditions):**
 
@@ -718,11 +715,11 @@ Direct pushes to the default branch are forbidden except explicit maintainer eme
 
 | Workflow | Purpose |
 |----------|---------|
-| `.github/workflows/build.yml` | Build, test, coverage, and repo validation |
+| `.github/workflows/ci.yml` | Build, test, coverage, secret scan, vulnerability scan, and workflow policy — all push/PR work in dependency order |
 | `.github/workflows/release.yml` | Tagged/manual release build and publish |
-| `.github/workflows/security.yml` | Secret scanning, dependency/security checks, workflow policy checks |
+| `.github/workflows/build-toolchain.yml` | Monthly rebuild of the `:build` toolchain image |
 
-All three workflows are required on every public repo regardless of language. `security.yml` always contains at minimum `secret-scan` (truffleHog) and `workflow-policy` (action pinning check); dependency vulnerability jobs are added only when the corresponding manifest files exist.
+All three workflows are required on every public repo regardless of language. `ci.yml` always contains at minimum `secret-scan` (truffleHog) and `workflow-policy` (action pinning check); dependency vulnerability jobs are added only when the corresponding manifest files exist.
 
 If the project also supports Gitea/Forgejo or Jenkins, the equivalent workflows/pipelines MUST enforce the same gates — not a weaker subset. CI MUST fail when required tests, coverage gates, secret scans, dependency checks, or release validation fail.
 

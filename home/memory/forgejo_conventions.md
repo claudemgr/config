@@ -16,8 +16,8 @@ Forgejo uses the Forgejo runner (compatible with act runner). Workflow files liv
 
 ```
 .forgejo/workflows/ci.yml
-.forgejo/workflows/security.yml
 .forgejo/workflows/release.yml
+.forgejo/workflows/build-toolchain.yml
 ```
 
 Syntax is GitHub Actions-compatible. Files in `.forgejo/workflows/` take precedence over `.gitea/workflows/` on Forgejo instances.

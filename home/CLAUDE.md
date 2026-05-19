@@ -113,6 +113,8 @@ When credentials are needed at runtime: use environment variables, mounted secre
 - Verify APIs/flags exist before using them; cite file:line for any code reference
 - Run code before calling it done; iterate until verification actually passes
 - Plan (use plan mode) for genuinely ambiguous requirements or architectural decisions with real tradeoffs — not simply because a task touches many files
+- **kill scoping** — `kill $PID` is only allowed when `$PID` was explicitly captured at launch (`PID=$!` or equivalent) in the current task. `pkill`/`killall` and `kill $(pgrep ...)` are always blocked by `protect-host.sh` — they target processes by name and can hit unrelated host processes. If you need to stop a process you didn't launch, stop and tell the user.
+- **systemctl gate** — `systemctl status`, `is-active`, `is-enabled`, `cat`, `show`, and all `--user` variants are always OK without confirmation. `systemctl restart/stop/start/reload/disable/enable/mask` on host services (without `--user`) require explicit user confirmation before running — these affect running services and can disrupt other workloads. `protect-host.sh` blocks these automatically.
 
 **Memory Safety — these apply to every line of code in every language:**
 - `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in `{project_dir}/IDEA.md`

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202604281009-git
+##@Version           :  202605190000-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202604281009-git"
+VERSION="202605190000-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -165,6 +165,34 @@ fi
 # Rule 6: 'cd /<syspath> && rm ...' style cwd-shift attempts (system roots only — cd into home is normal).
 if __match "${WORD_START}cd[[:space:]]+${STRICT_PATHS}([[:space:]/][^&;|]*)?[[:space:]]*(&&|;|\|\|)[[:space:]]*(${DESTRUCTIVE_VERBS}|>|>>)"; then
   __block "'cd' into host system path followed by destructive op"
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Rule 7: pkill/killall/kill-by-pgrep — process termination must use tracked PIDs.
+# pkill and killall target by name/pattern and can hit arbitrary host processes.
+# kill $(pgrep ...) is equivalent. All are blocked — use kill $TRACKED_PID instead.
+# Exemption: commands mediated through a container runtime (already handled at top).
+if __match "${WORD_START}(pkill|killall)[[:space:]]"; then
+  __block "pkill/killall targets processes by name — use kill \$TRACKED_PID (a PID captured at launch) instead"
+fi
+if __match "${WORD_START}kill[[:space:]]+.*\$\(pgrep"; then
+  __block "kill \$(pgrep ...) targets processes by pattern — use kill \$TRACKED_PID (a PID captured at launch) instead"
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Rule 8: systemctl host-service mutation requires user confirmation.
+# status/is-active/is-enabled/cat/show and --user variants are always safe.
+# restart/stop/start/reload/disable/enable/mask on host services are blocked —
+# they can disrupt running workloads on the host machine.
+if __match "${WORD_START}systemctl[[:space:]]"; then
+  # Allow --user scoped commands (user session only, no host services)
+  if __match "${WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
+    : # user-scoped — always OK
+  # Allow read-only introspection
+  elif __match "${WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
+    : # read-only — always OK
+  # Block mutating operations on host services
+  elif __match "${WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|disable|enable|mask|unmask|isolate|kill|reset-failed)[[:space:]]"; then
+    __block "systemctl host-service mutation requires user confirmation — run manually after approval"
+  fi
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 exit 0
