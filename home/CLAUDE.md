@@ -249,6 +249,7 @@ Security is first-class from day one — never bolted on after. It must also be 
 
 ## Agent Usage
 - **Haiku for trivial tasks** — renames, format conversions, single-line edits, simple lookups, mechanical refactors: spawn via `Agent` with `model: "haiku"`. Reserve Sonnet for judgment, multi-file coordination, or design decisions.
+- **Agents never commit** — agents make file edits and report back; the main instance reviews the actual diff, writes `COMMIT_MESS`, and runs `gitcommit`. Never instruct an agent to write a commit message or invoke `gitcommit`. An agent that autonomously commits bypasses the diff-review step that catches errors before an irreversible push.
 
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
