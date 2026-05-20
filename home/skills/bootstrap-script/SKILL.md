@@ -37,18 +37,22 @@ Use the header template from `script_conventions.md`. Fill in:
 
 After the header, add the standard boilerplate variables for the resolved shell (see `script_conventions.md` Shell-specific differences table). Then add `set -euo pipefail` (bash/zsh) or `set -eu` (sh). Fish gets neither.
 
-**ENV var shadowing rule — enforced always:**
-Never assign directly to a name that is an existing system environment variable. Always use the env var as a fallback:
+**ENV var naming and shadowing rules — enforced always:**
+
+All project env vars must be `{PROJECT_NAME}_VARNAME` — uppercase, underscores only, actual script/project name as prefix. Never generic prefixes (`APP_`, `MY_`, `SCRIPT_`, etc.), never hyphens.
+
 ```sh
-# WRONG — shadows system env
+# WRONG — shadows system env / uses generic prefix
 HOSTNAME="$(hostname -f)"
 USER="admin"
+APP_FQDN="myhost.example.com"
 
-# CORRECT — preserves existing env, falls back to runtime value
-APP_FQDN="${APP_FQDN:-$(hostname -f)}"
+# CORRECT — project-prefixed, system var used as fallback
+MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
+MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
 RUN_USER="${SUDO_USER:-${USER}}"
 ```
-Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. Use project-prefixed names (`APP_*`, `INSTALL_*`, etc.) for script-specific values.
+Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. System env vars may be read as fallbacks — never assigned.
 
 End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `script_conventions.md` for the filetype per shell.
 

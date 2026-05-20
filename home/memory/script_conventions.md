@@ -235,11 +235,11 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
 
 - **Functions**: ALL functions prefixed with `__` regardless of shell — `__my_function() {}` (bash/sh/zsh), `function __my_function` (fish). No exceptions.
 - **Variables**:
-  - Global vars: `{SCRIPTNAME}_{VAR}` in uppercase (e.g. `MYSCRIPT_VAR`) — `{SCRIPTNAME}` is the script filename without extension, uppercased
+  - Global vars: `{SCRIPTNAME}_{VAR}` in uppercase (e.g. `MYSCRIPT_VAR`) — `{SCRIPTNAME}` is the script filename without extension, uppercased. Never use generic prefixes like `APP_`, `MY_`, `SCRIPT_` — always the actual script/project name.
   - Function-scoped vars: declare with `local` in bash/zsh; `set -l` in fish; plain assignment in sh (no `local` in POSIX sh unless targeting bash/zsh)
   - Always use `_` (underscore) — never `-` (hyphen) in variable or function names
   - Exceptions to prefix rule: well-known globals (`VERSION`, `APPNAME`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR`, `HOME`, `PATH`, `USER`, `PWD`), loop variables, single-letter scratch vars
-  - **Never shadow system environment variables** — never assign directly to a name that is an existing system env var (`HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`/`ZSH_*`/`FISH_*` vars). Use a project-prefixed name and take the system var as a fallback: `APP_FQDN="${APP_FQDN:-$HOSTNAME}"` not `HOSTNAME="$APP_FQDN"`. System env vars may be read freely — never written.
+  - **Never shadow system environment variables** — never assign directly to a name that is an existing system env var (`HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`/`ZSH_*`/`FISH_*` vars). Use the project-prefixed name and take the system var as a fallback: `MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$HOSTNAME}"` not `HOSTNAME="$MYSCRIPT_FQDN"`. System env vars may be read freely — never written.
 - **Comments**: always ABOVE the code they describe — NEVER inline at end of line
 - **Control flow**: always use `if/elif/else` — never `&&`/`||` chains for logic flow. `&&`/`||` are acceptable only for one-liner guards (`command || return 1`) not as substitutes for `if/elif/else` blocks
 - **Newlines**: always add a newline at end of file
