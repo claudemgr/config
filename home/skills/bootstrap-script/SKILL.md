@@ -15,12 +15,16 @@ Parse `$ARGUMENTS` as: `[shell] [script-name]`
 **Shell** (first arg, optional):
 - Accepted values: `sh`, `bash`, `zsh`, `fish`
 - Default: `sh` (POSIX)
-- If omitted but a script file already exists, detect from its shebang (`#!/usr/bin/env bash` → bash, etc.) or extension (`.sh` → sh, `.bash` → bash, `.zsh` → zsh, `.fish` → fish). No extension → sh.
+- If omitted, scan `{project_dir}` for existing script files (`*.sh`, `*.bash`, `*.zsh`, `*.fish`, and shebanged files without extension):
+  - **Exactly one found** → detect shell from its shebang first (`#!/usr/bin/env bash` → bash, `#!/usr/bin/env zsh` → zsh, `#!/usr/bin/env fish` → fish, `#!/bin/sh` → sh), then fall back to extension (`.sh` → sh, `.bash` → bash, `.zsh` → zsh, `.fish` → fish). Use that file as the primary script.
+  - **Multiple found** → ask the user which is the primary script before continuing; do not guess.
+  - **None found** → default to `sh`.
 
 **Script name** (second arg, optional):
 - Default: `install.sh` for sh/bash, `install.zsh` for zsh, `install.fish` for fish
 - Extension rules: bash/sh → `.sh`; zsh → `.zsh`; fish → `.fish`
 - If a name is given without extension, append the correct extension for the shell.
+- If an existing script was detected in the shell resolution step above, that file's name becomes the default — no need to re-specify it.
 
 ## Step 2 — Create the script file
 
