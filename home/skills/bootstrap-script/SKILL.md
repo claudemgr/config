@@ -26,6 +26,13 @@ Parse `$ARGUMENTS` as: `[shell] [script-name]`
 - If a name is given without extension, append the correct extension for the shell.
 - If an existing script was detected in the shell resolution step above, that file's name becomes the default — no need to re-specify it.
 
+**Project idea** (empty repo only):
+
+After resolving shell and script name, check whether `{project_dir}` contains any files other than `.git/` and its contents. If the directory is effectively empty:
+- Ask the user: *"What does this project do? Give me a sentence or two describing its purpose and who it's for."*
+- Use the response to populate `@@Description` in the script header, the one-sentence description in `AI.md`, the opening paragraph in `IDEA.md`, and the description paragraph in `README.md`.
+- If the directory already has files (existing script, README, etc.), infer the description from those instead — do not ask.
+
 ## Step 2 — Create the script file
 
 If the script file does not already exist, create it. If it exists, leave it untouched.
