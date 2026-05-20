@@ -238,11 +238,11 @@ MIT — see [LICENSE.md](LICENSE.md)
 
 **LICENSE.md** — MIT license with current year and author `Jason Hempstead, Casjays Developments`.
 
-## Step 6 — Initialize git
+## Step 6 — Stage files (git repos only)
 
-If `.git` does not exist, run `git init && git add -A` to stage everything. Do not commit — let the user run `gitcommit` when ready.
+If `{project_dir}/.git` does not exist, this is not a git repo — skip all git operations entirely.
 
-If `.git` already exists, run `git add -A` to stage new files.
+If `{project_dir}/.git` exists, run `git add -A` to stage all new and modified files. Do not commit — let the user run `gitcommit` when ready.
 
 ## Step 7 — Report
 
