@@ -52,7 +52,17 @@ MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
 MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
 RUN_USER="${SUDO_USER:-${USER}}"
 ```
-Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. System env vars may be read as fallbacks — never assigned.
+Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. System env vars may be read as fallbacks — never assigned. Exception: `IFS` may be changed temporarily — always save and restore, or scope to a subshell:
+
+```sh
+# save/restore
+old_IFS="$IFS"; IFS=:
+# ... use IFS ...
+IFS="$old_IFS"
+
+# or subshell-scoped
+( IFS=$'\n'; ... )
+```
 
 When an external app or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required:
 
