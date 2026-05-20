@@ -54,6 +54,16 @@ RUN_USER="${SUDO_USER:-${USER}}"
 ```
 Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `IFS`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. System env vars may be read as fallbacks — never assigned.
 
+When an external app or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required:
+
+```sh
+# CORRECT — adapter set immediately before the call that needs it
+export DATABASE_URL="${MYAPP_DATABASE_URL}"
+some-external-tool
+```
+
+Never set these adapters at top-level unless the entire script is a thin wrapper.
+
 End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `script_conventions.md` for the filetype per shell.
 
 ## Step 3 — Create .editorconfig
