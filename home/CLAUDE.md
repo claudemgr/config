@@ -60,6 +60,9 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - **CWD is `$PWD`** — all relative paths (`AI.md`, `./src`, `./`) resolve from there
 - **Absolute paths** (`/…`, `~…`) are taken as-is; never prepend CWD to them
 - **`{project_dir}`** = `git rev-parse --show-toplevel` if inside a git repo; otherwise = the directory Claude was launched from (`$PWD` at session start)
+- **`{project_name}`** = `basename {project_dir}` — always derived from the directory name, never hardcoded
+- **`{project_org}`** = `basename $(dirname {project_dir})` — the parent directory of the project root
+- **Git gate** — if `{project_dir}/.git` does not exist, this is not a git repo. Never run any git operation (`git add`, `git commit`, `git status`, `git init`, etc.) on a non-git directory. Check for `.git` before any git command.
 - **Project files override global**: if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it is the source of truth and supersedes the global `~/.claude/CLAUDE.md` equivalent for that session
 - **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. Never reach outside the project tree (e.g. `~/.claude/`, `/etc/`, another repo) on your own initiative, even when a file there "should" be updated as a side effect of the task
 

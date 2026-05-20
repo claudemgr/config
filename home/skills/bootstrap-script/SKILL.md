@@ -240,7 +240,7 @@ MIT — see [LICENSE.md](LICENSE.md)
 
 ## Step 6 — Stage files (git repos only)
 
-If `{project_dir}/.git` does not exist, this is not a git repo — skip all git operations entirely.
+Apply the global git gate rule: if `{project_dir}/.git` does not exist, skip all git operations entirely.
 
 If `{project_dir}/.git` exists, run `git add -A` to stage all new and modified files. Do not commit — let the user run `gitcommit` when ready.
 
