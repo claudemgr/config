@@ -52,7 +52,16 @@ MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
 MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
 RUN_USER="${SUDO_USER:-${USER}}"
 ```
-Known system env vars never to shadow: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. System env vars may be read as fallbacks — never assigned. Exception: `IFS` may be changed temporarily — always save and restore, or scope to a subshell:
+System env vars that must never be overwritten: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. Assigning to these clobbers values the shell and other tools depend on. Reading them is always fine and expected — use freely as fallbacks, in conditions, anywhere:
+
+```sh
+# CORRECT — read system vars as fallbacks; project-prefixed names hold values
+RUN_USER="${SUDO_USER:-$USER}"
+MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
+MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
+```
+
+Exception: `IFS` may be temporarily changed — always save and restore, or scope to a subshell:
 
 ```sh
 # save/restore
