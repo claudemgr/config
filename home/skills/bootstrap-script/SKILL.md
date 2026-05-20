@@ -93,6 +93,25 @@ some-external-tool
 
 Never set these adapters at top-level unless the entire script is a thin wrapper.
 
+**Sane fallbacks** — every project var should have a `${VAR:-default}`. Build compound defaults from earlier vars:
+
+```sh
+MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$HOSTNAME}"
+MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
+MYSCRIPT_ADMIN_NAME="${MYSCRIPT_ADMIN_NAME:-administrator}"
+MYSCRIPT_ADMIN_EMAIL="${MYSCRIPT_ADMIN_EMAIL:-${MYSCRIPT_ADMIN_NAME}@${MYSCRIPT_FQDN}}"
+MYSCRIPT_EMAIL_FROM_ADDRESS="${MYSCRIPT_EMAIL_FROM_ADDRESS:-no-reply@${MYSCRIPT_FQDN}}"
+MYSCRIPT_EMAIL_FROM_NAME="${MYSCRIPT_EMAIL_FROM_NAME:-My Application}"
+MYSCRIPT_PORT="${MYSCRIPT_PORT:-8080}"
+MYSCRIPT_LOG_LEVEL="${MYSCRIPT_LOG_LEVEL:-info}"
+MYSCRIPT_DATA_DIR="${MYSCRIPT_DATA_DIR:-/var/lib/myscript}"
+```
+
+Exceptions — **no fallback** for these; script must `exit 1` with a clear error if unset:
+- **Secrets/credentials** (`MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`) — a default secret is a security hole
+- **Destructive targets** (`MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET`) — a wrong default silently operates on the wrong location
+- **External service addresses in multi-env deployments** (`MYSCRIPT_DB_HOST`) — defaulting to `localhost` silently breaks in production
+
 End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `script_conventions.md` for the filetype per shell.
 
 ## Step 3 — Create .editorconfig

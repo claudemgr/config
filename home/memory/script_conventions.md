@@ -243,6 +243,22 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
     - **Shell mechanics — never overwrite:** `PS1`–`PS4`, `OPTIND`, `OPTARG`, `SHLVL`, all `BASH_*`/`ZSH_*`/`FISH_*` vars. Exception: `IFS` may be temporarily changed — save and restore, or scope to a subshell: `old_IFS="$IFS"; IFS=:; …; IFS="$old_IFS"` or `( IFS=:; … )`.
     - **Process identity — never overwrite:** `HOME`, `USER`, `LOGNAME`, `SHELL`, `UID`, `EUID`, `GID`, `PATH`, `PWD`, `OLDPWD`.
     - **Environment preferences — overwrite only when intentional:** `LANG`, `TZ`, `TERM`, `EDITOR`, `VISUAL`, `PAGER`, `HOSTNAME`, `HOST`. Store the value in a project-prefixed var first, then assign the system var from it when downstream processes must inherit it: `MYSCRIPT_LANG="${MYSCRIPT_LANG:-en_US.UTF-8}"; export LANG="${MYSCRIPT_LANG}"`. Never hardcode directly into the system var.
+  - **Sane fallbacks** — every project var should have a sane default via `${VAR:-default}`. Build compound defaults from earlier vars where it makes sense:
+    ```bash
+    MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$HOSTNAME}"
+    MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
+    MYSCRIPT_ADMIN_NAME="${MYSCRIPT_ADMIN_NAME:-administrator}"
+    MYSCRIPT_ADMIN_EMAIL="${MYSCRIPT_ADMIN_EMAIL:-${MYSCRIPT_ADMIN_NAME}@${MYSCRIPT_FQDN}}"
+    MYSCRIPT_EMAIL_FROM_ADDRESS="${MYSCRIPT_EMAIL_FROM_ADDRESS:-no-reply@${MYSCRIPT_FQDN}}"
+    MYSCRIPT_EMAIL_FROM_NAME="${MYSCRIPT_EMAIL_FROM_NAME:-My Application}"
+    MYSCRIPT_PORT="${MYSCRIPT_PORT:-8080}"
+    MYSCRIPT_LOG_LEVEL="${MYSCRIPT_LOG_LEVEL:-info}"
+    MYSCRIPT_DATA_DIR="${MYSCRIPT_DATA_DIR:-/var/lib/myscript}"
+    ```
+    Exceptions — **no fallback** when a wrong default causes a security hole or silent destructive behavior:
+    - **Secrets/credentials**: `MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`, `MYSCRIPT_JWT_SECRET` — a default secret is a vulnerability; script must error if unset
+    - **Destructive targets**: `MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET` — a wrong default silently operates on the wrong location
+    - **External service addresses in multi-env deployments**: `MYSCRIPT_DB_HOST` when it connects to a real external server — defaulting to `localhost` silently breaks in prod
   - **Exporting vars for external tools** — when an external app, library, or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required: `export DATABASE_URL="${MYAPP_DATABASE_URL}"`. Set the adapter immediately before the call that needs it — never at top-level unless the entire script is a thin wrapper.
 - **Comments**: always ABOVE the code they describe — NEVER inline at end of line
 - **Control flow**: always use `if/elif/else` — never `&&`/`||` chains for logic flow. `&&`/`||` are acceptable only for one-liner guards (`command || return 1`) not as substitutes for `if/elif/else` blocks
