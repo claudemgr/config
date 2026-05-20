@@ -76,9 +76,11 @@ RUN_USER="${SUDO_USER:-$USER}"
 MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
 MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
 
-# OK — overwrite env preference when downstream must inherit it
-LANG=en_US.UTF-8
-TZ=UTC
+# OK — store in project var first, then assign system var from it
+MYSCRIPT_LANG="${MYSCRIPT_LANG:-en_US.UTF-8}"
+MYSCRIPT_TZ="${MYSCRIPT_TZ:-UTC}"
+export LANG="${MYSCRIPT_LANG}"
+export TZ="${MYSCRIPT_TZ}"
 ```
 
 When an external app or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required:
