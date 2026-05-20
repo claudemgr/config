@@ -255,10 +255,10 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
     MYSCRIPT_LOG_LEVEL="${MYSCRIPT_LOG_LEVEL:-info}"
     MYSCRIPT_DATA_DIR="${MYSCRIPT_DATA_DIR:-/var/lib/myscript}"
     ```
-    Exceptions — **no fallback** when a wrong default causes a security hole or silent destructive behavior:
-    - **Secrets/credentials**: `MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`, `MYSCRIPT_JWT_SECRET` — a default secret is a vulnerability; script must error if unset
-    - **Destructive targets**: `MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET` — a wrong default silently operates on the wrong location
-    - **External service addresses in multi-env deployments**: `MYSCRIPT_DB_HOST` when it connects to a real external server — defaulting to `localhost` silently breaks in prod
+    Exceptions — no `${VAR:-literal}` fallback:
+    - **Secrets/credentials** (`MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`, `MYSCRIPT_JWT_SECRET`) — generate with `__random_password`; if the script is idempotent, save with `__save_credential` (perms `600`, owned by `$RUN_USER:$RUN_USER` or `root:root` depending on context) and show once on first generation. See `__random_password` / `__save_credential` / `__load_credential` in Standard Utility Functions.
+    - **Destructive targets** (`MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET`) — a wrong default silently operates on the wrong location; script must `exit 1` with a clear error if unset
+    - **External service addresses in multi-env deployments** (`MYSCRIPT_DB_HOST`) — defaulting to `localhost` silently breaks in prod; script must `exit 1` with a clear error if unset
   - **Exporting vars for external tools** — when an external app, library, or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required: `export DATABASE_URL="${MYAPP_DATABASE_URL}"`. Set the adapter immediately before the call that needs it — never at top-level unless the entire script is a thin wrapper.
 - **Comments**: always ABOVE the code they describe — NEVER inline at end of line
 - **Control flow**: always use `if/elif/else` — never `&&`/`||` chains for logic flow. `&&`/`||` are acceptable only for one-liner guards (`command || return 1`) not as substitutes for `if/elif/else` blocks
@@ -848,6 +848,73 @@ __get_hosts_ip6_address() {
     fi
   done
   return 1
+}
+```
+
+### `__random_password`
+
+Generates a cryptographically random password from `/dev/urandom`. Accepts an optional length argument (default 32). Uses alphanumeric + common special characters safe for most password fields. Prints the password without a trailing newline so it can be captured cleanly with `$()`.
+
+```bash
+__random_password() {
+  local length="${1:-32}"
+  tr -dc 'A-Za-z0-9!@#$%^&*_+-' </dev/urandom | head -c "${length}"
+}
+```
+
+### `__save_credential`
+
+Saves a key=value pair to a credentials file. Creates the file and parent directory if needed. Sets permissions to `600` and ownership to `root:root` when running as root, or `$RUN_USER:$RUN_USER` otherwise. If the key already exists in the file it is replaced in-place; it is appended if not. Shows the value to the user once on first save (stdout) with a note of the file path.
+
+```bash
+__save_credential() {
+  local file="${1:?Usage: __save_credential <file> <key> <value>}"
+  local key="${2:?}"
+  local value="${3:?}"
+  mkdir -p "$(dirname -- "$file")"
+  if [[ -f "$file" ]] && grep -q "^${key}=" "$file"; then
+    local tmp
+    tmp="$(mktemp)"
+    grep -v "^${key}=" "$file" > "$tmp"
+    printf '%s=%s\n' "$key" "$value" >> "$tmp"
+    mv "$tmp" "$file"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$file"
+    printf 'Generated %s: %s\n' "$key" "$value"
+    printf 'Saved to: %s\n' "$file"
+  fi
+  chmod 600 "$file"
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    chown root:root "$file"
+  else
+    chown "${RUN_USER}:${RUN_USER}" "$file"
+  fi
+}
+```
+
+### `__load_credential`
+
+Loads a key's value from a credentials file. Prints the value and returns 0 if found; returns 1 if the file does not exist or the key is absent.
+
+```bash
+__load_credential() {
+  local file="${1:?Usage: __load_credential <file> <key>}"
+  local key="${2:?}"
+  [[ -f "$file" ]] || return 1
+  local val
+  val="$(grep "^${key}=" "$file" | tail -n1 | cut -d= -f2-)"
+  [[ -n "$val" ]] || return 1
+  printf '%s\n' "$val"
+}
+```
+
+**Secret var pattern** — for any credential var, load from the credentials file first; generate, save, and show once if absent:
+
+```bash
+CRED_FILE="${MYSCRIPT_CONFIG_DIR:-/etc/myscript}/.credentials"
+MYSCRIPT_DB_PASSWORD="$(__load_credential "$CRED_FILE" MYSCRIPT_DB_PASSWORD)" || {
+  MYSCRIPT_DB_PASSWORD="$(__random_password)"
+  __save_credential "$CRED_FILE" MYSCRIPT_DB_PASSWORD "$MYSCRIPT_DB_PASSWORD"
 }
 ```
 

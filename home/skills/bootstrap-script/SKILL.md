@@ -107,10 +107,17 @@ MYSCRIPT_LOG_LEVEL="${MYSCRIPT_LOG_LEVEL:-info}"
 MYSCRIPT_DATA_DIR="${MYSCRIPT_DATA_DIR:-/var/lib/myscript}"
 ```
 
-Exceptions — **no fallback** for these; script must `exit 1` with a clear error if unset:
-- **Secrets/credentials** (`MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`) — a default secret is a security hole
-- **Destructive targets** (`MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET`) — a wrong default silently operates on the wrong location
-- **External service addresses in multi-env deployments** (`MYSCRIPT_DB_HOST`) — defaulting to `localhost` silently breaks in production
+Exceptions — no `${VAR:-literal}` fallback:
+- **Secrets/credentials** (`MYSCRIPT_DB_PASSWORD`, `MYSCRIPT_API_KEY`, `MYSCRIPT_SECRET_KEY`) — generate with `__random_password`; if the script is idempotent, save with `__save_credential` (perms `600`, owned by `$RUN_USER:$RUN_USER` or `root:root` depending on context) and show once on first generation:
+  ```sh
+  CRED_FILE="${MYSCRIPT_CONFIG_DIR:-/etc/myscript}/.credentials"
+  MYSCRIPT_DB_PASSWORD="$(__load_credential "$CRED_FILE" MYSCRIPT_DB_PASSWORD)" || {
+    MYSCRIPT_DB_PASSWORD="$(__random_password)"
+    __save_credential "$CRED_FILE" MYSCRIPT_DB_PASSWORD "$MYSCRIPT_DB_PASSWORD"
+  }
+  ```
+- **Destructive targets** (`MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET`) — a wrong default silently operates on the wrong location; `exit 1` with a clear error if unset
+- **External service addresses in multi-env deployments** (`MYSCRIPT_DB_HOST`) — defaulting to `localhost` silently breaks in production; `exit 1` with a clear error if unset
 
 End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `script_conventions.md` for the filetype per shell.
 
