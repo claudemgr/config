@@ -52,25 +52,33 @@ MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
 MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
 RUN_USER="${SUDO_USER:-${USER}}"
 ```
-System env vars that must never be overwritten: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `PWD`, `OLDPWD`, `HOSTNAME`, `HOST`, `TERM`, `LANG`, `TZ`, `EDITOR`, `VISUAL`, `PAGER`, `UID`, `EUID`, `GID`, `SHLVL`, `PS1`–`PS4`, `OPTIND`, `OPTARG`, and all `BASH_*`, `ZSH_*`, `FISH_*` vars. Assigning to these clobbers values the shell and other tools depend on. Reading them is always fine and expected — use freely as fallbacks, in conditions, anywhere:
+System env vars — read freely as fallbacks anywhere; overwriting rules by category:
+
+**Shell mechanics — never overwrite:** `PS1`–`PS4`, `OPTIND`, `OPTARG`, `SHLVL`, all `BASH_*`/`ZSH_*`/`FISH_*` vars.
+Exception: `IFS` may be temporarily changed — save and restore, or scope to a subshell:
 
 ```sh
-# CORRECT — read system vars as fallbacks; project-prefixed names hold values
-RUN_USER="${SUDO_USER:-$USER}"
-MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
-MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
-```
-
-Exception: `IFS` may be temporarily changed — always save and restore, or scope to a subshell:
-
-```sh
-# save/restore
 old_IFS="$IFS"; IFS=:
 # ... use IFS ...
 IFS="$old_IFS"
 
 # or subshell-scoped
 ( IFS=$'\n'; ... )
+```
+
+**Process identity — never overwrite:** `HOME`, `USER`, `LOGNAME`, `SHELL`, `UID`, `EUID`, `GID`, `PATH`, `PWD`, `OLDPWD`.
+
+**Environment preferences — overwrite only when intentional:** `LANG`, `TZ`, `TERM`, `EDITOR`, `VISUAL`, `PAGER`, `HOSTNAME`, `HOST`. Prefer a project-prefixed var for project-specific values; only overwrite when downstream processes must inherit it:
+
+```sh
+# CORRECT — read system vars as fallbacks; project-prefixed names hold values
+RUN_USER="${SUDO_USER:-$USER}"
+MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$(hostname -f)}"
+MYSCRIPT_DOMAIN="${MYSCRIPT_DOMAIN:-$(hostname -d)}"
+
+# OK — overwrite env preference when downstream must inherit it
+LANG=en_US.UTF-8
+TZ=UTC
 ```
 
 When an external app or tool expects a specific variable name (e.g. `DATABASE_URL`, `PGPASSWORD`), bridge from the project var and export only if required:
