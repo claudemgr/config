@@ -324,7 +324,7 @@ services:
     environment:
       - DEBUG=1
     ports:
-      - "8080:80"
+      - "172.17.0.1:{port}:80"
     networks:
       - {name}-dev
 
@@ -336,22 +336,117 @@ networks:
 ### Production Compose (`docker-compose.yml`)
 
 ```yaml
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
 services:
   {name}:
     image: ghcr.io/{org}/{name}:latest   # replace with provider registry at deploy time
-    restart: unless-stopped
+    pull_policy: always
+    container_name: {name}-app
+    restart: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: {name}-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
       - ./volumes/data:/data
       - ./volumes/config:/config
     ports:
-      - "8080:80"
+      - "172.17.0.1:{port}:80"
     networks:
-      - {name}-net
+      - {project_name}
 
 networks:
-  {name}-net:
-    driver: bridge
+  {project_name}:
+    name: {project_name}
+    external: false
 ```
+
+### Deployment Compose (third-party services, e.g. composemgr)
+
+For deploying an external service rather than your own built image. Network is always `{project_name}` — never `{project_name}-net`, `{project_name}-app`, or any other suffix. DB/backend services join only the project network; the app service also joins `proxy` and `cloudflare` when a reverse proxy is in front. Labels (traefik, cloudflare) are optional — omit when not needed.
+
+```yaml
+# nginx proxy address - http://172.17.0.1:{port}
+
+name: {project_name}
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
+services:
+  app:
+    image: {upstream_image}:latest
+    pull_policy: always
+    container_name: {project_name}-app
+    restart: always
+    logging: *default-logging
+    networks:
+      - {project_name}
+      - proxy        # omit if no reverse proxy
+      - cloudflare   # omit if not using cloudflare tunnel
+    ports:
+      - "172.17.0.1:{port}:{internal_port}"
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: {project_name}-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      # app-specific vars...
+    volumes:
+      - ./volumes/data/{project_name}:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      {project_name}-db:
+        condition: service_healthy
+
+  {project_name}-db:
+    image: postgres:latest
+    pull_policy: always
+    container_name: {project_name}-db
+    restart: always
+    logging: *default-logging
+    networks:
+      - {project_name}          # DB on project network only — never proxy/cloudflare
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-{project_name}}
+      POSTGRES_USER: ${DB_USER_NAME:-{project_name}}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      CONTAINER_NAME: {project_name}-db
+    volumes:
+      - ./volumes/data/db/postgres/{project_name}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER_NAME:-{project_name}} -d ${DB_CREATE_DATABASE_NAME:-{project_name}}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  {project_name}:
+    name: {project_name}
+    external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
+```
+
+Rules:
+- **Network name is always `{project_name}`** — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match.
+- **DB services join only the project network** — never `proxy` or `cloudflare`
+- **Healthcheck cadence** — `interval: 30s`, `timeout: 10s`, `retries: 3` for all DB services
+- **Port comment** at top of file: `# nginx proxy address - http://172.17.0.1:{port}`
+- **`pull_policy: always`** on every service — ensures latest image on each `docker compose up`
+- **`restart: always`** on every service
+- **`x-logging` anchor** — apply to all services via `logging: *default-logging`
 
 ### Test Compose (`docker-compose.test.yml`)
 
