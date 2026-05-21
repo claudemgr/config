@@ -251,7 +251,7 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
     MYSCRIPT_ADMIN_EMAIL="${MYSCRIPT_ADMIN_EMAIL:-${MYSCRIPT_ADMIN_NAME}@${MYSCRIPT_FQDN}}"
     MYSCRIPT_EMAIL_FROM_ADDRESS="${MYSCRIPT_EMAIL_FROM_ADDRESS:-no-reply@${MYSCRIPT_FQDN}}"
     MYSCRIPT_EMAIL_FROM_NAME="${MYSCRIPT_EMAIL_FROM_NAME:-My Application}"
-    MYSCRIPT_PORT="${MYSCRIPT_PORT:-8080}"
+    MYSCRIPT_PORT="${MYSCRIPT_PORT:-62080}"
     MYSCRIPT_LOG_LEVEL="${MYSCRIPT_LOG_LEVEL:-info}"
     MYSCRIPT_DATA_DIR="${MYSCRIPT_DATA_DIR:-/var/lib/myscript}"
     ```
@@ -866,13 +866,13 @@ __random_password() {
 
 ### `__random_port`
 
-Returns a random unused port in the `64000`–`64999` range. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Use when generating a new `docker-compose.yml` or any service config that needs a host port — hardcode the returned value into the file rather than calling this on every run.
+Returns a random unused port in the `62000`–`64999` range. This range avoids all commonly used service ports (8080, 3000, 5432, etc.) and is not assigned to any well-known services. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Use when generating a new `docker-compose.yml` or any service config that needs a host port — hardcode the returned value into the file rather than calling this on every run.
 
 ```bash
 __random_port() {
   local port
   while :; do
-    port=$(( 64000 + RANDOM % 1000 ))
+    port=$(( 62000 + RANDOM % 3000 ))
     if ! \ss -tlnp 2>/dev/null | \grep -q ":${port} "; then
       printf '%s\n' "$port"
       return 0
