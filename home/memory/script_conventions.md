@@ -864,6 +864,28 @@ __random_password() {
 }
 ```
 
+### `__random_port`
+
+Returns a random unused port in the `64000`–`64999` range. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Use when generating a new `docker-compose.yml` or any service config that needs a host port — hardcode the returned value into the file rather than calling this on every run.
+
+```bash
+__random_port() {
+  local port
+  while :; do
+    port=$(( 64000 + RANDOM % 1000 ))
+    if ! \ss -tlnp 2>/dev/null | \grep -q ":${port} "; then
+      printf '%s\n' "$port"
+      return 0
+    fi
+  done
+}
+```
+
+Port binding convention — always `172.17.0.1:{port}:{internal_port}`:
+- Never `0.0.0.0` — exposes the port on all interfaces including public ones
+- Never `localhost` or `127.0.0.x` — host-only, excludes container-to-host reach
+- `172.17.0.1` is the Docker bridge gateway: reachable from the host and other containers on the default bridge, not exposed externally
+
 ### `__save_credential`
 
 Saves a key=value pair to a credentials file. Creates the file and parent directory if needed. Sets permissions to `600` and ownership to `root:root` when running as root, or `$RUN_USER:$RUN_USER` otherwise. If the key already exists in the file it is replaced in-place; it is appended if not. Shows the value to the user once on first save (stdout) with a note of the file path.
