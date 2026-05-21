@@ -866,7 +866,19 @@ __random_password() {
 
 ### `__random_port`
 
-Returns a random unused port in the `62000`–`64999` range. This range avoids all commonly used service ports (8080, 3000, 5432, etc.) and is not assigned to any well-known services. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Port is detected at runtime on every call. For idempotent scripts, save the result with `__save_credential` on first run and load it on subsequent runs — so the same port is reused rather than a new one picked each time.
+Returns a random unused port in the `62000`–`64999` range. This range avoids all commonly used service ports (8080, 3000, 5432, etc.) and is not assigned to any well-known services. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Port is detected at runtime on every call.
+
+When the port must survive between runs (idempotent script, docker-compose with a reverse proxy in front, any service where the port must stay stable), save it to the project's config file on first generation and reload it on subsequent runs. The project decides the file — `.env`, `settings.conf`, `docker-compose.yml`, etc. Use `__save_credential` / `__load_credential` when the file is a `KEY=VALUE` store:
+
+```bash
+CRED_FILE="${MYSCRIPT_CONFIG_DIR:-/etc/myscript}/settings.conf"
+MYSCRIPT_PORT="$(__load_credential "$CRED_FILE" MYSCRIPT_PORT)" || {
+  MYSCRIPT_PORT="$(__random_port)"
+  __save_credential "$CRED_FILE" MYSCRIPT_PORT "$MYSCRIPT_PORT"
+}
+```
+
+If the project writes a structured file (docker-compose.yml, nginx.conf, etc.), generate it once with the chosen port and do not regenerate unless explicitly requested.
 
 ```bash
 __random_port() {
