@@ -243,11 +243,12 @@ Security is first-class from day one — never bolted on after. It must also be 
 
 ## Tool Preference
 - Always use the right tool for the job if installed: `jq` for JSON, `yq` for YAML, `bc` for math, `grep`/`sed`/`awk` for text, `git` for version control, etc.
-- **Provider CLIs** — prefer over raw `curl` for provider API operations when installed:
-  - `gh` (GitHub CLI, Apache-2.0) — issues, PRs, releases, repo ops on GitHub
-  - `tea` (Gitea CLI, MIT) — same operations on Gitea; also works against Forgejo (compatible API)
-  - `glab` (GitLab CLI, MIT) — same operations on GitLab
-  - Fall back to `curl` (see curl default below) only when the provider CLI is not installed or the operation has no CLI equivalent
+- **Provider CLIs** — prefer over raw `curl` for provider API operations. If not installed, download and install the binary before use — never fall back to raw `curl` for provider operations when a CLI exists for that provider:
+  - `gh` (GitHub CLI, Apache-2.0) — issues, PRs, releases, repo ops on GitHub; latest release: `https://github.com/cli/cli/releases/latest`
+  - `glab` (GitLab CLI, MIT) — same operations on GitLab; latest release: `https://gitlab.com/gitlab-org/cli/-/releases`
+  - `tea` (Gitea CLI, MIT) — Gitea and Forgejo (compatible API); latest release: `https://gitea.com/gitea/tea/releases`
+  - **Auto-install when missing** — detect arch (`uname -m`: `x86_64`→`amd64`, `aarch64`→`arm64`), download the latest Linux binary from the provider's release page, install to `/usr/local/bin` if running as root or `sudo -n true 2>/dev/null` succeeds, otherwise `~/.local/bin`. Always `mkdir -p` the target dir and `chmod +x` after download. Confirm with the user before installing to `/usr/local/bin` via sudo.
+  - `curl` is acceptable when there is a reason: CLI not authenticated/configured, operation is simpler or faster without the CLI, public endpoint that needs no auth, or operation has no CLI equivalent
 - **`act`** (nektos/act, MIT) — validate and run GitHub Actions workflows locally before pushing. Install: `setupmgr act`. Key uses: `act --list -W {file}` to validate a workflow file (parses YAML + resolves job graph, exits non-zero on errors); `act -j {job}` to run a specific job locally. **Required pre-commit**: if `.github/workflows/` files are staged, `act --list` must pass on each before `gitcommit` runs — the `validate-workflows.sh` hook enforces this automatically. Never use `act` to bypass CI gates — it is a pre-push verification tool only.
 - Use `python3` only when no purpose-built tool can handle the task cleanly
 - **curl default:** `curl -q -LSs {url}` — `-q` suppresses config file, `-L` follows redirects, `-S` shows errors, `-s` suppresses progress meter. Never add `-f`/`--fail` by default — it suppresses the response body on HTTP errors, hiding diagnostic information. Only add `-f` in scripts or Makefiles where silent failure and a non-zero exit code are explicitly the right behaviour. Only add `-#` (or drop `-s`) when a progress bar is explicitly needed.
