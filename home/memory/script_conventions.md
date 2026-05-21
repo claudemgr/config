@@ -866,7 +866,7 @@ __random_password() {
 
 ### `__random_port`
 
-Returns a random unused port in the `62000`–`64999` range. This range avoids all commonly used service ports (8080, 3000, 5432, etc.) and is not assigned to any well-known services. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Use when generating a new `docker-compose.yml` or any service config that needs a host port — hardcode the returned value into the file rather than calling this on every run.
+Returns a random unused port in the `62000`–`64999` range. This range avoids all commonly used service ports (8080, 3000, 5432, etc.) and is not assigned to any well-known services. Checks availability with `ss -tlnp` before returning. Loops until a free port is found. Port is detected at runtime on every call. For idempotent scripts, save the result with `__save_credential` on first run and load it on subsequent runs — so the same port is reused rather than a new one picked each time.
 
 ```bash
 __random_port() {
