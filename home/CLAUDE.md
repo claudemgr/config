@@ -62,7 +62,15 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - **`{project_dir}`** = `git rev-parse --show-toplevel` if inside a git repo; otherwise = the directory Claude was launched from (`$PWD` at session start)
 - **`{project_name}`** = `basename {project_dir}` — always derived from the directory name, never hardcoded
 - **`{project_org}`** = `basename $(dirname {project_dir})` — the parent directory of the project root
-- **Git gate** — if `{project_dir}/.git` does not exist, this is not a git repo. Never run any git operation (`git add`, `git commit`, `git status`, `git init`, etc.) on a non-git directory. Check for `.git` before any git command.
+- **`{provider_name}`** = `basename $(dirname $(dirname {project_dir}))` — the provider directory two levels above the project. Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers:
+  | `{provider_name}` | `{provider_url}` | Notes |
+  |---|---|---|
+  | `github` | `github.com` | Use `gh` CLI |
+  | `gitlab` | `gitlab.com` | Use `glab` CLI |
+  | `gitbucket` | `gitbucket.com` | Use `tea` CLI |
+  | `private` | `${GIT_PRIVATE_URL#*://}` | Strip scheme from env var; use `tea` CLI |
+  | `local` | *(none)* | Local-only projects; may or may not be a git repo; never assume a remote |
+- **Git gate** — if `{project_dir}/.git` does not exist, this is not a git repo. Never run any git operation (`git add`, `git commit`, `git status`, `git init`, etc.) on a non-git directory. Check for `.git` before any git command. `local` provider projects follow the same rule — `.git` must exist before any git op.
 - **Project files override global**: if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it is the source of truth and supersedes the global `~/.claude/CLAUDE.md` equivalent for that session
 - **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. Never reach outside the project tree (e.g. `~/.claude/`, `/etc/`, another repo) on your own initiative, even when a file there "should" be updated as a side effect of the task
 
