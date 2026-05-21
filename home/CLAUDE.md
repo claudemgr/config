@@ -75,7 +75,7 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 - **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. Never reach outside the project tree (e.g. `~/.claude/`, `/etc/`, another repo) on your own initiative, even when a file there "should" be updated as a side effect of the task
 
 ## Code & Files
-- **`cd` always uses absolute paths** — never `cd relative/path` or `cd ../foo`; always `cd /full/path/to/dir`. Applies in scripts, Makefiles, CI steps, Claude tool calls, and documentation examples — everywhere `cd` appears.
+- **`cd` always uses absolute paths in executable contexts** — in scripts, Makefiles, CI steps, and Claude's own Bash tool calls always use `cd /full/path/to/dir`, never `cd relative/path` or `cd ../foo`. Exception: user-facing documentation (README, IDEA.md, inline examples) where a relative or `~/`-based path is clearer and more natural for the reader.
 - **External commands always use `\command` (or `command cmd` in fish)** — prefix every external command invocation with `\` to bypass aliases and shell functions and call the real binary: `\curl`, `\git`, `\grep`, `\sed`, `\awk`, `\chmod`, etc. In fish shell use `command curl` (fish does not support `\` bypass). Applies in scripts, docs, AI.md examples, skill steps, and Claude's own Bash tool calls — everywhere an external command is invoked. This ensures the intended binary runs regardless of the user's shell aliases or wrapper functions.
 - Read current file state before any edit
 - Stay in scope — no unrequested refactors, reformats, or extras
