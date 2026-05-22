@@ -265,6 +265,18 @@ All builds use a single container image — `ghcr.io/rpm-devel/build:latest` —
 with `mock` to target any EL or Fedora version. Always produce both arch
 variants. `--privileged` is required for mock to create chroots.
 
+The image ships everything needed with no container setup step:
+`mock`, `rpm-build`, `rpm-sign`, `rpmdevtools`, `rpmlint`, `dnf-utils`
+(`dnf builddep`), `createrepo_c`, `gcc`/`gcc-c++`, `cmake`, `autoconf`,
+`automake`, `libtool`, `pkgconf-pkg-config`, `patch`, `glibc-devel`,
+`openssl-devel`, `zlib-devel`, `bzip2`/`xz`/`zstd`/`unzip`, `python3`,
+`perl`, `git`, `git-lfs`, `curl`, `rsync`, `copr-cli`, `jq`, `gnupg2`,
+`pinentry`, `gh` (GitHub CLI), `glab` (GitLab CLI), `tea` (Gitea/Forgejo CLI).
+
+Enabled repos: Fedora main, RPM Fusion free + nonfree, GitHub CLI. EPEL is
+handled automatically by mock chroot configs for EL targets — no host-level
+EPEL needed.
+
 ```sh
 # Start the build container
 docker run --rm -it \

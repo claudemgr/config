@@ -166,6 +166,41 @@ no container setup step is needed.
 
 `mock` requires `--privileged` to create chroots.
 
+### Pre-installed packages and repos
+
+| Group | Packages |
+|---|---|
+| RPM toolchain | `mock`, `mock-core-configs`, `rpm-build`, `rpm-sign`, `rpmdevtools`, `rpmlint`, `dnf-utils`, `createrepo_c` |
+| C/C++ build | `gcc`, `gcc-c++`, `binutils`, `make`, `cmake`, `autoconf`, `automake`, `libtool`, `pkgconf-pkg-config`, `patch`, `diffutils` |
+| Common headers | `glibc-devel`, `openssl-devel`, `zlib-devel` |
+| Archive formats | `bzip2`, `xz`, `zstd`, `unzip` |
+| Scripting runtimes | `python3`, `python3-pip`, `perl` |
+| VCS | `git`, `git-lfs` |
+| Network / transfer | `curl`, `wget`, `rsync` |
+| CI/CD | `copr-cli`, `jq` |
+| Provider CLIs | `gh` (GitHub), `glab` (GitLab), `tea` (Gitea + Forgejo) |
+| Utilities | `bc`, `file`, `which`, `hostname` |
+| GPG / signing | `gnupg2`, `pinentry` |
+
+**Enabled repos (Fedora host):**
+
+| Repo | Purpose |
+|---|---|
+| Fedora main + updates | Default |
+| RPM Fusion free | Packages not in main Fedora repos — codecs, drivers, extras |
+| RPM Fusion nonfree | Non-free extras — firmware, proprietary drivers |
+| GitHub CLI (gh-cli) | Official `gh` RPM repo |
+
+**EPEL note:** EPEL applies to EL targets only, not the Fedora host. For
+mock-based builds, EPEL is already configured in the EL mock chroot configs
+shipped by `mock-core-configs` — no action needed. For direct `rpmbuild -ba`
+against EL, run in a separate EL container.
+
+`dnf builddep {spec}` is available via `dnf-utils` for direct `rpmbuild -ba`
+builds. When using `mock --rebuild` it is not needed — mock installs
+`BuildRequires` automatically inside the chroot, pulling from whatever repos
+the target's mock config defines (including EPEL for EL targets).
+
 ### Build a SRPM then rebuild for each target
 
 ```sh
