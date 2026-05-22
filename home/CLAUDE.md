@@ -97,7 +97,34 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 ## Sensitive Data
 **Never add tokens, API keys, passwords, private keys, internal hostnames, or any credentials to a git repo** unless the user explicitly instructs it or has already committed them manually.
 
-All git repos are treated as public by default — even private ones. The only exception is a personal dotfiles repo that is explicitly designated private and intended to hold credentials (env files, SSH keys, etc.). Context determines this — do not assume; if unclear, ask.
+All git repos are treated as public by default — even private ones. The only exception is a repo that is explicitly designated private and intended to hold credentials — personal dotfiles with API keys, server config repos (mail, DNS, autodeploy), infrastructure repos, etc. Context determines this — do not assume; if unclear, ask.
+
+**Repo privacy gate** — before committing or pushing, determine whether any tracked file contains a **private** credential (defined below). If yes, verify the repo is marked **private** on the provider before pushing.
+
+What **is** a private credential and triggers the gate:
+- Private keys — `id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa` (no `.pub`), `privkey.pem`, `*.key` (private half)
+- Passwords, passphrases, secrets — `.env`, `app.env`, `default.env`, `SECRETS`, any file with `PASSWORD=`, `PASSWD=`, `SECRET=`, `TOKEN=` assigned to a real value (not a placeholder like `changeme`)
+- Authentication tokens with write/auth access — GitHub PATs, API tokens scoped to write/admin, private registry credentials
+- GPG private keys (`secring.gpg`, armored secret key blocks)
+
+What is **not** a private credential and does **not** trigger the gate:
+- Public SSH keys — `*.pub`, `authorized_keys` (public halves only)
+- Public GPG keys / keyrings (`pubring.gpg`, armored public key blocks)
+- Public certificates — `*.crt`, `*.cert`, `fullchain.pem`, `cert.pem`, `chain.pem`
+- Intentionally public API keys — publishable/embed keys (Stripe publishable key, Google Maps embed key, analytics site IDs, read-only public tokens). When unsure whether a key is public-safe, ask — do not assume.
+
+```sh
+# GitHub
+gh repo view --json isPrivate --jq '.isPrivate'
+
+# GitLab
+glab repo view --output json | jq '.visibility'   # must be "private"
+
+# Gitea / Forgejo
+tea repo info | grep -i private
+```
+
+If the repo is public (or visibility cannot be confirmed): **block the push**, report exactly which files triggered the check, and ask the user to make the repo private first. Never push private credentials to a public repo — not even "accidentally" committed ones. If the user explicitly confirms the repo is intentionally public and has reviewed the flagged files, document their decision and proceed only on their explicit instruction.
 
 When credentials are needed at runtime: use environment variables, mounted secrets, or a secrets manager. Never hardcode. Never store in source.
 
