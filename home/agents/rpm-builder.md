@@ -27,19 +27,23 @@ dist tag:  .3.4.casjay.el{N}   (from .rpmmacros — always 1%{?dist} in Release)
 
 Build for **every version where the software's dependencies allow it**.
 If a version cannot be supported, skip it with `%if` + a comment — never
-silently drop it.
+silently drop it. All builds use `ghcr.io/rpm-devel/build:latest` with `mock`.
 
-| Target | Versions | Image |
+| Target | Versions | mock config |
 |---|---|---|
-| RHEL / CentOS 7 | EL7 | `centos:7` |
-| RHEL / AlmaLinux 8 | EL8 | `almalinux:8` |
-| RHEL / AlmaLinux 9 | EL9 | `almalinux:9` |
-| RHEL / AlmaLinux 10 | EL10 | `almalinux:10` |
-| Fedora | 36 → current | `fedora:36` … `fedora:latest` |
+| RHEL / CentOS 7 (EOL) | EL7 | `eol/centos-7-{arch}` |
+| RHEL / AlmaLinux 8 | EL8 | `almalinux-8-{arch}` |
+| RHEL / AlmaLinux 9 | EL9 | `almalinux-9-{arch}` |
+| RHEL / AlmaLinux 10 | EL10 | `almalinux-10-{arch}` |
+| Fedora 36–41 (EOL) | — | `eol/fedora-{36..41}-{arch}` |
+| Fedora 42–current | — | `fedora-{N}-{arch}` |
+
+EOL targets use the `eol/` prefix. All failures are hard errors — EOL does
+not mean builds are optional.
 
 ### Arch — always both, never noarch
 
-Every package is built for **`x86_64`** and **`aarch64`** in separate containers.
+Every package is built for **`x86_64`** and **`aarch64`**.
 Never use `BuildArch: noarch`. No exceptions.
 
 ---
@@ -255,55 +259,57 @@ Always use `0%{?macro}` (leading zero) to handle the undefined case.
 
 ---
 
-## Docker Build Commands
+## Build Commands
 
-Generate these for every build task. Always produce both arch variants.
+All builds use a single container image — `ghcr.io/rpm-devel/build:latest` —
+with `mock` to target any EL or Fedora version. Always produce both arch
+variants. `--privileged` is required for mock to create chroots.
 
 ```sh
-# x86_64
+# Start the build container
 docker run --rm -it \
-  --platform linux/amd64 \
+  --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \
   -v "$HOME/Documents/builds:/root/Documents/builds" \
   -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
   -v "$HOME/.gnupg:/root/.gnupg:ro" \
-  {image} bash
-
-# aarch64
-docker run --rm -it \
-  --platform linux/arm64 \
-  --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-  -v "$HOME/rpmbuild:/root/rpmbuild" \
-  -v "$HOME/Documents/builds:/root/Documents/builds" \
-  -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
-  -v "$HOME/.gnupg:/root/.gnupg:ro" \
-  {image} bash
+  ghcr.io/rpm-devel/build:latest bash
 ```
 
-Inside each container:
+Inside the container — no setup step needed, all tools are pre-installed:
 
 ```sh
-# One-time container setup
-dnf install -y rpm-build rpm-sign rpmdevtools dnf-utils gnupg2 make gcc
-mkdir -p ~/.local/tmp/BUILD ~/.local/tmp/BUILDROOT
-mkdir -p ~/Documents/builds/rpmbuild/RHEL/el{N}/x86_64/rpms
-
 # Verify macros
-rpm --eval '%dist'       # → .3.4.casjay.el9
+rpm --eval '%dist'       # → .3.4.casjay.el9 (or .fcNN for Fedora)
 rpm --eval '%_gpg_name'  # → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
 
-# Install build deps
-dnf builddep -y ~/rpmbuild/{name}/{name}.spec
-
-# Download sources
+# Download sources and build SRPM
 spectool -g -R ~/rpmbuild/{name}/{name}.spec
+rpmbuild -bs ~/rpmbuild/{name}/{name}.spec
 
-# Build
-rpmbuild -ba ~/rpmbuild/{name}/{name}.spec
+# Rebuild for each target (x86_64 and aarch64 for every supported version)
+mock -r almalinux-9-x86_64    --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-9-aarch64   --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-8-x86_64    --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-8-aarch64   --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-10-x86_64   --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-10-aarch64  --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/centos-7-x86_64   --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r fedora-42-x86_64      --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r fedora-42-aarch64     --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/fedora-41-x86_64  --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/fedora-41-aarch64 --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
 ```
 
-For **CentOS 7** (`centos:7`) replace `dnf` with `yum` throughout.
+Results land in `/var/lib/mock/{target}/result/`. Skip unsupported targets
+with `%if` guards in the spec — document the reason.
+
+The non-interactive entrypoint accepts both `.spec` and `.src.rpm` via CMD:
+- `.spec` — entrypoint runs `spectool -g -R` + `rpmbuild -bs` to produce a
+  SRPM, then calls `mock --rebuild`. mock installs all `BuildRequires`
+  automatically inside the chroot — no manual `dnf builddep` needed.
+- `.src.rpm` — passed directly to `mock --rebuild`.
 
 ---
 
@@ -360,9 +366,10 @@ Place built packages in the correct category under `RHEL/el{N}/{arch}/`:
 ## Output Format
 
 When generating a spec file, output it as a complete fenced code block ready
-to paste. Follow with the two `docker run` commands (x86_64 and aarch64) for
-the correct image. Then list any `BuildRequires` the user may need to install
-manually if they differ from the obvious set.
+to paste. Follow with the `docker run` command for the build container and
+the `mock` commands for each supported target (x86_64 and aarch64). Then
+list any `BuildRequires` the user may need to install manually if they differ
+from the obvious set.
 
 When reviewing an existing spec, report violations as a numbered list:
 

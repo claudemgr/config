@@ -124,15 +124,19 @@ allow it**. If a version cannot be supported (missing dep, incompatible
 runtime), skip it with a `%if` conditional and a comment explaining why.
 Never silently drop a version.
 
-| Target | Versions | Docker image |
-|---|---|---|
-| RHEL / CentOS 7 | EL7 | `centos:7` |
-| RHEL / AlmaLinux 8 | EL8 | `almalinux:8` |
-| RHEL / AlmaLinux 9 | EL9 | `almalinux:9` |
-| RHEL / AlmaLinux 10 | EL10 | `almalinux:10` |
-| Fedora | 36 through current | `fedora:36`, `fedora:37`, … `fedora:latest` |
+All builds run inside `ghcr.io/rpm-devel/build:latest` using `mock`.
+EOL targets use the `eol/` prefix — their repos have moved to archive
+locations but builds are still fully required for security and bug fixes.
 
-Build each supported version × each arch in its own container.
+| Target | Versions | mock config |
+|---|---|---|
+| RHEL / CentOS 7 (EOL) | EL7 | `eol/centos-7-{arch}` |
+| RHEL / AlmaLinux 8 | EL8 | `almalinux-8-{arch}` |
+| RHEL / AlmaLinux 9 | EL9 | `almalinux-9-{arch}` |
+| RHEL / AlmaLinux 10 | EL10 | `almalinux-10-{arch}` |
+| Fedora 36–41 (EOL) | — | `eol/fedora-{36..41}-{arch}` |
+| Fedora 42–current | — | `fedora-{N}-{arch}` |
+
 Always build both `x86_64` and `aarch64` — never skip an arch.
 
 ### Version availability guards
@@ -156,68 +160,92 @@ Recommends: {optional-dep}
 
 ## Build — Docker Container
 
-Builds always run inside a container. Never run `rpmbuild` directly on the host.
+Builds always run inside `ghcr.io/rpm-devel/build:latest` using `mock`.
+Never run `rpmbuild` directly on the host. All tools are pre-installed —
+no container setup step is needed.
 
-### Build both arches
+`mock` requires `--privileged` to create chroots.
+
+### Build a SRPM then rebuild for each target
 
 ```sh
-# x86_64
+# 1. Start the build container (interactive)
 docker run --rm -it \
-  --platform linux/amd64 \
+  --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \
   -v "$HOME/Documents/builds:/root/Documents/builds" \
   -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
   -v "$HOME/.gnupg:/root/.gnupg:ro" \
-  almalinux:9 bash
+  ghcr.io/rpm-devel/build:latest bash
 
-# aarch64
-docker run --rm -it \
-  --platform linux/arm64 \
-  --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-  -v "$HOME/rpmbuild:/root/rpmbuild" \
-  -v "$HOME/Documents/builds:/root/Documents/builds" \
-  -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
-  -v "$HOME/.gnupg:/root/.gnupg:ro" \
-  almalinux:9 bash
+# 2. Inside the container — download sources and build SRPM
+spectool -g -R ~/rpmbuild/{name}/{name}.spec
+rpmbuild -bs ~/rpmbuild/{name}/{name}.spec
+
+# 3. Rebuild the SRPM for each target (repeat per version/arch)
+mock -r almalinux-9-x86_64      --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-9-aarch64     --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-8-x86_64      --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-8-aarch64     --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-10-x86_64     --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r almalinux-10-aarch64    --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/centos-7-x86_64     --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/centos-7-aarch64    --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r fedora-42-x86_64        --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r fedora-42-aarch64       --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/fedora-41-x86_64    --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+mock -r eol/fedora-41-aarch64   --rebuild ~/rpmbuild/SRPMS/{name}-{version}*.src.rpm
 ```
 
-Substitute the image per the table above. Both arches must always be built —
-no exceptions. Never use `BuildArch: noarch`.
+Results land in `/var/lib/mock/{target}/result/`. Skip targets where the
+software's dependencies are unavailable — use `%if` guards in the spec and
+note the reason.
 
-### Container setup (run once per container)
+### Non-interactive mode (CI / scripted)
+
+Pass either a `.spec` or a `.src.rpm` as the CMD:
+
+```sh
+# From a spec file — entrypoint runs spectool + rpmbuild -bs, then mock --rebuild
+docker run --rm -it \
+  --privileged \
+  --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+  -v "$HOME/rpmbuild:/root/rpmbuild" \
+  -v "$HOME/Documents/builds:/root/Documents/builds" \
+  -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
+  -v "$HOME/.gnupg:/root/.gnupg:ro" \
+  -e RPM_TARGET=almalinux-9-x86_64 \
+  -e RPM_GPG_KEY_ID="CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>" \
+  ghcr.io/rpm-devel/build:latest \
+  /root/rpmbuild/SPECS/{name}.spec
+
+# From a pre-built SRPM — passed directly to mock --rebuild
+docker run --rm -it \
+  --privileged \
+  --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+  -v "$HOME/rpmbuild:/root/rpmbuild" \
+  -v "$HOME/Documents/builds:/root/Documents/builds" \
+  -v "$HOME/.rpmmacros:/root/.rpmmacros:ro" \
+  -v "$HOME/.gnupg:/root/.gnupg:ro" \
+  -e RPM_TARGET=almalinux-9-x86_64 \
+  ghcr.io/rpm-devel/build:latest \
+  /root/rpmbuild/SRPMS/{name}-{version}*.src.rpm
+```
+
+When a `.spec` is given the entrypoint: downloads sources with `spectool -g -R`,
+builds the SRPM with `rpmbuild -bs`, then passes the result to `mock --rebuild`.
+mock handles all `BuildRequires` installation automatically inside the chroot.
+Results are copied to `$RPM_OUTPUT_DIR/$RPM_TARGET/` (default `~/Documents/builds`).
+All failures are hard errors (exit 1) — EOL targets are no exception.
+
+### Verify macros
 
 ```sh
 # Inside the container
-dnf install -y rpm-build rpm-sign rpmdevtools dnf-utils gnupg2 make gcc
-
-# Create required directories
-mkdir -p ~/.local/tmp/BUILD ~/.local/tmp/BUILDROOT
-mkdir -p ~/Documents/builds/rpmbuild/RHEL/el9/{x86_64/rpms,x86_64/debug,SRPMS}
-
-# Verify macros are loaded
-rpm --eval '%dist'           # should print .3.4.casjay.el9
-rpm --eval '%_gpg_name'      # should print CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
+rpm --eval '%dist'       # → .3.4.casjay.el9 (or .fcNN for Fedora)
+rpm --eval '%_gpg_name'  # → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
 ```
-
-### Build a spec
-
-```sh
-# Install build deps
-dnf builddep -y ~/rpmbuild/{name}/{name}.spec
-
-# Download remote sources (requires rpmdevtools)
-spectool -g -R ~/rpmbuild/{name}/{name}.spec
-
-# Build binary + source RPMs
-rpmbuild -ba ~/rpmbuild/{name}/{name}.spec
-
-# Build binary RPM only
-rpmbuild -bb ~/rpmbuild/{name}/{name}.spec
-```
-
-Logs go to stdout; redirect to a file if needed. On success the RPM lands in
-`~/Documents/builds/rpmbuild/RHEL/el{VER}/{ARCH}/rpms/`.
 
 ---
 
@@ -565,10 +593,11 @@ Never use `BuildArch: noarch`. Every package is arch-specific.
 - **All packages signed** with `rpmsign --addsign` before publishing — unsigned packages will not install when `gpgcheck=1`
 - **Non-interactive signing** via `~/.gnupg/rpm_sign_pass.txt` and `%__gpg_sign_cmd` override in `.rpmmacros` — never rely on interactive pinentry
 - **Spec + sources under `~/rpmbuild/{name}/`** — matches `%_specdir` / `%_sourcedir`
-- **Builds always inside Docker containers** — `almalinux:{ver}` image; never `rpmbuild` on the host
+- **Builds always inside `ghcr.io/rpm-devel/build:latest`** — never `rpmbuild` on the host; use `mock` inside the container for all targets
+- **`mock` requires `--privileged`** — always include it; mock creates chroots that need elevated permissions
 - **No debug subpackages** — `%global debug_package %{nil}` is set globally in `.rpmmacros`
-- **Supported versions**: RHEL/CentOS 7 through current EL, Fedora 36 through current — build for every version the software's deps allow; skip with `%if` + comment if not
-- **Container image selection**: EL7 → `centos:7`; EL8 → `almalinux:8`; EL9 → `almalinux:9`; EL10 → `almalinux:10`; Fedora → `fedora:36` … `fedora:latest`
+- **Supported versions**: RHEL/CentOS 7 through current EL, Fedora EOL (36–41) through current — build for every version the software's deps allow; skip with `%if` + comment if not
+- **EOL targets use the `eol/` prefix** — `eol/centos-7-{arch}`, `eol/fedora-{36..41}-{arch}`; all failures are hard errors regardless of EOL status
 - **Always both arches**: x86_64 and aarch64 — never noarch, never skip an arch
 - **Provides + Obsoletes always paired** — `Obsoletes:` without a matching `Provides:` is a removal not an upgrade path; never use one without the other when replacing a package
 - **Soft deps require a version guard** — `Recommends:`/`Suggests:` not available on EL7; wrap in `%if 0%{?rhel} >= 8 || 0%{?fedora}`
