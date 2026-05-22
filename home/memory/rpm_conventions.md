@@ -117,17 +117,31 @@ The file contains only the raw passphrase, no newline required but one is harmle
 
 ---
 
+## Container Image Selection
+
+Always build for **both** `x86_64` (amd64) and `aarch64` (arm64) — run two
+separate containers, one per arch. Never skip an arch.
+
+| Target | EL version condition | Docker image |
+|---|---|---|
+| RHEL / CentOS / EL | `%{?rhel} <= 7` | `centos:7` |
+| RHEL / AlmaLinux / Rocky | `%{?rhel} == 8` | `almalinux:8` |
+| RHEL / AlmaLinux / Rocky | `%{?rhel} == 9` | `almalinux:9` |
+| RHEL / AlmaLinux / Rocky | `%{?rhel} >= 10` | `almalinux:10` |
+| Fedora | `%{?fedora}` | `fedora:latest` (or `fedora:{N}` for a pinned release) |
+
+---
+
 ## Build — Docker Container
 
 Builds always run inside a container. Never run `rpmbuild` directly on the host.
 
-### Container image
-
-Use the official AlmaLinux image for the target RHEL version:
+### Build both arches
 
 ```sh
 # x86_64
 docker run --rm -it \
+  --platform linux/amd64 \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \
   -v "$HOME/Documents/builds:/root/Documents/builds" \
@@ -135,7 +149,7 @@ docker run --rm -it \
   -v "$HOME/.gnupg:/root/.gnupg:ro" \
   almalinux:9 bash
 
-# aarch64 (cross or native)
+# aarch64
 docker run --rm -it \
   --platform linux/arm64 \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
@@ -146,7 +160,8 @@ docker run --rm -it \
   almalinux:9 bash
 ```
 
-Substitute `almalinux:9` with `almalinux:8`, `almalinux:10`, or `fedora:latest` as needed.
+Substitute the image per the table above. Both arches must always be built —
+no exceptions. Never use `BuildArch: noarch`.
 
 ### Container setup (run once per container)
 
@@ -270,9 +285,6 @@ Summary:    One-line description (imperative, no trailing period)
 License:    {SPDX-identifier}
 URL:        https://...
 
-# BuildArch only when genuinely architecture-independent (scripts, data)
-# BuildArch: noarch
-
 Source0:    https://.../{name}-{version}.tar.gz
 # Source1, Source2, ... for additional sources
 
@@ -289,7 +301,7 @@ Rules:
 - **No `Group:` tag** — deprecated since RHEL 7; omit entirely
 - **No `%clean` section** — deprecated; omit entirely
 - **No `%defattr`** — deprecated; use `%attr` per-file in `%files` if needed
-- **`BuildArch: noarch`** — only for scripts, data, truly arch-independent content; Go/Rust binaries are never noarch
+- **Never `BuildArch: noarch`** — all packages are built per-arch (x86_64 and aarch64)
 - **`%global` over `%define`** — `%global` expands everywhere; use it for spec-level constants
 
 ### Section separators
@@ -339,7 +351,6 @@ Or for custom builds:
 - Always use `%{?_smp_mflags}` for parallel builds (set to `-j2` in `.rpmmacros`)
 - Never hardcode paths — use macros
 - Go binaries: `CGO_ENABLED=0 go build -ldflags "-s -w" -o %{name} ./...`
-- Noarch/script packages: `%build` may be empty or omitted
 
 ### %install
 
@@ -440,16 +451,10 @@ fi
 
 ---
 
-## BuildArch and Multi-Arch
+## Multi-Arch
 
-| Package type | `BuildArch` | Notes |
-|---|---|---|
-| Shell scripts, data, noarch configs | `BuildArch: noarch` | One `.noarch.rpm` for all arches |
-| Go binary | omit | Build per-arch inside matching container |
-| Rust binary | omit | Build per-arch inside matching container |
-| C binary | omit | Build per-arch inside matching container |
-
-Target arches: `x86_64` and `aarch64`. Build each in its own container.
+Always build for both `x86_64` and `aarch64` — two separate containers, one per arch.
+Never use `BuildArch: noarch`. Every package is arch-specific.
 
 ---
 
@@ -465,4 +470,5 @@ Target arches: `x86_64` and `aarch64`. Build each in its own container.
 - **Spec + sources under `~/rpmbuild/{name}/`** — matches `%_specdir` / `%_sourcedir`
 - **Builds always inside Docker containers** — `almalinux:{ver}` image; never `rpmbuild` on the host
 - **No debug subpackages** — `%global debug_package %{nil}` is set globally in `.rpmmacros`
-- **Target platforms**: RHEL/AlmaLinux/Rocky 8, 9, 10 + Fedora latest; architectures x86_64 and aarch64
+- **Target platforms**: CentOS 7 (EL≤7), AlmaLinux 8/9/10 (EL8+), Fedora latest; always x86_64 and aarch64 — never noarch
+- **Container image selection**: EL≤7 → `centos:7`; EL8 → `almalinux:8`; EL9 → `almalinux:9`; EL10 → `almalinux:10`; Fedora → `fedora:latest`
