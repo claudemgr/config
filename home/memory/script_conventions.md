@@ -617,6 +617,33 @@ Every script change requires updating all three in the same commit:
 
 **Exempt from triple sync:** hook scripts, sourced library files, and non-interactive scripts that are not user-facing commands. These do not have `__help()`, man pages, or completions.
 
+## Completion Accuracy
+
+Completions must be **semantically correct for the flag or argument's expected input type**. A completion that offers the wrong type of candidates is worse than no completion — it misleads the user into selecting something the script will reject.
+
+**Type mapping — use the right completion action for the flag:**
+
+| Flag expects | bash (`compgen`/`complete`) | zsh (`compadd`/`_arguments`) | fish |
+|---|---|---|---|
+| Any file | `_filedir` / `complete -f` | `_files` | `__fish_complete_path` |
+| Specific file extension | `_filedir '*.ext'` | `_files -g '*.ext'` | `__fish_complete_path "*.ext"` |
+| Directory only | `_filedir -d` / `complete -d` | `_files -/` | `__fish_complete_directories` |
+| Fixed choices | `COMPREPLY=($(compgen -W "a b c"))` | `compadd a b c` | `echo -e "a\nb\nc"` |
+| Hostname | `compgen -A hostname` | `_hosts` | `__fish_print_hostnames` |
+| Username | `compgen -A user` | `_users` | `__fish_complete_users` |
+| PID | `compgen -A pid` | `_pids` | `__fish_complete_pids` |
+| Running service | `systemctl list-units --type=service` | `_systemd_units` | `__fish_systemctl_services` |
+| Nothing / flag only | no completion registered for value | `()` (no action) | no value completion |
+
+**Rules:**
+- **Never complete files for a flag that does not accept a file path** — `--verbose`, `--dry-run`, `--count 3` do not need filesystem completion
+- **Never complete directories for a flag that expects a file**, and vice versa
+- **Fixed-value flags must only offer their valid values** — `--format json|yaml|toml` must complete exactly those three; do not fall back to files
+- **Flags with no argument (boolean/switch flags) must not offer any value completion** at all
+- **Positional arguments follow the same rules** as named flags — complete the type the script actually accepts at that position
+- **Subcommand completions** must be derived from the script's actual subcommand list — never hardcoded stubs that diverge from `__help()` output
+- **No over-completion** — do not offer completions "just in case"; if you are unsure what a flag accepts, read the script's argument handling before writing the completion
+
 ## Self-Contained Scripts
 
 Scripts must bundle all logic they need — no `source` or `.` includes:
