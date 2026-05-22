@@ -23,15 +23,19 @@ Vendor:    CasjaysDev http://github.com/rpm-devel
 dist tag:  .3.4.casjay.el{N}   (from .rpmmacros — always 1%{?dist} in Release)
 ```
 
-### Container image selection
+### Supported versions
 
-| Target | EL condition | Image |
+Build for **every version where the software's dependencies allow it**.
+If a version cannot be supported, skip it with `%if` + a comment — never
+silently drop it.
+
+| Target | Versions | Image |
 |---|---|---|
-| RHEL / CentOS ≤ 7 | `%{?rhel} <= 7` | `centos:7` |
-| RHEL / AlmaLinux 8 | `%{?rhel} == 8` | `almalinux:8` |
-| RHEL / AlmaLinux 9 | `%{?rhel} == 9` | `almalinux:9` |
-| RHEL / AlmaLinux 10+ | `%{?rhel} >= 10` | `almalinux:10` |
-| Fedora | `%{?fedora}` | `fedora:latest` (or `fedora:{N}`) |
+| RHEL / CentOS 7 | EL7 | `centos:7` |
+| RHEL / AlmaLinux 8 | EL8 | `almalinux:8` |
+| RHEL / AlmaLinux 9 | EL9 | `almalinux:9` |
+| RHEL / AlmaLinux 10 | EL10 | `almalinux:10` |
+| Fedora | 36 → current | `fedora:36` … `fedora:latest` |
 
 ### Arch — always both, never noarch
 
@@ -49,6 +53,72 @@ Never include these — they are deprecated and will cause lint failures:
 - `%clean` section — omit entirely
 - `%defattr` — omit; use `%attr` per-file in `%files` if needed
 - `BuildArch: noarch` — never; all packages are arch-specific
+
+### Dependency tags — always use every applicable tag
+
+#### Requires / BuildRequires
+```spec
+BuildRequires: make
+BuildRequires: gcc
+Requires:      bash >= 4.0
+Requires:      %{name}-data = %{version}-%{release}
+```
+
+#### Provides — always declare virtual names
+```spec
+Provides:  %{name}          = %{version}-%{release}
+Provides:  old-package-name = %{version}-%{release}   # paired with Obsoletes below
+Provides:  virtual-cap      = %{version}-%{release}
+```
+
+#### Obsoletes — always paired with a matching Provides
+`Obsoletes:` without a matching `Provides:` is a **removal**, not an upgrade
+path — `dnf` will not offer the new package as the replacement. Always pair them.
+
+```spec
+# Rename / replace — upgrades cleanly
+Provides:   old-name = %{version}-%{release}
+Obsoletes:  old-name < %{version}-%{release}   # version-bound: preferred
+
+# Bundle / permanently absorb — unversioned: only when you own the name forever
+Provides:   split-subpackage = %{version}-%{release}
+Obsoletes:  split-subpackage
+```
+
+#### Conflicts
+```spec
+Conflicts:  other-provider >= 2.0
+```
+Use only when two packages genuinely cannot coexist. Prefer `Obsoletes:` for true replacements.
+
+#### Soft deps — EL8+ and Fedora only (not available on EL7)
+```spec
+%if 0%{?rhel} >= 8 || 0%{?fedora}
+Recommends:  {nice-to-have}
+Suggests:    {optional}
+Supplements: {other-pkg}
+Enhances:    {other-pkg}
+%endif
+```
+
+#### Epoch
+Avoid. Use only to fix an unfixable version ordering mistake; document in `%changelog`.
+
+### Version availability guards
+
+When a dependency or feature is not available on a supported platform:
+
+```spec
+# Feature not available on EL7
+%if 0%{?rhel} <= 7
+%{error: EL7 does not support this package — missing {dep}}
+%endif
+
+# Soft deps not available on EL7
+%if 0%{?rhel} >= 8 || 0%{?fedora}
+Recommends: {dep}
+%endif
+```
 
 ### Required header order
 
@@ -299,10 +369,17 @@ When reviewing an existing spec, report violations as a numbered list:
 ```
 {name}.spec: {N} violation(s)
 
-1. [FORBIDDEN] Group: tag present — remove
-2. [NOARCH] BuildArch: noarch — all packages must be arch-specific
-3. [HARDCODE] /usr/bin/{name} — use %{_bindir}/{name}
-4. [MACRO] rm -rf → %{__rm} -rf
-5. [CHANGELOG] date weekday mismatch on line {N}
-6. [RELEASE] Release: 1 missing %{?dist}
+1.  [FORBIDDEN]  Group: tag present — remove
+2.  [FORBIDDEN]  %clean section present — remove
+3.  [FORBIDDEN]  %defattr present — remove; use %attr per-file if needed
+4.  [NOARCH]     BuildArch: noarch — all packages must be arch-specific
+5.  [HARDCODE]   /usr/bin/{name} — use %{_bindir}/{name}
+6.  [MACRO]      rm -rf → %{__rm} -rf
+7.  [CHANGELOG]  date weekday mismatch on line {N}
+8.  [RELEASE]    Release: 1 missing %{?dist}
+9.  [OBSOLETES]  Obsoletes: {name} present without matching Provides: {name}
+10. [PROVIDES]   package replaces {old} but missing Provides: {old} and/or Obsoletes: {old}
+11. [SOFTDEP]    Recommends:/Suggests: used without EL7 version guard
+12. [DEFINE]     %define used for constant — use %global instead
+13. [EPOCH]      Epoch: present without %changelog entry explaining why
 ```

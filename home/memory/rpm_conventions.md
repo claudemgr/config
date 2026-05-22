@@ -117,18 +117,40 @@ The file contains only the raw passphrase, no newline required but one is harmle
 
 ---
 
-## Container Image Selection
+## Supported Versions
 
-Always build for **both** `x86_64` (amd64) and `aarch64` (arm64) — run two
-separate containers, one per arch. Never skip an arch.
+Build for every version in this matrix **where the software's dependencies
+allow it**. If a version cannot be supported (missing dep, incompatible
+runtime), skip it with a `%if` conditional and a comment explaining why.
+Never silently drop a version.
 
-| Target | EL version condition | Docker image |
+| Target | Versions | Docker image |
 |---|---|---|
-| RHEL / CentOS / EL | `%{?rhel} <= 7` | `centos:7` |
-| RHEL / AlmaLinux / Rocky | `%{?rhel} == 8` | `almalinux:8` |
-| RHEL / AlmaLinux / Rocky | `%{?rhel} == 9` | `almalinux:9` |
-| RHEL / AlmaLinux / Rocky | `%{?rhel} >= 10` | `almalinux:10` |
-| Fedora | `%{?fedora}` | `fedora:latest` (or `fedora:{N}` for a pinned release) |
+| RHEL / CentOS 7 | EL7 | `centos:7` |
+| RHEL / AlmaLinux 8 | EL8 | `almalinux:8` |
+| RHEL / AlmaLinux 9 | EL9 | `almalinux:9` |
+| RHEL / AlmaLinux 10 | EL10 | `almalinux:10` |
+| Fedora | 36 through current | `fedora:36`, `fedora:37`, … `fedora:latest` |
+
+Build each supported version × each arch in its own container.
+Always build both `x86_64` and `aarch64` — never skip an arch.
+
+### Version availability guards
+
+When a feature or dependency is not available on older platforms, use a
+conditional and document why:
+
+```spec
+# Recommends/Suggests are not available on EL7
+%if 0%{?rhel} >= 8 || 0%{?fedora}
+Recommends: {optional-dep}
+%endif
+
+# EL7 ships Python 3.6 — certbot requires 3.10+
+%if 0%{?rhel} <= 7
+%{error: EL7 does not provide Python >= 3.10 — this package cannot be built for EL7}
+%endif
+```
 
 ---
 
@@ -304,6 +326,81 @@ Rules:
 - **Never `BuildArch: noarch`** — all packages are built per-arch (x86_64 and aarch64)
 - **`%global` over `%define`** — `%global` expands everywhere; use it for spec-level constants
 
+### Dependency Tags
+
+Use every relevant tag — never leave out `Provides:` or `Obsoletes:` when a
+package renames, replaces, or bundles something.
+
+#### Requires / BuildRequires
+
+```spec
+BuildRequires: make
+BuildRequires: gcc
+Requires:      bash >= 4.0
+Requires:      %{name}-data = %{version}-%{release}   # sub-package pin
+```
+
+- `BuildRequires` — only what is actually needed at build time
+- `Requires` — runtime deps; version-pin when stability matters
+- `%{version}-%{release}` — use for inter-subpackage deps so upgrades stay in sync
+
+#### Provides
+
+Always declare virtual names so other packages can depend on a stable name
+regardless of the real package name:
+
+```spec
+Provides:  %{name}           = %{version}-%{release}
+Provides:  virtual-cap-name  = %{version}-%{release}
+Provides:  old-package-name  = %{version}-%{release}   # paired with Obsoletes
+```
+
+#### Obsoletes
+
+When a package replaces or renames another, declare both `Provides:` **and**
+`Obsoletes:`. `Obsoletes:` without a matching `Provides:` is a removal, not
+a replacement — `dnf` will not offer the new package as the upgrade path.
+
+```spec
+# Renames old-name → new-name, upgrades cleanly
+Provides:   old-name = %{version}-%{release}
+Obsoletes:  old-name < %{version}-%{release}
+
+# Replaces a split package with a bundled one (no version bound = all versions)
+Provides:   split-subpackage  = %{version}-%{release}
+Obsoletes:  split-subpackage
+```
+
+- **Version-bound `Obsoletes:`** (`< version`) when you only replace specific old
+  versions and a future upstream package might reclaim the name
+- **Unversioned `Obsoletes:`** only when you own the name permanently and no
+  future package should exist under it
+
+#### Conflicts
+
+```spec
+Conflicts:  other-provider >= 2.0   # cannot coexist with this version range
+```
+
+Use `Conflicts:` when two packages provide the same service/file and cannot
+both be installed. Rare — prefer `Obsoletes:` for true replacements.
+
+#### Soft dependencies (EL8+ and Fedora only — not available on EL7)
+
+```spec
+%if 0%{?rhel} >= 8 || 0%{?fedora}
+Recommends: {nice-to-have}   # installed automatically if available, not a hard dep
+Suggests:   {optional}       # shown to the user but not auto-installed
+Supplements: {other-pkg}     # pulled in when {other-pkg} is installed alongside this one
+Enhances:    {other-pkg}     # same direction as Supplements, complementary
+%endif
+```
+
+#### Epoch
+
+Avoid `Epoch:` unless fixing a version ordering mistake that cannot be solved
+any other way. If used, document the reason in `%changelog`.
+
 ### Section separators
 
 ```spec
@@ -470,5 +567,9 @@ Never use `BuildArch: noarch`. Every package is arch-specific.
 - **Spec + sources under `~/rpmbuild/{name}/`** — matches `%_specdir` / `%_sourcedir`
 - **Builds always inside Docker containers** — `almalinux:{ver}` image; never `rpmbuild` on the host
 - **No debug subpackages** — `%global debug_package %{nil}` is set globally in `.rpmmacros`
-- **Target platforms**: CentOS 7 (EL≤7), AlmaLinux 8/9/10 (EL8+), Fedora latest; always x86_64 and aarch64 — never noarch
-- **Container image selection**: EL≤7 → `centos:7`; EL8 → `almalinux:8`; EL9 → `almalinux:9`; EL10 → `almalinux:10`; Fedora → `fedora:latest`
+- **Supported versions**: RHEL/CentOS 7 through current EL, Fedora 36 through current — build for every version the software's deps allow; skip with `%if` + comment if not
+- **Container image selection**: EL7 → `centos:7`; EL8 → `almalinux:8`; EL9 → `almalinux:9`; EL10 → `almalinux:10`; Fedora → `fedora:36` … `fedora:latest`
+- **Always both arches**: x86_64 and aarch64 — never noarch, never skip an arch
+- **Provides + Obsoletes always paired** — `Obsoletes:` without a matching `Provides:` is a removal not an upgrade path; never use one without the other when replacing a package
+- **Soft deps require a version guard** — `Recommends:`/`Suggests:` not available on EL7; wrap in `%if 0%{?rhel} >= 8 || 0%{?fedora}`
+- **Version-bound Obsoletes preferred** — use `Obsoletes: old-name < version` unless you own the name permanently
