@@ -394,11 +394,12 @@ When reviewing an existing spec, report violations as a numbered list:
 4.  [NOARCH]     BuildArch: noarch — all packages must be arch-specific
 5.  [HARDCODE]   /usr/bin/{name} — use %{_bindir}/{name}
 6.  [MACRO]      rm -rf → %{__rm} -rf
-7.  [CHANGELOG]  date weekday mismatch on line {N}
+7.  [CHANGELOG]  date weekday mismatch on line {N} — verify with `date -d "{YYYY-MM-DD}" +%a` and correct
 8.  [RELEASE]    Release: 1 missing %{?dist}
 9.  [OBSOLETES]  Obsoletes: {name} present without matching Provides: {name}
 10. [PROVIDES]   package replaces {old} but missing Provides: {old} and/or Obsoletes: {old}
 11. [SOFTDEP]    Recommends:/Suggests: used without EL7 version guard
 12. [DEFINE]     %define used for constant — use %global instead
 13. [EPOCH]      Epoch: present without %changelog entry explaining why
+14. [METAFILE]   IDEA.md / CLAUDE.md / AI.md / Makefile / SPEC/ / SOURCES/ present — remove; flat layout only
 ```

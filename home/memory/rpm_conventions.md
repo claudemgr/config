@@ -314,45 +314,103 @@ rpm --import ~/.gnupg/RPM-GPG-KEY-casjay
 
 ---
 
+## Published Repo Layout
+
+Packages are published on SourceForge at `rpm-devel.sourceforge.io/repo/`:
+
+```
+RHEL/{VER}/{ARCH}/
+  rpms/     CasjaysDev custom-built packages
+  addons/   Upstream third-party mirrors (OS, langs, databases, infra)
+  extras/   Community extras (EPEL, RPM Fusion, Ghettoforge, ELRepo)
+  debug/    All debuginfo / debugsource RPMs
+
+RHEL/{VER}/
+  srpms/    Source RPMs (shared across arches — stored once per version)
+
+Fedora/{VER}/{ARCH}/  (same structure)
+Fedora/{VER}/srpms/
+```
+
+### DNF repo sections and mirrorlist URLs
+
+Clients use a mirrorlist hosted in the `casjay-release` GitHub repo.
+The mirrorlist resolves to SourceForge and its mirrors.
+
+| Section | mirrorlist | Contents |
+|---|---|---|
+| `casjay-rpms` | `ZREPO/RHEL/$releasever/$basearch/mirrors/rpms` | CasjaysDev-built packages |
+| `casjay-addons` | `ZREPO/RHEL/$releasever/$basearch/mirrors/addons` | Upstream third-party |
+| `casjay-extras` | `ZREPO/RHEL/$releasever/$basearch/mirrors/extras` | EPEL, RPM Fusion, Ghettoforge, ELRepo |
+| `casjay-debug` | `ZREPO/RHEL/$releasever/$basearch/mirrors/debug` | debuginfo / debugsource |
+| `casjay-sources` | `ZREPO/RHEL/$releasever/mirrors/srpms` | Source RPMs |
+
+Full mirrorlist base URL: `https://github.com/rpm-devel/casjay-release/raw/main/`
+
+GPG key: `https://github.com/rpm-devel/casjay-release/raw/main/ZREPO/RHEL/keys/RPM-GPG-KEY-casjay`
+
+Example repo entry:
+
+```ini
+[casjay-rpms]
+name=Casjay RPMs - $releasever $basearch
+mirrorlist=https://github.com/rpm-devel/casjay-release/raw/main/ZREPO/RHEL/$releasever/$basearch/mirrors/rpms
+gpgkey=https://github.com/rpm-devel/casjay-release/raw/main/ZREPO/RHEL/keys/RPM-GPG-KEY-casjay
+enabled=1
+module_hotfixes=1
+```
+
+### Actual SourceForge base URLs (inside mirrorlist files)
+
+```
+https://rpm-devel.sourceforge.io/repo/RHEL/{VER}/{ARCH}/rpms
+https://rpm-devel.sourceforge.io/repo/RHEL/{VER}/{ARCH}/addons
+https://rpm-devel.sourceforge.io/repo/RHEL/{VER}/{ARCH}/extras
+https://rpm-devel.sourceforge.io/repo/RHEL/{VER}/{ARCH}/debug
+https://rpm-devel.sourceforge.io/repo/RHEL/{VER}/srpms
+```
+
+Never use `sourceforge.net/projects/casjaysdev/files/` — that is incorrect.
+Never use `sourceforge.net/projects/rpm-devel/` — that is also incorrect.
+The correct host is `rpm-devel.sourceforge.io/repo/`.
+
 ## Repo Creation
 
 After building and signing, create the repodata with `createrepo_c`:
 
 ```sh
-# Install createrepo_c if not present
-dnf install -y createrepo_c
-
 # Create / update repo metadata
-createrepo_c ~/Documents/builds/sourceforge/RHEL/el9/x86_64/casjay/
+createrepo_c ~/Documents/builds/RHEL/9/x86_64/rpms/
 
 # Sign the repomd.xml (clients with repo_gpgcheck=1 require this)
 gpg --batch \
     --passphrase-file ~/.gnupg/rpm_sign_pass.txt \
     --pinentry-mode loopback \
     --detach-sign --armor \
-    ~/Documents/builds/sourceforge/RHEL/el9/x86_64/casjay/repodata/repomd.xml
+    ~/Documents/builds/RHEL/9/x86_64/rpms/repodata/repomd.xml
 ```
 
 Run `createrepo_c --update` on subsequent runs to only process new/changed packages.
 
 ---
 
-## Repo Categories
+## Package Repo Layout
 
-Packages are published under `RHEL/el{VER}/{ARCH}/`:
+Every individual package repo (`certbot`, `cmus`, `nginx`, etc.) uses a
+**flat layout** — all files at the repository root:
 
-| Category | Contents |
-|---|---|
-| `casjay` | CasjaysDev-built packages (primary) |
-| `testing` | Pre-release / unstable packages |
-| `os` | Upstream base OS mirror |
-| `langs` | Language runtimes (PHP, Node.js, Python) |
-| `databases` | Database servers (MariaDB, PostgreSQL, MongoDB) |
-| `infra` | Infrastructure tooling (Docker, Jenkins) |
-| `extras` | Community extras (EPEL, RPM Fusion, Remi) |
-| `kernel` | ELRepo kernel packages |
-| `debug` | debuginfo / debugsource RPMs |
-| `empty` | Placeholder for arches with no packages |
+```
+{name}/
+  {name}.spec          ← spec file at root
+  {name}-{ver}.tar.gz  ← committed source(s) when not fetchable upstream
+  *.patch              ← patches, if any
+  sources              ← lookaside hash file, if used
+```
+
+**Never add** `SPEC/`, `SOURCES/`, `Makefile`, `IDEA.md`, `CLAUDE.md`,
+`AI.md`, `PLAN.md`, `TODO.AI.md`, `.github/`, or any other wrapper
+infrastructure to a package repo. The spec file is the source of truth.
+`spectool -g -R` fetches all `SourceN:` URLs at build time.
 
 ---
 
@@ -637,3 +695,5 @@ Never use `BuildArch: noarch`. Every package is arch-specific.
 - **Provides + Obsoletes always paired** — `Obsoletes:` without a matching `Provides:` is a removal not an upgrade path; never use one without the other when replacing a package
 - **Soft deps require a version guard** — `Recommends:`/`Suggests:` not available on EL7; wrap in `%if 0%{?rhel} >= 8 || 0%{?fedora}`
 - **Version-bound Obsoletes preferred** — use `Obsoletes: old-name < version` unless you own the name permanently
+- **No project meta files in package repos** — individual package repos (`certbot`, `cmus`, `nginx`, etc.) must not contain `IDEA.md`, `CLAUDE.md`, `PLAN.md`, `TODO.AI.md`, `AI.md`, `Makefile`, `SPEC/`, `SOURCES/`, or any wrapper infrastructure. The spec file IS the source of truth. Flat layout only: `{name}.spec`, committed source tarballs, patches, and an optional `sources` lookaside file.
+- **Fix bogus `%changelog` dates** — whenever a spec is edited, verify every `%changelog` date has the correct weekday for that calendar date. A date with the wrong weekday is a hard error — correct it. Use `date -d "{YYYY-MM-DD}" +%a` to verify. Most common mistake: copy-pasted entries where only the date was changed but not the weekday.
