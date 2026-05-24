@@ -105,3 +105,42 @@ If a container must remain running after the session (e.g. a dev environment sta
 **Why:** install scripts modify OS config and install system services — running them on the host trashes the developer's machine.
 
 **Scripts that seem to require host access** (`install-to-device.sh`, `dev-shell.sh`, some `./tests/*`): still check whether a VM or container can satisfy the requirement (USB passthrough, socket forwarding, Docker-in-Docker) before falling back to host.
+
+---
+
+## Project Toolchain Image
+
+Before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `golang:alpine` / `rust:alpine` / `node:alpine` container. Generic alpine variants are only a fallback for projects without `docker/Dockerfile.build`.
+
+If the image is not in the registry, do not build it inline — stop and tell the user to trigger `build-toolchain.yml` via `workflow_dispatch`.
+
+**Bootstrap order** — when adding `docker/Dockerfile.build` to a project: commit it alone first, trigger `build-toolchain.yml` via `workflow_dispatch`, verify the image is in the registry, then commit `ci.yml`/`release.yml`. Never commit a CI workflow that uses the build image before the image exists.
+
+## Docker Run Conventions
+
+- **`docker run` must use `--rm -it --name {project_name}-XXXX`** — every build/test container must self-remove on exit, be interactive-capable, and carry a traceable name; `XXXX` = 8-char random suffix (`$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)` in Makefile)
+- **Dev images: rolling tags** — never pinned
+- **Target `linux/amd64` + `linux/arm64`** by default
+- **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`
+- **Test container network isolation** — always create a named bridge network for tests; never use the default bridge or `--network host`
+- **Toolchain containers must mount their package cache** — declare cache paths with `?=` so host env vars with custom locations are honored; `@mkdir -p $(CACHE_DIR)` before every `docker run`; see `makefile_conventions.md` for the full cache-mount table
+
+## Port Binding
+
+Always bind to `172.17.0.1:{port}:{internal_port}` (Docker bridge gateway). Never `0.0.0.0`, `localhost`, or `127.0.0.x`.
+
+When generating a new `docker-compose.yml` or any service config, pick a random unused port in the `62000`–`64999` range using `__random_port`. When the port must survive between runs — save it to the project's config file on first generation and reload on subsequent runs. Use `__save_credential` / `__load_credential` for `KEY=VALUE` stores.
+
+`docker-compose.yml` must have hardcoded sane defaults and work with zero `.env` — users override by editing the file, not by creating `.env`.
+
+## Reverse Proxy
+
+When a service needs a host-level nginx reverse proxy, generate the vhost at `/etc/nginx/vhosts.d/{hostname}.conf` following the template in `nginx_conventions.md`. TLS cert always at `/etc/letsencrypt/live/domain/` (literal `domain` directory).
+
+## Temp Dirs
+
+Never hardcode `/tmp`; use `$TMPDIR` / `os.TempDir()` / `std::env::temp_dir()`; always org-prefixed — see `tempdir_conventions.md`.
+
+## Image Cleanup
+
+Never remove base images (`golang`, `alpine`, `ubuntu`, etc.) — only `{project_org}/{internal_name}:*` images.

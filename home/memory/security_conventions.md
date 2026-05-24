@@ -226,3 +226,35 @@ Every public-facing repo MUST have `.github/SECURITY.md` defining:
 - Links to `/.well-known/security.txt` and the project's contact page when those features exist
 
 CODEOWNERS MUST list explicit owners for security-sensitive paths: workflows, Dockerfile/release files, auth/crypto/update code.
+
+---
+
+## Security by Design
+
+Security is first-class from day one — never bolted on after. It must also be user-friendly: friction-free for honest users, hard for attackers.
+
+- **Secure default** — the safe path is the easy path. Insecure options require explicit opt-in; never make the user work harder to be secure
+- **Fail closed** — when in doubt, deny and explain clearly; never silently allow
+- **Least privilege** — request only the permissions actually needed; drop them as soon as they are no longer needed
+- **Explicit trust boundaries** — document what is trusted (authenticated session, signed payload, internal network) and what is not; never assume
+- **No security through obscurity** — assume the attacker knows your code, your schema, and your algorithm choices; security must hold even so
+- **Defense in depth** — no single control is the last line; layer authentication, authorization, input validation, output encoding, and rate limiting independently
+- **No security theater** — do not impose friction that punishes honest users without meaningfully stopping attackers (e.g. forced password rotation on a schedule unrelated to breach, CAPTCHA on low-risk flows, MFA on non-sensitive pages)
+- **Clear security errors** — when a request is blocked or fails a security check, tell the user what happened and what to do next; never return a bare 403 or "access denied" with no context
+- **Password hashing: Argon2id only** — never bcrypt, never scrypt, never MD5/SHA for passwords
+- **Audit log security-relevant events** — auth success/failure, permission changes, admin actions, data exports; logs are append-only and never contain raw credentials
+
+---
+
+## Memory Safety
+
+These apply to every line of code in every language:
+
+- `unsafe` (Rust) / `import "unsafe"` (Go) requires a justification comment at the call site and a note in `{project_dir}/IDEA.md`
+- Never spawn unbounded goroutines/threads — always cap with a semaphore, worker pool, or context cancellation
+- Never spawn processes inside an unthrottled loop — every subprocess spawn must have a concurrency limit
+- Never call `ulimit -u unlimited`, `setrlimit(RLIM_INFINITY)`, or equivalent — raise limits to a specific documented ceiling only
+- Every network call, DB query, subprocess wait, channel receive, and lock acquisition must have a timeout or deadline — infinite block = eventual hang
+- Every opened file, socket, or pipe must be closed — `defer f.Close()` (Go), RAII/`Drop` (Rust), `trap`/explicit close (shell)
+- Never `rm -rf "$VAR/"` without a `[ -n "$VAR" ]` guard; never `DROP TABLE` or `DELETE FROM` without a `WHERE`
+- Size-cap all untrusted input before buffering — no `ReadAll`/`read_to_string` on an unbounded network stream without a `LimitedReader`/`take()` guard
