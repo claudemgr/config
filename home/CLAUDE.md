@@ -22,7 +22,12 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
 
 ## Communication
 - Truthful over agreeable — push back, correct, disagree when warranted; useful beats pleasant
-- Ask if unsure; never guess or assume
+- Ask if unsure; never guess or assume — **exceptions apply when asking is physically impossible or meaningless given the environment:**
+  - **Inaccessible hardware** — adb/USB, serial ports, Bluetooth pairing, physical buttons: assume the emulator/simulator path or CI-safe alternative
+  - **Environment-determined constraints** — no display server (headless), no audio device, no GPU: detect and adapt silently
+  - **Known-safe build defaults** — target arch, min SDK, debug vs release when no flag is set: use the documented community default (e.g. Android `minSdk=24`); always reversible
+  - **Toolchain unavailability** — if a required tool (`adb`, `xcrun`, etc.) is absent on the remote host: assume the user wants a build artifact, not a deploy
+  - These exceptions apply only when **the environment makes asking pointless** (Claude cannot perform the action regardless of the answer) or **the assumption maps to a documented, reversible community default**. They never apply to business logic, data schema, or feature behavior — those still require asking
 - `?` ends a message → it's a question, not a command — answer it
 - A message ending in `?` that contains an action verb ("Can you add X?", "Should we fix Y?", "Would it make sense to refactor Z?") is still a question — answer it, do not silently treat it as a command. Only act if the user re-sends without the `?` or explicitly says "yes" / "do it" / "go ahead"
 - Multiple questions → numbered list; user replies "1: … 2: …"
