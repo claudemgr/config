@@ -127,9 +127,12 @@ If the image is not in the registry, do not build it inline — stop and tell th
 
 ## Port Binding
 
-Always bind to `172.17.0.1:{port}:{internal_port}` (Docker bridge gateway). Never `0.0.0.0`, `localhost`, or `127.0.0.x`.
+**Internal (container-to-container) ports — keep the standard port.** Services that are never exposed to the host (databases, caches, internal APIs, message queues) use their canonical port on the container network (`5432`, `3306`, `6379`, `5672`, etc.). No host binding, no random port.
 
-When generating a new `docker-compose.yml` or any service config, pick a random unused port in the `62000`–`64999` range using `__random_port`. When the port must survive between runs — save it to the project's config file on first generation and reload on subsequent runs. Use `__save_credential` / `__load_credential` for `KEY=VALUE` stores.
+**Exposed (host-facing) ports — always use a random port in the `62000`–`64999` range.** This applies to any service with a `ports:` mapping to the host: HTTP/HTTPS apps, reverse proxies, admin UIs, and any other endpoint a browser or external tool connects to directly.
+
+- Bind to `172.17.0.1:{random_port}:{internal_port}` (Docker bridge gateway). Never `0.0.0.0`, `localhost`, or `127.0.0.x` — `0.0.0.0` exposes to all interfaces; `127.0.0.x` is host-only and excludes container-to-host reach.
+- Pick the port at runtime using `__random_port`. When the port must survive between runs — save it to the project's config file on first generation and reload on subsequent runs. Use `__save_credential` / `__load_credential` for `KEY=VALUE` stores.
 
 `docker-compose.yml` must have hardcoded sane defaults and work with zero `.env` — users override by editing the file, not by creating `.env`.
 
