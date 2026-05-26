@@ -492,6 +492,89 @@ Test Compose rules:
 
 ---
 
+## Container ENV Conventions
+
+### Process identity vars — container exception
+
+Inside a Dockerfile `ENV` instruction, docker-compose `environment:` block, or a container `entrypoint.sh`, **all** environment variables are freely settable — including `HOME`, `USER`, `HOSTNAME`, `SHELL`, `PATH`, `TZ`, `LANG`, `UID`, etc. The host-script rule "never overwrite process identity vars" does not apply here. The container is an isolated environment being initialized from scratch; configuring these vars is correct and expected.
+
+```yaml
+# docker-compose environment: — all vars are fair game
+environment:
+  TZ: ${TZ:-America/New_York}
+  HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+  CONTAINER_NAME: {project_name}-app
+  HOME: /root
+  USER: root
+```
+
+### Precedence order (highest to lowest)
+
+1. Host environment variable or shell export (set before `docker compose up`)
+2. `app.env` — app-specific overrides (KEY=VALUE, no `export`)
+3. `default.env` — global stack defaults (shell script, all vars `export`ed, sourced by composemgr)
+4. Inline `${VAR:-default}` fallback in `docker-compose.yml`
+5. Dockerfile `ENV` instruction (baked into image — lowest precedence at runtime)
+
+The stack must work at level 4 alone — all inline defaults must be sane enough to start the service without any env file.
+
+### `default.env` and `app.env` pattern
+
+Every deployable compose stack ships two sample env files:
+
+| File | Format | Purpose |
+|------|--------|---------|
+| `default.env.sample` | Shell script — all vars `export`ed | Global stack defaults; sourced by composemgr as a shell script; covers TZ, domain, host IPs, DB URLs, credentials, email, tokens |
+| `app.env.sample` | KEY=VALUE (no `export`) | App-specific overrides; read directly by docker-compose; overrides `default.env` for this service |
+
+Users copy the samples and fill in values:
+```sh
+cp default.env.sample default.env
+cp app.env.sample app.env
+```
+
+Both files are gitignored and excluded from Docker build context (listed in `.gitignore` and `.dockerignore`). Samples are committed; actual `.env` files never are.
+
+### What goes in each file
+
+**`default.env`** (global, all services share):
+- `TZ`, `BASE_DOMAIN_NAME`, `BASE_HOST_NAME`
+- `HOST_IP_4`, `HOST_IP_6` — host IP so containers can reach the host
+- DB connection URLs (`REDIS_URL`, `POSTGRESQL_URL`, etc.) — use service name as default (`redis`, `postgres`)
+- DB credentials (`DB_ADMIN_NAME`, `DB_ADMIN_PASS`, `DB_USER_NAME`, `DB_USER_PASS`)
+- App credentials (`APP_ADMIN_USER`, `APP_ADMIN_PASS`, `APP_JWT_TOKEN`, `APP_API_TOKEN`, secrets)
+- Email relay settings, Cloudflare settings, DNS settings
+
+**`app.env`** (this service only — overrides default.env):
+- `TZ`, `BASE_DOMAIN_NAME`, `BASE_HOST_NAME` (when this service needs a different value)
+- Any service-specific vars that differ from the global defaults
+
+### Credential placeholders in sample files
+
+For any var that requires a generated value (passwords, tokens, secrets), include a commented generation command in `default.env.sample`:
+
+```sh
+# create a random secret:      openssl rand -hex 8
+# create a random password:    head -n50 /dev/random | tr -dc 'a-zA-Z0-9[!@-]' | tr -d '[:space:]\042\047\134' | fold -w 32 | head -n 1
+# create a bcrypt password:    htpasswd -nbBC 9 pass pass | sed 's|pass:||g'
+
+export APP_JWT_TOKEN=""
+export APP_SECRET_KEY=""
+```
+
+Never generate and commit a value in the sample — leave it blank with the generation command as a comment.
+
+### Internal service vars — no random ports
+
+Database, cache, queue, and other backend services that are **not** exposed to the host use their canonical port inside the container network (`5432`, `3306`, `6379`, etc.). No random port, no host binding. Their connection strings in `default.env` use the compose service name as hostname:
+
+```sh
+export REDIS_URL="redis"          # connects to the 'redis' service on the compose network
+export POSTGRESQL_URL="postgres"  # connects to the 'postgres' service on the compose network
+```
+
+---
+
 ## .dockerignore
 
 Same header format as `.gitignore`. Excludes everything that should not enter the Docker build context — version control, build artifacts, secrets, and local config.
