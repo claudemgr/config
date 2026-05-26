@@ -73,7 +73,9 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols
 - Targeted edits only; full rewrites only when asked; required deps just add them; real choice between alternatives: ask first
 - **No partially implemented code** — every committed line must work as written; no stubs, no `TODO` placeholders inside logic
-- **No TODO/FIXME/HACK in committed code** · **No commented-out code** · **No comments in JSON**
+- **No TODO/FIXME/HACK in committed code** · **No commented-out code**
+- **Comments always ABOVE, never inline** — every comment goes on its own line above the code it describes; never append a comment to the end of a code line. Single line, ≤180 characters. Applies to all languages. Exception: tool-required directives that the linter/type-checker must see on the same line (`# noqa`, `# type: ignore`, `// nolint`) are allowed inline, but an explanatory comment on the line above is still required when the reason is not obvious.
+- **Comments are never valid in:** JSON (`.json`, `package.json`, `tsconfig.json`, etc.) · `.env` / `app.env` / `default.env` KEY=VALUE files · CSV/TSV and other pure data formats · any binary or compiled artifact. JSON has no comment syntax — they break parsers and validators; use a separate doc file instead. `.env` files use KEY=VALUE only — comment lines (`# ...`) are tolerated by some parsers but must never appear in files read by strict parsers (Docker, some CI tools).
 - **Singular directory names** — `handler/`, `model/`, `middleware/`; exception: tooling dirs (`scripts/`, `tests/`, `completions/`)
 - **Search before write** — search all candidate locations before adding a value; replace in place if found, only create/append if not
 - **Create parent directories before writing** — `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll` (Go) · `fs::create_dir_all` (Rust) · `path.parent.mkdir(parents=True)` (Python) · `fs.mkdirSync(path.dirname(f), {recursive:true})` (Node)

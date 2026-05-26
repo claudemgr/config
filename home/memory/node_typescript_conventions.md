@@ -132,7 +132,7 @@ Minimum required `tsconfig.json`:
 ```
 
 - `strict: true` is non-negotiable — enables `strictNullChecks`, `noImplicitAny`, and all strict checks
-- No `any` without an explanatory comment (`// reason: ...`)
+- No `any` without an explanatory comment on the line above (`// reason: ...`)
 - `noUncheckedIndexedAccess: true` — array index access returns `T | undefined`; handle it
 
 ## ESLint Configuration
@@ -277,4 +277,4 @@ Pass via `--build-arg` in Docker or `--env` at container run time. Never hardcod
 - **No global state mutations in library code** — no side effects on `import`
 - **`const` over `let`; never `var`**
 - **Explicit return types on all exported functions** — inferred types are fine for unexported helpers
-- **No `@ts-ignore`** — use `@ts-expect-error` with a comment when suppression is genuinely needed
+- **No `@ts-ignore`** — use `@ts-expect-error` with an explanatory comment on the line above when suppression is genuinely needed

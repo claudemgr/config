@@ -182,7 +182,7 @@ Update when a feature from a newer version is adopted.
 
 - **`go vet`** runs as part of the `test` target (before `go test`); CI fails on any vet warning
 - **`golangci-lint`** is required for all projects; config lives at `{project_dir}/.golangci.yml`; CI runs it in `ci.yml`; minimum enabled linters: `errcheck`, `govet`, `staticcheck`, `unused`, `gosimple`
-- Never suppress a lint warning with a `//nolint` directive without a comment explaining why
+- Never suppress a lint warning with a `//nolint` directive without an explanatory comment on the line above stating why
 
 ## Error Handling
 

@@ -162,7 +162,7 @@ addopts = "--cov=src --cov-report=term-missing"
 
 - **Required on all function signatures** — both arguments and return type
 - `mypy --strict` (or `pyright`) runs in CI — type errors are build failures
-- No bare `Any` without a `# type: ignore[import-untyped]`-style comment with a reason
+- No bare `Any` without a comment on the line above stating the reason; `# type: ignore[...]` directive goes on the same line (tool requirement)
 - Use `typing.Protocol` over ABC for structural subtyping
 - `TypeAlias` and `TypeVar` for generic code; `ParamSpec` for decorator type safety
 
@@ -179,7 +179,7 @@ def read_config(path: Path) -> dict[str, str]:
 - **`ruff`** for both linting and formatting — replaces flake8, isort, black in one tool
 - CI runs `ruff check . && ruff format --check .` — zero warnings or format drift allowed
 - `ruff check --fix` for auto-fixable issues; never commit lint warnings
-- No `# noqa` without an inline comment explaining why
+- No `# noqa` without an explanatory comment on the line above stating why
 
 ## Testing
 

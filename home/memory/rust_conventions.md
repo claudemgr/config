@@ -314,7 +314,7 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 ## Linting & Formatting
 
 - **`cargo fmt`** — enforced; run `cargo fmt --check` in CI; a format failure is a build failure. Commit `rustfmt.toml` at project root if non-default settings are needed.
-- **`cargo clippy`** — enforced; always run with `-D warnings` (warnings are errors); no `#[allow(...)]` suppressions without an explanatory comment
+- **`cargo clippy`** — enforced; always run with `-D warnings` (warnings are errors); no `#[allow(...)]` suppressions without an explanatory comment on the line above
 - Never suppress a clippy lint project-wide in `Cargo.toml` without documenting the reason in `{project_dir}/IDEA.md`
 
 ## Error Handling
