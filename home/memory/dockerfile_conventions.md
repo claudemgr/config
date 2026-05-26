@@ -440,6 +440,7 @@ networks:
 ```
 
 Rules:
+- **No `version:` field** — the top-level `version:` key is deprecated and ignored by all current Docker Compose versions; never include it
 - **Network name is always `{project_name}`** — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match.
 - **DB services join only the project network** — never `proxy` or `cloudflare`
 - **Healthcheck cadence** — `interval: 30s`, `timeout: 10s`, `retries: 3` for all DB services
