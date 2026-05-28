@@ -207,4 +207,6 @@ Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor ·
 
 **Workflow gate:** if `.github/workflows/` files are staged, `act --list -W {file}` must pass on each before `gitcommit`. Third-party Actions must be pinned to a full commit SHA — never a tag.
 
+**Workflow creation order:** CI/CD workflow files (`.github/workflows/`, `.gitea/workflows/`, `.forgejo/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`) are always created **last** — after all code is complete, tests pass, and the lint gate is clean. Incomplete code pushed with a workflow triggers an immediate CI failure and wastes build minutes. Never scaffold a workflow file at the start of a task or as a placeholder.
+
 **Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
