@@ -338,6 +338,10 @@ thiserror = "2"    # library crates (pick one, not both)
 
 ---
 
+## Directory Naming
+
+**Plural** — all directories use plural names (`handlers/`, `models/`, `routes/`, `utils/`). Tooling dirs are also plural (`scripts/`, `tests/`, `completions/`). Rust module names (inside `src/`) follow the same rule — `src/handlers/mod.rs` not `src/handler/mod.rs`.
+
 ## Code Rules
 
 - **No bare `cargo` on host** — all cargo invocations run inside Docker

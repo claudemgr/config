@@ -323,7 +323,7 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ## Directory Naming
 
-Singular package and directory names — see `~/.claude/CLAUDE.md` → Code & Files for the full rule and exceptions.
+**Singular** — Go package names and their directories are singular (`handler/`, `model/`, `middleware/`, `route/`). The directory name equals the package name; plural breaks that contract. Tooling dirs are always plural (`scripts/`, `tests/`, `completions/`).
 
 ## Module Cache
 

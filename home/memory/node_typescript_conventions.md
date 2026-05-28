@@ -269,6 +269,10 @@ export const BUILD_DATE = process.env["BUILD_DATE"] ?? "N/A";
 
 Pass via `--build-arg` in Docker or `--env` at container run time. Never hardcode version strings.
 
+## Directory Naming
+
+**Plural** — all directories use plural names (`handlers/`, `models/`, `routes/`, `middlewares/`, `utils/`). Tooling dirs are also plural (`scripts/`, `tests/`, `completions/`).
+
 ## Code Rules
 
 - **`import` only** — never `require()` in TypeScript; `"moduleResolution": "bundler"` or `"node16"` in tsconfig

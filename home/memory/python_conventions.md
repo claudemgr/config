@@ -247,6 +247,10 @@ BUILD_DATE = os.environ.get("BUILD_DATE", "N/A")
 
 Pass via `--build-arg` in Docker or `--env` at container run time. For installed packages, use `importlib.metadata.version("{package_name}")` as the fallback.
 
+## Directory Naming
+
+**Plural** — all directories use plural names (`handlers/`, `models/`, `routes/`, `utils/`, `views/`). Tooling dirs are also plural (`scripts/`, `tests/`, `completions/`). Python package directories follow Python module naming (underscores, not hyphens) but are still plural when they represent a collection.
+
 ## Code Rules
 
 - **`pathlib.Path` over `os.path`** — all filesystem operations use `Path`
