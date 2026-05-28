@@ -25,7 +25,7 @@ type: user
 ```makefile
 PROJECT_NAME  := {project_name}
 ORGANIZATION  := {project_org}
-VERSION       := $(shell cat release.txt 2>/dev/null || echo "0.1.0")
+VERSION       := $(shell cat release.txt 2>/dev/null || echo "devel")
 DOCKER_IMAGE  := rust:alpine
 BINARIES_DIR  := ./binaries
 RELEASES_DIR  := ./releases

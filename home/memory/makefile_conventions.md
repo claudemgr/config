@@ -25,7 +25,7 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | \
     sed -E 's|.*/([^/]+)/[^/]+(\.git)?$$|\1|' || \
     basename "$$(dirname "$$(pwd)")")
 
-VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
+VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
 COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 ```

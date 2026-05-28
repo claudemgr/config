@@ -32,7 +32,7 @@ Source always under `src/` — never at repo root. `package main` entry point is
 PROJECTNAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$$|\1|' || basename "$$(pwd)")
 PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$$|\1|' || basename "$$(dirname "$$(pwd)")")
 
-VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
+VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
 COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -337,4 +337,4 @@ $(GOMODCACHE) on host →  /go/pkg/mod            in container
 
 ## Version Source
 
-`release.txt` is the version file — single line, semver (e.g. `0.1.0`). The Makefile reads it with `cat release.txt 2>/dev/null || echo "0.1.0"`. Never hardcode the version in the Makefile.
+`release.txt` is the version file — single line, semver (e.g. `0.1.0`). The Makefile reads it with `cat release.txt 2>/dev/null || echo "devel"`. Never hardcode the version in the Makefile.

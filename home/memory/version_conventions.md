@@ -14,9 +14,9 @@ type: user
 
 - One line, semver format (`MAJOR.MINOR.PATCH`), no `v` prefix
 - Never hardcode the version string anywhere else in source code
-- Makefile reads it: `VERSION ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")`
+- Makefile reads it: `VERSION ?= $(shell cat release.txt 2>/dev/null || echo "devel")`
 - `?=` allows one-time override: `make build VERSION=1.3.1-rc1`
-- If `release.txt` is absent, the build falls back to `"0.1.0"` (new project default)
+- If `release.txt` is absent, the build falls back to `"devel"` — signals an unversioned/development build
 
 ---
 
