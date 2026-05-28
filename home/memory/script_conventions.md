@@ -116,42 +116,59 @@ The shebang line or file extension determines which conventions apply. Always ch
 
 ## Error Handling — `set -e` and `pipefail`
 
-These modes are powerful but have subtle gotchas. Use them as follows:
+**`set -e` (errexit) is banned.** Do not use it. It appears safe but silently kills scripts on dozens of commands that return non-zero for completely normal, non-error reasons:
 
-| Shell | Recommended | Reason |
-|-------|-------------|--------|
-| bash | `set -euo pipefail` at top of every script | `-e` exits on error, `-u` catches unset vars, `-o pipefail` catches pipe failures |
-| sh (POSIX) | `set -eu` — omit `pipefail` (not POSIX) | `pipefail` is a bashism; plain sh does not support it |
-| zsh | `set -euo pipefail` | Same as bash; zsh supports all three |
-| fish | Not needed — fish exits on errors by default | Fish error handling is built-in |
+| Command | Normal non-zero exit | Meaning |
+|---------|---------------------|---------|
+| `grep pattern file` | 1 | no match — not an error |
+| `diff a b` | 1 | files differ — not an error |
+| `[ condition ]` / `[[ condition ]]` | 1 | condition false — not an error |
+| `(( expr ))` | 1 | result is zero — not an error |
+| `command -v foo` | 1 | command not found — used to check |
+| `type foo` | 1 | not found — used to check |
+| `read var` | 1 | EOF reached — expected at end of input |
 
-Place `set -euo pipefail` (or `set -eu` for sh) immediately after the header block, before any other code.
+With `set -e` active, every one of those silently aborts the script. The failure is invisible — no error message, no indication of where it died.
 
-**`trap ERR` for cleanup:** always pair `set -e` with a trap for cleanup on unexpected exit:
+**Use explicit error checking instead:**
 
 ```bash
-set -euo pipefail
-
-__cleanup() {
-  # remove temp dirs, restore state, etc.
-  [ -n "${TEMP_DIR:-}" ] && rm -rf "${TEMP_DIR}"
-}
-trap '__cleanup' EXIT ERR
-```
-
-Use `EXIT` (fires on any exit including clean) for resource cleanup. Use `ERR` only for error-specific actions (e.g. printing a failure message). `EXIT` alone is sufficient for most cases.
-
-**Exceptions to `set -e`:** commands that are expected to fail must be guarded:
-```bash
-# BAD — exits script if grep finds no match (exit 1)
+# BAD — set -e kills the script silently if grep finds no match
+set -e
 grep -- "pattern" file
 
-# GOOD — guard with || true when non-zero is expected
-grep -- "pattern" file || true
+# GOOD — explicit: check the result and decide what to do
+if grep -q -- "pattern" file; then
+  echo "found"
+fi
 
-# GOOD — or check in an if block (set -e does not trigger inside conditions)
-if grep -q -- "pattern" file; then ...
+# GOOD — explicit failure with a message
+grep -- "pattern" file || { echo "ERROR: pattern not found" >&2; exit 1; }
 ```
+
+**What to use instead:**
+
+| Shell | Use | Reason |
+|-------|-----|--------|
+| bash | `set -uo pipefail` | `-u` catches unset vars; `pipefail` catches silent pipe failures; no `-e` |
+| sh (POSIX) | `set -u` | `pipefail` is a bashism; no `-e` |
+| zsh | `set -uo pipefail` | Same as bash |
+| fish | Nothing needed | Fish error handling is built-in |
+
+Place `set -uo pipefail` (or `set -u` for sh) immediately after the header block. Never add `-e`.
+
+**`trap` for cleanup:** use `EXIT` to clean up temp files and resources on any exit — clean or otherwise:
+
+```bash
+set -uo pipefail
+
+__cleanup() {
+  [ -n "${TEMP_DIR:-}" ] && rm -rf "${TEMP_DIR}"
+}
+trap '__cleanup' EXIT
+```
+
+`EXIT` fires on every exit path including normal completion. Do not use `trap ERR` as a substitute for `set -e` — it has the same silent-kill problem.
 
 ## IFS Safety
 
