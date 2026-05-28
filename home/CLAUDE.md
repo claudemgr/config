@@ -207,6 +207,9 @@ Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor ·
 
 **Workflow gate:** if `.github/workflows/` files are staged, `act --list -W {file}` must pass on each before `gitcommit`. Third-party Actions must be pinned to a full commit SHA — never a tag.
 
-**Workflow creation order:** CI/CD workflow files (`.github/workflows/`, `.gitea/workflows/`, `.forgejo/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`) are always created **last** — after all code is complete, tests pass, and the lint gate is clean. Incomplete code pushed with a workflow triggers an immediate CI failure and wastes build minutes. Never scaffold a workflow file at the start of a task or as a placeholder.
+**Workflow creation order:** Not all workflow files carry the same risk — create them in this order:
+1. **Security-only workflows** (secret scan, SHA/digest policy, dependency audit) — no build dependency; safe to add anytime
+2. **`build-toolchain.yml`** (`:build` image) — add once `docker/Dockerfile.build` builds successfully locally; required by all subsequent workflows
+3. **`ci.yml` and `release.yml`** — add **last**, only after all code is complete, `make test` passes, and the lint gate is clean; these trigger a full build on push and will fail immediately if the code is not ready
 
 **Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
