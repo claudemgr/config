@@ -189,15 +189,19 @@ Dependency graph takes priority over label order. Numbered/lettered sequence is 
 
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
-2. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
-3. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
-4. Run `gitcommit --dir {dir} all`
+2. **Run `make test`** (or language equivalent) — every test must pass; never commit with a failing test
+3. Run the lint gate (see below) — never commit with violations
+4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
+5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
+6. Run `gitcommit --dir {dir} all`
 
 **Message format:** `{emoji} Title (≤64 chars) {emoji}` + blank line + body + `- path: change` bullets per file
 
 Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
 
 **Cadence:** one logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
+
+**Test gate:** `make test` must pass before every commit — no exceptions. A failed push wastes CI minutes and blocks teammates. If `make test` is absent, run the language equivalent (`go test ./...`, `cargo test`, `pytest`, `npm test`). Never skip tests to "save time".
 
 **Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) — run before committing; never commit with violations.
 
