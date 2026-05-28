@@ -59,7 +59,7 @@ PY_DOCKER := docker run --rm -it \
 | `test` | Runs ruff check, mypy, then pytest inside Docker |
 | `dev` | Installs project in editable mode into a local venv for development |
 | `lint` | Runs `ruff check` + `ruff format --check` only |
-| `docker` | Builds + pushes multi-arch image via `docker buildx` |
+| `docker` | Builds multi-arch image locally via `docker buildx` (no push) |
 | `clean` | Removes `dist/`, `__pycache__/`, `.mypy_cache/`, `.ruff_cache/`, `*.egg-info/` |
 
 ## Docker Build Pattern

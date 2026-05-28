@@ -11,6 +11,7 @@ type: user
 - **`VERSION` from `release.txt`** — never hardcode; see `~/.claude/memory/version_conventions.md`
 - **`@` prefix suppresses echo** — every recipe line that is not intentional debug output uses `@`
 - **`help` is always the first target** — `make` alone prints the help screen
+- **Local only — no outbound writes** — the Makefile is a local developer tool; it must never push, publish, or write to any remote system. Specifically forbidden in any Makefile target: `docker push`, `docker buildx ... --push`, `git commit`, `git push`, `git tag`, `npm publish`, `cargo publish`, `gh release`, `glab release`, or any equivalent. `docker pull` is allowed — fetching images and dependencies (remote → local) is fine; sending artifacts or commits outward (local → remote) is not.
 
 ---
 
@@ -46,7 +47,7 @@ All projects define these targets (when applicable). All are `.PHONY`.
 | `test` | Lint + vet + test suite |
 | `dev` | Quick single-platform build into a temp dir for local testing |
 | `lint` | Linter/formatter check only (no test suite) |
-| `docker` | Build and push multi-arch Docker image |
+| `docker` | Build multi-arch Docker image locally (no push) |
 | `release` | Prepare release archives in `releases/` |
 | `clean` | Remove build output — never source, `.git`, or base images |
 

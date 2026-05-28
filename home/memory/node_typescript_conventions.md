@@ -57,7 +57,7 @@ NODE_DOCKER := docker run --rm -it \
 | `test` | Runs ESLint, TypeScript check, then test suite inside Docker |
 | `dev` | Quick local build into temp dir (Docker internally) |
 | `lint` | Runs `eslint --max-warnings 0` + `prettier --check` |
-| `docker` | Builds + pushes multi-arch image via `docker buildx` |
+| `docker` | Builds multi-arch image locally via `docker buildx` (no push) |
 | `clean` | Removes `dist/`, `node_modules/` |
 
 ## Docker Build Pattern

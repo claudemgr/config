@@ -65,7 +65,7 @@ GO_DOCKER := docker run --rm -it \
 |--------|-------------|
 | `build` | All 8 platforms + host binary; outputs to `binaries/` |
 | `release` | Prepares release archives in `releases/` |
-| `docker` | Builds + pushes multi-arch image via `docker buildx --platform linux/amd64,linux/arm64 --push` |
+| `docker` | Builds multi-arch image locally via `docker buildx --platform linux/amd64,linux/arm64` (no push) |
 | `test` | Runs `go vet ./...` then `go test -v -cover ./...` inside Docker |
 | `dev` | Quick host-platform-only build into `mktemp` temp dir |
 | `clean` | Removes `binaries/` and `releases/` |
@@ -166,7 +166,7 @@ Never use `VCS_REF` as an alias — `CommitID` is the canonical name.
 
 Always `ghcr.io/{PROJECTORG}/{PROJECTNAME}` — tagged as both `:{VERSION}` and `:latest`.
 
-Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` and `--push`.
+Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` — no `--push`; pushing is CI/CD's responsibility, not the Makefile's.
 
 ## Minimum Go Version
 
