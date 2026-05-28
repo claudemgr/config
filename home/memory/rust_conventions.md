@@ -26,6 +26,8 @@ type: user
 PROJECT_NAME  := {project_name}
 ORGANIZATION  := {project_org}
 VERSION       := $(shell cat release.txt 2>/dev/null || echo "devel")
+COMMIT_ID     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+PLATFORMS     ?= linux/amd64,linux/arm64
 DOCKER_IMAGE  := rust:alpine
 BINARIES_DIR  := ./binaries
 RELEASES_DIR  := ./releases

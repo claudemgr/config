@@ -37,7 +37,8 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/
 
 VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
-COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+PLATFORMS  ?= linux/amd64,linux/arm64
 
 NPM_CACHE ?= $(HOME)/.npm
 
@@ -261,9 +262,9 @@ Honor `NO_COLOR` — any value set (including empty string) means no color.
 
 ```typescript
 // src/version.ts
-export const VERSION = process.env["BUILD_VERSION"] ?? "dev";
-export const COMMIT_ID = process.env["BUILD_COMMIT"] ?? "unknown";
-export const BUILD_DATE = process.env["BUILD_DATE"] ?? "unknown";
+export const VERSION = process.env["BUILD_VERSION"] ?? "devel";
+export const COMMIT_ID = process.env["BUILD_COMMIT"] ?? "N/A";
+export const BUILD_DATE = process.env["BUILD_DATE"] ?? "N/A";
 ```
 
 Pass via `--build-arg` in Docker or `--env` at container run time. Never hardcode version strings.

@@ -34,7 +34,8 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/
 
 VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
-COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+PLATFORMS  ?= linux/amd64,linux/arm64
 
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
@@ -154,9 +155,9 @@ Declare in `main.go` as package-level vars set by ldflags:
 
 ```go
 var (
-    Version   = "dev"
-    CommitID  = "unknown"
-    BuildDate = "unknown"
+    Version   = "devel"
+    CommitID  = "N/A"
+    BuildDate = "N/A"
 )
 ```
 
@@ -166,7 +167,7 @@ Never use `VCS_REF` as an alias — `CommitID` is the canonical name.
 
 Always `ghcr.io/{PROJECTORG}/{PROJECTNAME}` — tagged as both `:{VERSION}` and `:latest`.
 
-Docker target uses `docker buildx` with `--platform linux/amd64,linux/arm64` — no `--push`; pushing is CI/CD's responsibility, not the Makefile's.
+Docker target uses `docker buildx` with `--platform $(PLATFORMS)` — no `--push`; pushing is CI/CD's responsibility, not the Makefile's. `PLATFORMS` defaults to `linux/amd64,linux/arm64` and is overridable: `make docker PLATFORMS=linux/amd64`.
 
 ## Minimum Go Version
 

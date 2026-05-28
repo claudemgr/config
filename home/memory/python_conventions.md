@@ -37,7 +37,8 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/
 
 VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
-COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+PLATFORMS  ?= linux/amd64,linux/arm64
 
 PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
@@ -239,9 +240,9 @@ Honor `NO_COLOR` — any value set (including empty string) means no color.
 # src/{package_name}/version.py
 import os
 
-VERSION = os.environ.get("BUILD_VERSION", "dev")
-COMMIT_ID = os.environ.get("BUILD_COMMIT", "unknown")
-BUILD_DATE = os.environ.get("BUILD_DATE", "unknown")
+VERSION = os.environ.get("BUILD_VERSION", "devel")
+COMMIT_ID = os.environ.get("BUILD_COMMIT", "N/A")
+BUILD_DATE = os.environ.get("BUILD_DATE", "N/A")
 ```
 
 Pass via `--build-arg` in Docker or `--env` at container run time. For installed packages, use `importlib.metadata.version("{package_name}")` as the fallback.

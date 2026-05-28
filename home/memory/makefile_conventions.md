@@ -27,11 +27,12 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | \
 
 VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
-COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+PLATFORMS  ?= linux/amd64,linux/arm64
 ```
 
 Use `:=` (immediate) for shell-computed values — evaluated once at parse time.
-Use `?=` for overridable variables — allows `make build VERSION=1.2.3-rc1`.
+Use `?=` for overridable variables — allows `make build VERSION=1.2.3-rc1` or `make docker PLATFORMS=linux/amd64`.
 Never use `=` (recursive) for computed values — causes repeated shell invocations on every reference.
 
 ---
