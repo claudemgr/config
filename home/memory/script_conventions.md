@@ -116,51 +116,71 @@ The shebang line or file extension determines which conventions apply. Always ch
 
 ## Error Handling — `set -e` and `pipefail`
 
-**`set -e` (errexit) is banned.** Do not use it. It appears safe but silently kills scripts on dozens of commands that return non-zero for completely normal, non-error reasons:
+`set -eo pipefail` is correct and required. **Do not add `-u` (nounset)** — scripts legitimately use empty or unset variables and `-u` fires false positives constantly. `set -e` itself has well-known false-positive exits that will silently abort a script if not handled. **You must know which commands return non-zero for normal, non-error reasons and guard them explicitly.**
 
-| Command | Normal non-zero exit | Meaning |
-|---------|---------------------|---------|
+| Command | Normal non-zero exit | Why it happens |
+|---------|---------------------|----------------|
 | `grep pattern file` | 1 | no match — not an error |
 | `diff a b` | 1 | files differ — not an error |
 | `[ condition ]` / `[[ condition ]]` | 1 | condition false — not an error |
 | `(( expr ))` | 1 | result is zero — not an error |
-| `command -v foo` | 1 | command not found — used to check |
-| `type foo` | 1 | not found — used to check |
+| `command -v foo` | 1 | command not found — used to check existence |
+| `type foo` | 1 | not found — used to check existence |
 | `read var` | 1 | EOF reached — expected at end of input |
 
-With `set -e` active, every one of those silently aborts the script. The failure is invisible — no error message, no indication of where it died.
-
-**Use explicit error checking instead:**
+Every command in the table above will silently kill the script under `set -e` unless guarded. **Guard every one of them — no exceptions.**
 
 ```bash
-# BAD — set -e kills the script silently if grep finds no match
-set -e
+# BAD — silently exits if grep finds no match
 grep -- "pattern" file
 
-# GOOD — explicit: check the result and decide what to do
+# GOOD — condition block: set -e never triggers inside if/while/until tests
 if grep -q -- "pattern" file; then
   echo "found"
 fi
 
-# GOOD — explicit failure with a message
+# GOOD — || true when the non-zero exit is genuinely ignorable
+grep -- "pattern" file || true
+
+# GOOD — || die when the non-zero exit is a real failure
 grep -- "pattern" file || { echo "ERROR: pattern not found" >&2; exit 1; }
+
+# BAD — (( )) exits 1 when result is 0; kills script mid-arithmetic
+(( count++ ))
+
+# GOOD — assign separately or use += to avoid the false exit
+count=$(( count + 1 ))
 ```
 
-**What to use instead:**
+**Shell settings:**
 
 | Shell | Use | Reason |
 |-------|-----|--------|
-| bash | `set -uo pipefail` | `-u` catches unset vars; `pipefail` catches silent pipe failures; no `-e` |
-| sh (POSIX) | `set -u` | `pipefail` is a bashism; no `-e` |
-| zsh | `set -uo pipefail` | Same as bash |
+| bash | `set -eo pipefail` | `-e` exits on real errors, `pipefail` catches pipe failures |
+| sh (POSIX) | `set -e` | `pipefail` is a bashism |
+| zsh | `set -eo pipefail` | Same as bash |
 | fish | Nothing needed | Fish error handling is built-in |
 
-Place `set -uo pipefail` (or `set -u` for sh) immediately after the header block. Never add `-e`.
+**Do not use `-u` (nounset).** Scripts legitimately use empty or unset variables — optional arguments, accumulator patterns, conditional defaults. `-u` treats an unset variable as an error, which fires false positives constantly. If you want to detect a genuinely unexpected unset variable, check it explicitly:
+
+```bash
+# BAD — -u kills the script on optional/empty vars
+set -euo pipefail
+echo "${OPTIONAL_ARG}"    # dies if not set, even though that's fine
+
+# GOOD — check only where unset is a real bug
+: "${REQUIRED_VAR:?REQUIRED_VAR must be set}"
+
+# GOOD — safe default for optional vars
+VALUE="${OPTIONAL_ARG:-}"
+```
+
+Place `set -eo pipefail` (or `set -e` for sh) immediately after the header block.
 
 **`trap` for cleanup:** use `EXIT` to clean up temp files and resources on any exit — clean or otherwise:
 
 ```bash
-set -uo pipefail
+set -eo pipefail
 
 __cleanup() {
   [ -n "${TEMP_DIR:-}" ] && rm -rf "${TEMP_DIR}"
@@ -168,7 +188,7 @@ __cleanup() {
 trap '__cleanup' EXIT
 ```
 
-`EXIT` fires on every exit path including normal completion. Do not use `trap ERR` as a substitute for `set -e` — it has the same silent-kill problem.
+`EXIT` fires on every exit path including normal completion. `ERR` is for error-specific messages only — not as a substitute for understanding which commands have false-positive exits.
 
 ## IFS Safety
 
