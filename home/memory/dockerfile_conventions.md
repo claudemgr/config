@@ -17,35 +17,31 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 | `docker/Dockerfile.dev` | `:devel` | When the project ships a debug-mode image |
 | `docker/rootfs/` | — | When the image needs a filesystem overlay |
 
-## Dockerfile.build — Toolchain Image
+## Toolchain Image — Decision Tree
 
-`docker/Dockerfile.build` is the toolchain image. It is tagged `{project_org}/{project_name}:build` and contains the entire toolchain required to build, test, lint, and scan the project (compiler, test runner, linter, vulnerability scanner, SBOM tool, etc.).
+**Most projects do not need a custom `Dockerfile.build`.** Use the maintained per-language image first; only create a custom `:build` image when nothing suitable exists.
+
+| Language | Use this image | Notes |
+|----------|---------------|-------|
+| Go | `casjaysdev/go:latest` | Alpine; latest stable Go; golangci-lint, staticcheck, govulncheck, goreleaser, and ~20 more tools pre-installed; `CGO_ENABLED=0` by default; `GOTOOLCHAIN=auto` |
+| Rust | `casjaysdev/rust:latest` | Alpine; stable + nightly; clippy, rustfmt, cargo-audit, cargo-nextest, cargo-zigbuild, 30 cross-compile targets, sccache pre-installed |
+| Node / TypeScript | `node:alpine` | Official Alpine image — add project tools via `npm ci` inside the container |
+| Python | `python:alpine` | Official Alpine image; use `python:slim-bookworm` (Debian slim) when a native-dep package fails to build on musl |
+| Other | Official Alpine image where one exists, then official Debian slim | Never use a `:latest` Ubuntu or full Debian image |
+| Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain |
+
+## Dockerfile.build — Custom Toolchain Image
+
+Only create `docker/Dockerfile.build` when the decision tree above leads to "Custom need". It is tagged `{project_org}/{project_name}:build` and contains the entire toolchain required to build, test, lint, and scan the project.
 
 ### Rules
 
-- **Base is always the official toolchain image** — `golang:alpine` for Go, `rust:alpine` for Rust, `node:alpine` for Node, etc. Never use a custom or project-specific image as the base; it must pull from the public registry.
+- **Base is always an official or maintained image** — `casjaysdev/go:latest` for Go extensions, `node:alpine` for Node extensions, etc. Never use a generic Alpine or Debian base without a toolchain pre-loaded unless that is the point.
 - **Must be fully functional before committing any CI workflow that uses it.** Bootstrap order: (1) commit only `docker/Dockerfile.build`; (2) trigger `build-toolchain.yml` via `workflow_dispatch` and verify the image is in the registry; (3) only then commit `ci.yml`, `release.yml`, and any other workflow that pulls it. CI workflows that arrive before the image exists will fail immediately with no recovery path.
 - **CI workflows pull, never build, this image.** The `ensure-build-image` job is pull-only and fails fast if the image is missing — it never builds inline. If the image is absent, the job fails with an actionable error telling the operator to trigger `build-toolchain.yml`. Wasting CI minutes on an uncontrolled inline build is forbidden.
 - **Built monthly** via a dedicated `.github/workflows/build-toolchain.yml` (and equivalent on other providers). Pushed to the registry on schedule and on `workflow_dispatch`.
 - **Tag is always `:build`** — never pinned to a version tag; always the latest monthly build.
 - **Fork-portable** — the workflow that builds this image uses `github.repository_owner` / `github.event.repository.name` (or equivalent provider variables), never hardcoded org or project name.
-
-### Minimum Dockerfile.build structure
-
-```dockerfile
-FROM golang:alpine
-
-RUN apk add --no-cache \
-    bash \
-    git \
-    make \
-    && go install golang.org/x/vuln/cmd/govulncheck@latest \
-    && go install github.com/cyclonedx/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
-
-WORKDIR /build
-```
-
-Swap `golang:alpine` for `rust:alpine` (plus `cargo-audit`, `cargo-cyclonedx`) on Rust projects. Every tool the project's CI uses must be pre-installed here.
 
 ### Monthly build workflow (GitHub Actions pattern)
 

@@ -28,27 +28,28 @@ ORGANIZATION  := {project_org}
 VERSION       := $(shell cat release.txt 2>/dev/null || echo "devel")
 COMMIT_ID     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
 PLATFORMS     ?= linux/amd64,linux/arm64
-DOCKER_IMAGE  := rust:alpine
-BINARIES_DIR  := ./binaries
-RELEASES_DIR  := ./releases
-
-CARGO_HOME     ?= $(HOME)/.cargo
-CARGO_REGISTRY ?= $(CARGO_HOME)/registry
-CARGO_GIT      ?= $(CARGO_HOME)/git
+BINARIES_DIR     := ./binaries
+RELEASES_DIR     := ./releases
+RUST_CARGO_VOL   := rust-cargo
+RUST_RUSTUP_VOL  := rust-rustup
+RUST_SCCACHE_VOL := rust-sccache
 
 RUST_DOCKER := docker run --rm -it \
 	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	-v "$(PWD)":/workspace \
-	-v $(CARGO_REGISTRY):/usr/local/cargo/registry \
-	-v $(CARGO_GIT):/usr/local/cargo/git \
-	-w /workspace \
-	$(DOCKER_IMAGE)
+	-v "$(PWD)":/app \
+	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
+	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \
+	-v $(RUST_SCCACHE_VOL):/root/.cache/sccache \
+	-w /app \
+	casjaysdev/rust:latest
 ```
 
-- `rust:alpine` rolling tag — never pinned
+- `casjaysdev/rust:latest` rolling tag — never pinned; Alpine-based with stable + nightly toolchains, 30 cross-compile targets, and every common Cargo tool pre-installed
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
-- `CARGO_HOME`, `CARGO_REGISTRY`, `CARGO_GIT` use `?=` so host environment values (e.g. custom `CARGO_HOME` in CI) are respected; defaults cover the standard `~/.cargo` location on Linux/macOS
-- In `rust:alpine`, Cargo's home is `/usr/local/cargo` — registry and git dirs are mounted there so downloads persist to the host
+- Named volumes are created automatically by Docker — no host `mkdir -p` needed for the Cargo/rustup/sccache caches
+- `CARGO_HOME` is `/usr/local/share/cargo` inside the image (not `/usr/local/cargo` as in the official `rust:alpine`)
+- `RUSTUP_HOME` is `/usr/local/share/rustup`; sccache cache is at `/root/.cache/sccache`
+- To enable sccache compilation caching, add `-e RUSTC_WRAPPER=sccache` to the docker run
 
 ## Makefile — Standard Targets
 
@@ -62,27 +63,21 @@ RUST_DOCKER := docker run --rm -it \
 
 ## Build Pattern
 
-All cargo invocations run inside Docker — never directly on host. Every target must `@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)` before the docker run:
+All cargo invocations run inside Docker — never directly on host. Named volumes are created automatically; only create output dirs on the host before writing:
 
 ```makefile
 build:
-	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
-	@docker run --rm -it --platform linux/amd64 \
-		--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	    -v "$(PWD)":/workspace \
-	    -v "$(PWD)/binaries":/output \
-	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
-	    -v $(CARGO_GIT):/usr/local/cargo/git \
-	    -w /workspace $(DOCKER_IMAGE) bash -c ' \
+	@mkdir -p $(BINARIES_DIR)
+	$(RUST_DOCKER) bash -c ' \
 	    cargo build --release && \
 	    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \
-	    cp target/release/$(PROJECT_NAME) /output/$(PROJECT_NAME)-{os}-{arch} && \
-	    chmod 755 /output/$(PROJECT_NAME)-{os}-{arch}'
+	    cp target/release/$(PROJECT_NAME) /app/$(BINARIES_DIR)/$(PROJECT_NAME)-{os}-{arch} && \
+	    chmod 755 /app/$(BINARIES_DIR)/$(PROJECT_NAME)-{os}-{arch}'
 ```
 
 Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-x86_64`).
 
-**Rule — any `docker run` with a Rust/Cargo image** must include the cache volume mounts and the preceding mkdir. Never omit them — every invocation that fetches or compiles crates must persist results to the host.
+**Rule — any `docker run` with a Rust/Cargo image** must include all three named volume mounts. Never omit them — every invocation that fetches or compiles crates must persist results to the cache volumes.
 
 ## Platform Targets and Binary Naming
 
@@ -110,13 +105,7 @@ macOS and FreeBSD cross-compilation from Linux is generally not supported — do
 
 ```makefile
 test:
-	@mkdir -p $(CARGO_REGISTRY) $(CARGO_GIT)
-	@docker run --rm -it \
-		--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	    -v "$(PWD)":/workspace \
-	    -v $(CARGO_REGISTRY):/usr/local/cargo/registry \
-	    -v $(CARGO_GIT):/usr/local/cargo/git \
-	    -w /workspace $(DOCKER_IMAGE) bash -c \
+	$(RUST_DOCKER) bash -c \
 	    'cargo fmt --check && cargo clippy -- -D warnings && cargo test --lib --no-fail-fast'
 ```
 

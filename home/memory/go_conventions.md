@@ -43,21 +43,17 @@ LDFLAGS := -s -w \
 	-X 'main.BuildDate=$(BUILD_DATE)' \
 	-X 'main.OfficialSite=$(OFFICIAL_SITE)'
 
-BINDIR     := binaries
-RELDIR     := releases
-GOPATH     ?= $(HOME)/go
-GOCACHE    ?= $(HOME)/.cache/go-build
-GOMODCACHE ?= $(GOPATH)/pkg/mod
-REGISTRY   := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+BINDIR    := binaries
+RELDIR    := releases
+GO_VOL    := go-state
+REGISTRY  := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	-v $(PWD):/build \
-	-v $(GOCACHE):/root/.cache/go-build \
-	-v $(GOMODCACHE):/go/pkg/mod \
-	-w /build \
-	-e CGO_ENABLED=0 \
-	golang:alpine
+	-v $(PWD):/app \
+	-v $(GO_VOL):/usr/local/share/go \
+	-w /app \
+	casjaysdev/go:latest
 ```
 
 ## Makefile — Standard Targets
@@ -91,36 +87,36 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 ## Docker Build Pattern
 
 ```makefile
+GO_VOL := go-state
+
 GO_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-	-v $(PWD):/build \
-	-v $(GOCACHE):/root/.cache/go-build \
-	-v $(GOMODCACHE):/go/pkg/mod \
-	-w /build \
-	-e CGO_ENABLED=0 \
-	golang:alpine
+	-v $(PWD):/app \
+	-v $(GO_VOL):/usr/local/share/go \
+	-w /app \
+	casjaysdev/go:latest
 ```
 
-- Always `golang:alpine` (rolling tag — never pinned)
-- Always `-e CGO_ENABLED=0`
-- `/root/.cache/go-build` and `/go/pkg/mod` are paths **inside the container** — `golang:alpine` runs as root, so `/root` is correct and expected there. `$(GOCACHE)` and `$(GOMODCACHE)` are the **host** paths, always resolved via `$(HOME)` — never hardcoded.
+- Always `casjaysdev/go:latest` (rolling tag — never pinned)
+- `CGO_ENABLED=0` is the image default — opt in per build with `-e CGO_ENABLED=1`
+- `GOTOOLCHAIN=auto` is set in the image — it picks up the Go version declared in `go.mod` automatically
+- `/usr/local/share/go` is the image's combined GOPATH + GOCACHE + GOMODCACHE volume. Mount it as a named volume (`go-state`) so the module cache and build cache persist across runs. Named volumes are created automatically by Docker — no `mkdir -p` needed for the cache
+- Project source is mounted at `/app`; output dirs (`binaries/`) are subdirs of `/app` and land on the host automatically
 
 ## Target Patterns
 
-Every target that invokes `GO_DOCKER` or any `docker run` with a Go toolchain image **must** create the cache dirs as its first step. This ensures the host dirs exist before Docker mounts them and that downloaded modules persist across runs.
+Named volumes are created automatically by Docker — no host `mkdir -p` needed for the Go cache. Only create output dirs on the host before writing:
 
 ```makefile
 build:
-	@mkdir -p $(GOCACHE) $(GOMODCACHE)
+	@mkdir -p $(BINDIR)
 	$(GO_DOCKER) go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
 
 test:
-	@mkdir -p $(GOCACHE) $(GOMODCACHE)
 	$(GO_DOCKER) go vet ./...
 	$(GO_DOCKER) go test -v -cover ./...
 
 dev:
-	@mkdir -p $(GOCACHE) $(GOMODCACHE)
 	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
 		echo "Quick dev build..." && \
@@ -129,25 +125,22 @@ dev:
 		echo "Test:  docker run --rm -it --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
 ```
 
-Always builds into a temp dir, never to a hardcoded path.
+Always builds into a temp dir for `dev`, never to a hardcoded path.
 
-**Rule — any direct `docker run` with a Go toolchain image** (not via `GO_DOCKER` macro) must also include the cache mounts and the preceding mkdir:
+**Rule — any direct `docker run` with a Go toolchain image** (not via `GO_DOCKER` macro) must include the source and Go volume mounts:
 
 ```makefile
 some-target:
-	@mkdir -p $(GOCACHE) $(GOMODCACHE)
 	@docker run --rm -it \
 		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-		-v $(PWD):/build \
-		-v $(GOCACHE):/root/.cache/go-build \
-		-v $(GOMODCACHE):/go/pkg/mod \
-		-w /build \
-		-e CGO_ENABLED=0 \
-		golang:alpine \
+		-v $(PWD):/app \
+		-v $(GO_VOL):/usr/local/share/go \
+		-w /app \
+		casjaysdev/go:latest \
 		go ...
 ```
 
-Never omit the cache mounts from a Go docker run — every invocation that downloads or compiles modules must persist results to the host.
+Never omit the `go-state` volume — every invocation that downloads or compiles modules must persist results across runs.
 
 ## Build Info Variables
 
@@ -327,14 +320,16 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ## Module Cache
 
-Mount host cache dirs into the Docker container — do not re-download modules on every build:
+`casjaysdev/go:latest` consolidates GOPATH, GOCACHE, and GOMODCACHE under `/usr/local/share/go`. Mount it as the named volume `go-state` — Docker creates named volumes automatically so no host `mkdir -p` is needed. The module cache and build cache persist across all `docker run` invocations that use the same volume:
 
 ```
-$(GOCACHE) on host    →  /root/.cache/go-build  in container  (golang:alpine runs as root)
-$(GOMODCACHE) on host →  /go/pkg/mod            in container
+go-state (named volume)  →  /usr/local/share/go  in container
+                              ├── pkg/mod/         (GOMODCACHE)
+                              ├── cache/           (GOCACHE)
+                              └── bin/             (installed tools)
 ```
 
-`GOPATH`, `GOCACHE`, and `GOMODCACHE` all use `?=` so host environment values are respected when set (e.g. XDG paths, custom `GOPATH`, CI overrides). `GOMODCACHE` derives from `GOPATH` rather than hardcoding `~/go` so custom `GOPATH` locations (like `~/.local/share/go`) are handled automatically. Every target that uses `GO_DOCKER` or any direct `docker run` with a Go image must `@mkdir -p $(GOCACHE) $(GOMODCACHE)` first — Docker will silently create dirs as root if they don't exist, breaking cache persistence.
+The named volume is shared across all Go projects on the same machine — this is intentional. The module cache is content-addressed and safe to share. If isolation per project is needed, use `go-state-$(PROJECTNAME)` as the volume name instead.
 
 ## Version Source
 

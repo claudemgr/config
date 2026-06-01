@@ -113,9 +113,9 @@ CACHE_DIR ?= $(HOME)/.cache/{lang}   # ?= honors host env var override
 
 LANG_DOCKER := docker run --rm -it \
     --name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-    -v $(PWD):/build \
+    -v $(PWD):/app \
     -v $(CACHE_DIR):/root/.cache/{lang} \
-    -w /build \
+    -w /app \
     {lang}:alpine
 ```
 
@@ -130,19 +130,21 @@ LANG_DOCKER := docker run --rm -it \
    ```
 3. **Mount with `-v $(VAR):/container/path`** — the host path resolves from the `?=` variable; the container path is the fixed location for that toolchain image.
 
-| Language | Host variable | Default | Container path |
-|----------|--------------|---------|----------------|
-| Go (build) | `GOCACHE ?= $(HOME)/.cache/go-build` | `~/.cache/go-build` | `/root/.cache/go-build` |
-| Go (modules) | `GOMODCACHE ?= $(GOPATH)/pkg/mod` | `~/go/pkg/mod` | `/go/pkg/mod` |
-| Rust (registry) | `CARGO_REGISTRY ?= $(CARGO_HOME)/registry` | `~/.cargo/registry` | `/usr/local/cargo/registry` |
-| Rust (git) | `CARGO_GIT ?= $(CARGO_HOME)/git` | `~/.cargo/git` | `/usr/local/cargo/git` |
-| Node | `NPM_CACHE ?= $(HOME)/.npm` | `~/.npm` | `/root/.npm` |
-| Python (pip) | `PIP_CACHE ?= $(HOME)/.cache/pip` | `~/.cache/pip` | `/root/.cache/pip` |
-| Python (uv) | `UV_CACHE ?= $(HOME)/.cache/uv` | `~/.cache/uv` | `/root/.cache/uv` |
+| Language | Cache mechanism | Variable | Container path |
+|----------|----------------|----------|----------------|
+| Go | Named volume | `GO_VOL := go-state` | `/usr/local/share/go` (GOPATH + GOCACHE + GOMODCACHE combined) |
+| Rust (cargo) | Named volume | `RUST_CARGO_VOL := rust-cargo` | `/usr/local/share/cargo` |
+| Rust (rustup) | Named volume | `RUST_RUSTUP_VOL := rust-rustup` | `/usr/local/share/rustup` |
+| Rust (sccache) | Named volume | `RUST_SCCACHE_VOL := rust-sccache` | `/root/.cache/sccache` |
+| Node | Host dir | `NPM_CACHE ?= $(HOME)/.npm` | `/root/.npm` |
+| Python (pip) | Host dir | `PIP_CACHE ?= $(HOME)/.cache/pip` | `/root/.cache/pip` |
+| Python (uv) | Host dir | `UV_CACHE ?= $(HOME)/.cache/uv` | `/root/.cache/uv` |
+
+Go and Rust use **named volumes** — Docker creates them automatically; no `mkdir -p` needed. Node and Python use **host dir mounts** — always `@mkdir -p` the host dir before the docker run.
 
 - Always `--rm -it --name $(PROJECTNAME)-XXXX` — never leave build containers running; `-it` enables interactive use; `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`
-- Always `-w /build` — explicit working directory
-- Mount project root at `/build`; output dirs (`binaries/`, `dist/`) are subdirs of `/build`
+- Always `-w /app` — explicit working directory
+- Mount project root at `/app`; output dirs (`binaries/`, `dist/`) are subdirs of `/app`
 
 Language-specific Docker variables and full cache mount patterns are in each language's conventions file:
 - Go: `~/.claude/memory/go_conventions.md`
