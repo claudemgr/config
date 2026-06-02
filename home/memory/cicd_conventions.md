@@ -396,12 +396,14 @@ jobs:
           file: docker/Dockerfile.build
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: false
           tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:build
 ```
 
 - No hardcoded org or project name — `github.repository_owner` and `github.event.repository.name` resolve correctly after a fork
 - `cancel-in-progress: false` — toolchain pushes must not be interrupted mid-push
 - `linux/amd64,linux/arm64` always — the toolchain image must match the platforms the project targets
+- `provenance: false` always — the default `provenance: true` injects an OCI attestation manifest that registries render as a spurious `unknown/unknown` platform entry alongside `linux/amd64`/`linux/arm64`; use `actions/attest-build-provenance` for release binary attestation instead
 
 ### Equivalent on other providers
 
@@ -777,6 +779,6 @@ The `release` job needs `contents: write` to push the tag — it already has thi
 - Tagged releases MUST publish a machine-readable checksum file for all release artifacts (SHA-256)
 - Tagged releases MUST publish release notes describing the actual change set with breaking changes called out explicitly
 - Public releases MUST include a release-level SBOM (`CycloneDX` or `SPDX JSON`)
-- Where the platform supports it, releases MUST include build provenance / artifact attestation
+- Releases MUST include build provenance/attestation via `actions/attest-build-provenance` (stored in GitHub's attestation store, not embedded in the image manifest). All `docker/build-push-action` steps MUST set `provenance: false` — without it, Docker BuildKit injects an OCI attestation manifest that registries render as a spurious `unknown/unknown` platform entry
 - AI MUST NOT fake signatures, fake attestations, or claim a release is signed/verified when the required keys/platform support do not exist
 - If signing or attestation is required but the necessary keys/permissions are unavailable: stop and ask, do not bypass
