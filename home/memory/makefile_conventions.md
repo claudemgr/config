@@ -71,11 +71,13 @@ Declare all non-file targets together near the top of the Makefile (or immediate
 help: ## Show this help message
 	@printf '\n\033[1;37m  %s v%s\033[0m\n\n' "$(PROJECTNAME)" "$(VERSION)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-38s\033[0m- %s\n", $$1, $$2}'
 	@printf '\n'
 ```
 
 Targets self-document with `## description` inline comments. The `help` target greps for them automatically — no manual maintenance.
+
+Output follows the standard help format: item left-aligned in 38 characters, then `- `, then description ≤ 100 chars (140 max per line).
 
 ---
 

@@ -163,6 +163,18 @@ For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2`
 - Both `--color auto` and `--color=auto` must work — clap handles this natively.
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
 
+### Help output format
+
+All `--help` output follows the standard layout — item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
+
+```
+--help                                - Show this help message and exit
+--version                             - Show version and exit
+init                                  - Initialize a new project
+```
+
+With `clap`, set `HelpTemplate` to match this format. Override the default template — `clap`'s built-in help does not follow the 38-char alignment.
+
 ### NO_COLOR support
 
 Every Rust TUI/CLI binary must honor the `NO_COLOR` environment variable ([no-color.org](https://no-color.org/)):

@@ -457,6 +457,53 @@ Processes killed by a signal exit with `128 + {signal}`:
 - `--debug` and `--no-color` have no short equivalents.
 - `--help` and `--version` must **never** require root/sudo — exit immediately with the requested output, regardless of privilege state.
 
+### Help output format
+
+All `__help()` output follows a single standard layout:
+
+```
+{item}                                - {description}
+```
+
+- **Item column:** left-aligned, padded to exactly **38 characters** with spaces
+- **Separator:** `- ` (dash + one space) immediately after the 38-char item field
+- **Description:** plain text, ≤ **100 characters**
+- **Max line length:** 38 + 2 + 100 = **140 characters**
+
+```
+Usage: scriptname [options] [arguments]
+
+Options:
+--help                                - Show this help message and exit
+--version                             - Show version and exit
+--debug                               - Enable debug output
+--no-color                            - Disable color output
+
+Commands:
+init                                  - Initialize a new project
+build                                 - Build the project
+clean                                 - Remove build artifacts
+```
+
+Implementation in bash using `printf`:
+
+```bash
+__help() {
+  printf '\nUsage: %s [options] [arguments]\n\n' "${APPNAME}"
+  printf 'Options:\n'
+  printf '%-38s- %s\n' \
+    '--help'     'Show this help message and exit' \
+    '--version'  'Show version and exit' \
+    '--debug'    'Enable debug output' \
+    '--no-color' 'Disable color output'
+  printf '\n'
+}
+```
+
+- Use `printf '%-38s- %s\n'` — the `%-38s` left-aligns and pads to 38 chars; never use `echo` for formatted help output
+- Group items under section headers (`Options:`, `Commands:`, `Arguments:`) separated by a blank line
+- Every item in every section follows the same 38-char alignment — flags, subcommands, and positional arguments all align on the same column
+
 ### NO_COLOR support
 
 Every interactive script must honor the `NO_COLOR` environment variable ([no-color.org](https://no-color.org/)):

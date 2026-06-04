@@ -225,6 +225,18 @@ For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — 
 - Both `--color auto` and `--color=auto` must work — flag library must support `=` syntax.
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
 
+### Help output format
+
+All `--help` output follows the standard layout — item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
+
+```
+--help                                - Show this help message and exit
+--version                             - Show version and exit
+init                                  - Initialize a new project
+```
+
+With `cobra` or `flag`, override the usage function to match this format exactly. Never rely on the default `flag.Usage` or `cobra` auto-generated help — it does not follow the 38-char alignment.
+
 ### NO_COLOR support
 
 Every Go TUI/CLI binary must honor the `NO_COLOR` environment variable ([no-color.org](https://no-color.org/)):
