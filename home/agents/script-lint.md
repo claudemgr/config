@@ -71,7 +71,7 @@ Flag use of `egrep`, `fgrep`, or `rgrep` — these aliases may not exist on all 
 For any interactive script (has a `__help()` function):
 
 - Must support `-h`/`--help` and `-v`/`--version` — no other short flags unless defined in `IDEA.md`
-- Must support `--debug` and `--no-color` (long form only, no short equivalents)
+- Must support `--debug` and `--color` (long form only, no short equivalents)
 - `--help` and `--version` must never require root — flag any `sudo`/privilege check before printing help/version
 - Must honor `NO_COLOR` env var — flag if color or emojis are emitted unconditionally without checking `NO_COLOR`
 - Argument parsing must use the shell-native parser, not a bare while/case loop:
@@ -95,7 +95,7 @@ For any interactive script (has a `__help()` function):
 3. [COMMENT] line {N}: inline comment on code line — move above
 4. [VERSION] header @@Version (202601010000-git) does not match VERSION= (202602020000-git)
 5. [TRIPLE-SYNC] man/scriptname.1 missing
-6. [FLAGS] --no-color flag missing from argument parser
+6. [FLAGS] --color flag missing from argument parser
 7. [FLAGS] NO_COLOR env var not checked
 8. [FLAGS] short flag -x defined but not in IDEA.md
 9. [PARSER] hand-rolled while/case arg loop — use getopt/getopts/zparseopts/argparse

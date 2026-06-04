@@ -915,7 +915,7 @@ Non-TUI scripts (one-shot output, batch processing, log writers) must NOT enter 
 
 Use `printf` — never `echo -e` (not portable) or `echo -n` for escape sequences.
 
-Color and cursor sequences must be suppressed when `NO_COLOR` is set or `--no-color` is passed — wrap them in a helper:
+Color and cursor sequences must be suppressed when `NO_COLOR` is set or `--color no` is passed — wrap them in a helper:
 
 ```bash
 __ansi() {

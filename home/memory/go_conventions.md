@@ -45,13 +45,16 @@ LDFLAGS := -s -w \
 
 BINDIR    := binaries
 RELDIR    := releases
-GO_VOL    := go-state
 REGISTRY  := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+
+GO_CACHE  ?= $(HOME)/go/pkg/mod
+GO_BUILD  ?= $(HOME)/.cache/go-build
 
 GO_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
-	-v $(GO_VOL):/usr/local/share/go \
+	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
+	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
 	casjaysdev/go:latest
 ```
@@ -87,12 +90,14 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 ## Docker Build Pattern
 
 ```makefile
-GO_VOL := go-state
+GO_CACHE  ?= $(HOME)/go/pkg/mod
+GO_BUILD  ?= $(HOME)/.cache/go-build
 
 GO_DOCKER := docker run --rm -it \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
-	-v $(GO_VOL):/usr/local/share/go \
+	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
+	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
 	casjaysdev/go:latest
 ```
@@ -100,24 +105,27 @@ GO_DOCKER := docker run --rm -it \
 - Always `casjaysdev/go:latest` (rolling tag — never pinned)
 - `CGO_ENABLED=0` is the image default — opt in per build with `-e CGO_ENABLED=1`
 - `GOTOOLCHAIN=auto` is set in the image — it picks up the Go version declared in `go.mod` automatically
-- `/usr/local/share/go` is the image's combined GOPATH + GOCACHE + GOMODCACHE volume. Mount it as a named volume (`go-state`) so the module cache and build cache persist across runs. Named volumes are created automatically by Docker — no `mkdir -p` needed for the cache
+- `GO_CACHE` and `GO_BUILD` use `?=` so host env vars (`GOMODCACHE`, `GOCACHE`) or custom XDG paths are honored; defaults are `~/go/pkg/mod` and `~/.cache/go-build`
+- Every target that uses `GO_DOCKER` must `@mkdir -p $(GO_CACHE) $(GO_BUILD)` first so host dirs exist before Docker mounts them
 - Project source is mounted at `/app`; output dirs (`binaries/`) are subdirs of `/app` and land on the host automatically
+- See **Module Cache** section for the named-volume fallback (`go-state`) when bind-mounting is not desired
 
 ## Target Patterns
 
-Named volumes are created automatically by Docker — no host `mkdir -p` needed for the Go cache. Only create output dirs on the host before writing:
+Every target that uses `GO_DOCKER` must create the cache dirs as its first step:
 
 ```makefile
 build:
-	@mkdir -p $(BINDIR)
+	@mkdir -p $(BINDIR) $(GO_CACHE) $(GO_BUILD)
 	$(GO_DOCKER) go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
 
 test:
+	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	$(GO_DOCKER) go vet ./...
 	$(GO_DOCKER) go test -v -cover ./...
 
 dev:
-	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
+	@mkdir -p $(GO_CACHE) $(GO_BUILD) "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
 		echo "Quick dev build..." && \
 		$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
@@ -127,20 +135,22 @@ dev:
 
 Always builds into a temp dir for `dev`, never to a hardcoded path.
 
-**Rule — any direct `docker run` with a Go toolchain image** (not via `GO_DOCKER` macro) must include the source and Go volume mounts:
+**Rule — any direct `docker run` with a Go toolchain image** (not via `GO_DOCKER` macro) must include the source and cache mounts:
 
 ```makefile
 some-target:
+	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@docker run --rm -it \
 		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 		-v $(PWD):/app \
-		-v $(GO_VOL):/usr/local/share/go \
+		-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
+		-v $(GO_BUILD):/usr/local/share/go/cache \
 		-w /app \
 		casjaysdev/go:latest \
 		go ...
 ```
 
-Never omit the `go-state` volume — every invocation that downloads or compiles modules must persist results across runs.
+Never omit the cache mounts — every invocation that downloads or compiles modules must persist results across runs.
 
 ## Build Info Variables
 
@@ -202,7 +212,7 @@ Never hardcode specific version numbers in spec or template files — they go st
 - **Strip release binaries** — always pass `-s -w` in LDFLAGS for `build`, `release`, and `docker` targets; `-s` strips the symbol table, `-w` strips DWARF debug info. The `dev` target (quick local build) omits `-s -w` to preserve debug symbols
 - **No `-musl` suffix** — never include `-musl` in the output binary name; the binary naming schema is `{name}-{GOOS}-{GOARCH}` regardless of libc used to build
 - **No `go build` on host** — always via `make dev`, `make build`, `make test` (Docker internally)
-- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `time.Ticker` or `time.Sleep` loop for simple periodic tasks; `go-co-op/gocron` for multiple jobs or cron-expression scheduling.
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `time.Ticker` or `time.Sleep` loop for simple periodic tasks; `go-co-op/gocron/v2` for multiple jobs or cron-expression scheduling.
 - **No `strconv.ParseBool()`** — use `config.ParseBool()` which handles 40+ variations
 - **No client-side rendering** — server-side Go templates only
 - **Single static binary** — `go:embed` for assets; zero runtime file deps
@@ -369,7 +379,37 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ## Module Cache
 
-`casjaysdev/go:latest` consolidates GOPATH, GOCACHE, and GOMODCACHE under `/usr/local/share/go`. Mount it as the named volume `go-state` — Docker creates named volumes automatically so no host `mkdir -p` is needed. The module cache and build cache persist across all `docker run` invocations that use the same volume:
+`casjaysdev/go:latest` consolidates GOPATH, GOCACHE, and GOMODCACHE under `/usr/local/share/go`.
+
+**Prefer host env vars over the named volume** — if `GOMODCACHE` or `GOCACHE` are set in the host environment, bind-mount those host paths instead of using the `go-state` named volume. This lets the user's existing cache be reused and respects custom XDG or toolchain layouts:
+
+```makefile
+GO_CACHE  ?= $(HOME)/go/pkg/mod
+GO_BUILD  ?= $(HOME)/.cache/go-build
+
+GO_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	-v $(PWD):/app \
+	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
+	-v $(GO_BUILD):/usr/local/share/go/cache \
+	-w /app \
+	casjaysdev/go:latest
+```
+
+Use `?=` so a host `GOMODCACHE` or `GOCACHE` env var (or custom XDG path) overrides the defaults. Run `@mkdir -p $(GO_CACHE) $(GO_BUILD)` at the top of every target that uses `GO_DOCKER` so the host dirs exist before Docker mounts them.
+
+**Fallback — named volume** — when no host cache dirs are defined and bind-mounting is not desired, use the `go-state` named volume. Docker creates named volumes automatically — no `mkdir -p` needed:
+
+```makefile
+GO_VOL := go-state
+
+GO_DOCKER := docker run --rm -it \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	-v $(PWD):/app \
+	-v $(GO_VOL):/usr/local/share/go \
+	-w /app \
+	casjaysdev/go:latest
+```
 
 ```
 go-state (named volume)  →  /usr/local/share/go  in container

@@ -28,28 +28,31 @@ ORGANIZATION  := {project_org}
 VERSION       := $(shell cat release.txt 2>/dev/null || echo "devel")
 COMMIT_ID     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
 PLATFORMS     ?= linux/amd64,linux/arm64
-BINARIES_DIR     := ./binaries
-RELEASES_DIR     := ./releases
-RUST_CARGO_VOL   := rust-cargo
-RUST_RUSTUP_VOL  := rust-rustup
-RUST_SCCACHE_VOL := rust-sccache
+BINARIES_DIR  := ./binaries
+RELEASES_DIR  := ./releases
+
+CARGO_CACHE   ?= $(HOME)/.cargo
+RUSTUP_CACHE  ?= $(HOME)/.rustup
+SCCACHE_CACHE ?= $(HOME)/.cache/sccache
 
 RUST_DOCKER := docker run --rm -it \
 	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v "$(PWD)":/app \
-	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
-	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \
-	-v $(RUST_SCCACHE_VOL):/root/.cache/sccache \
+	-v $(CARGO_CACHE):/usr/local/share/cargo \
+	-v $(RUSTUP_CACHE):/usr/local/share/rustup \
+	-v $(SCCACHE_CACHE):/root/.cache/sccache \
 	-w /app \
 	casjaysdev/rust:latest
 ```
 
 - `casjaysdev/rust:latest` rolling tag — never pinned; Alpine-based with stable + nightly toolchains, 30 cross-compile targets, and every common Cargo tool pre-installed
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
-- Named volumes are created automatically by Docker — no host `mkdir -p` needed for the Cargo/rustup/sccache caches
+- `CARGO_CACHE`, `RUSTUP_CACHE`, and `SCCACHE_CACHE` use `?=` so host env vars (`CARGO_HOME`, `RUSTUP_HOME`, custom XDG paths) are honored; defaults are `~/.cargo`, `~/.rustup`, and `~/.cache/sccache`
+- Every target that uses `RUST_DOCKER` must `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)` first so host dirs exist before Docker mounts them and downloaded crates persist across runs
 - `CARGO_HOME` is `/usr/local/share/cargo` inside the image (not `/usr/local/cargo` as in the official `rust:alpine`)
 - `RUSTUP_HOME` is `/usr/local/share/rustup`; sccache cache is at `/root/.cache/sccache`
 - To enable sccache compilation caching, add `-e RUSTC_WRAPPER=sccache` to the docker run
+- See **Named Volume Fallback** below for when bind-mounting is not desired
 
 ## Makefile — Standard Targets
 
@@ -63,11 +66,11 @@ RUST_DOCKER := docker run --rm -it \
 
 ## Build Pattern
 
-All cargo invocations run inside Docker — never directly on host. Named volumes are created automatically; only create output dirs on the host before writing:
+All cargo invocations run inside Docker — never directly on host. Every target that uses `RUST_DOCKER` must create the cache dirs first:
 
 ```makefile
 build:
-	@mkdir -p $(BINARIES_DIR)
+	@mkdir -p $(BINARIES_DIR) $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)
 	$(RUST_DOCKER) bash -c ' \
 	    cargo build --release && \
 	    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \
@@ -77,7 +80,26 @@ build:
 
 Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-x86_64`).
 
-**Rule — any `docker run` with a Rust/Cargo image** must include all three named volume mounts. Never omit them — every invocation that fetches or compiles crates must persist results to the cache volumes.
+**Rule — any `docker run` with a Rust/Cargo image** must include all three cache mounts. Never omit them — every invocation that fetches or compiles crates must persist results across runs.
+
+### Named Volume Fallback
+
+When bind-mounting host cache dirs is not desired, use named volumes instead. Docker creates named volumes automatically — no `mkdir -p` needed:
+
+```makefile
+RUST_CARGO_VOL   := rust-cargo
+RUST_RUSTUP_VOL  := rust-rustup
+RUST_SCCACHE_VOL := rust-sccache
+
+RUST_DOCKER := docker run --rm -it \
+	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	-v "$(PWD)":/app \
+	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
+	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \
+	-v $(RUST_SCCACHE_VOL):/root/.cache/sccache \
+	-w /app \
+	casjaysdev/rust:latest
+```
 
 ## Platform Targets and Binary Naming
 

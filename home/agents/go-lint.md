@@ -12,7 +12,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 
 - `CGO_ENABLED=0` must be set in every `go build` invocation (Makefile, CI, Docker). Flag any build command missing it.
 - Flag any `go build`, `go run`, or `go test` invoked directly on the host — all must run inside Docker via `make build`, `make dev`, `make test`.
-- Makefile must use `golang:alpine` as the Docker image — never a pinned tag (e.g. `golang:1.23`). Flag pinned versions.
+- Makefile must use `casjaysdev/go:latest` as the Docker image — never a pinned tag or `golang:alpine`. Flag any image other than `casjaysdev/go:latest`.
 
 ### Makefile — required variables and targets
 
@@ -21,7 +21,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 - `COMMIT_ID` is the canonical name for the short git hash — never `VCS_REF`. Flag `VCS_REF` usage.
 - LDFLAGS must include `-s -w` for `build`, `release`, and `docker` targets. Flag if missing. The `dev` target may omit them.
 - Required targets: `build`, `release`, `docker`, `test`, `dev`, `clean`. Flag any that are absent.
-- Module cache must be mounted into Docker: `~/.cache/go-build` and `~/go/pkg/mod`. Flag Docker run commands that omit these volume mounts.
+- Cache dirs must be mounted into Docker using `GO_CACHE ?= $(HOME)/go/pkg/mod` and `GO_BUILD ?= $(HOME)/.cache/go-build` (prefer host env vars via `?=`). Flag Docker run commands that omit both mounts and the `go-state` named volume fallback.
 
 ### Binary naming
 
