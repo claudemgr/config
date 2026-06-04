@@ -172,6 +172,10 @@ go 1.22
 
 Update when a feature from a newer version is adopted.
 
+## Dependency Version Policy
+
+Never hardcode specific version numbers in spec or template files — they go stale immediately. Use `{version}` as a placeholder everywhere a module version appears in documentation, spec files, or examples. Actual versions are resolved at project creation time with `go get module@latest` and managed by `go mod tidy`.
+
 ## Linting & Vetting
 
 - **`go vet`** runs as part of the `test` target (before `go test`); CI fails on any vet warning
