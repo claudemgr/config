@@ -307,6 +307,7 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 - **`cargo fmt`** — enforced; run `cargo fmt --check` in CI; a format failure is a build failure. Commit `rustfmt.toml` at project root if non-default settings are needed.
 - **`cargo clippy`** — enforced; always run with `-D warnings` (warnings are errors); no `#[allow(...)]` suppressions without an explanatory comment on the line above
 - Never suppress a clippy lint project-wide in `Cargo.toml` without documenting the reason in `{project_dir}/IDEA.md`
+- **Line width:** `rustfmt` default — `max_width = 100`. Do not override unless `rustfmt.toml` explicitly sets a different value. Never add a `rustfmt.toml` just to change the width; only create one when other non-default settings are genuinely needed.
 
 ## Error Handling
 
