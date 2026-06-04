@@ -1,6 +1,6 @@
 ---
 name: Tool conventions
-description: Default flags and usage rules for curl, wget, grep, provider CLIs (gh/glab/tea), act, images, and python3
+description: Internet access rules, default flags and usage rules for curl, wget, grep, WebSearch/WebFetch, provider CLIs (gh/glab/tea), act, images, and python3
 type: user
 ---
 
@@ -9,6 +9,25 @@ type: user
 Always use the right tool for the job if installed: `jq` for JSON, `yq` for YAML, `bc` for math, `grep`/`sed`/`awk` for text, `git` for version control.
 
 Use `python3` only when no purpose-built tool can handle the task cleanly.
+
+## Internet Access
+
+**AI has internet access and must use it.** Never say "I don't have access to the internet" or refuse to look something up — fetch it.
+
+When to reach for the internet proactively:
+- Latest version of a package, library, or tool — always fetch; never guess or use a stale training value
+- API docs, man pages, RFCs, or spec pages — fetch the canonical source rather than recalling from training
+- A dependency README or changelog — `curl` GitHub/docs directly or use `WebFetch`
+- Any fact that changes over time (release dates, CVEs, compatibility matrices, default config values)
+- Verifying that a flag, method, or feature actually exists before using it
+
+Tool preference for internet lookups:
+- `WebSearch` for open-ended queries (finding the right page)
+- `WebFetch` for fetching a known URL (docs page, README, API endpoint)
+- `\curl -q -LSs {url}` when piping output into shell tools (`jq`, `grep`, etc.) or saving to a file
+- `gh api` / `glab api` / `tea` for provider API operations — never raw `curl` against GitHub/GitLab/Gitea when the CLI is available
+
+**User-provided URLs:** always fetch with `\curl -q -LSs {url}` — never WebFetch. The user gave you a specific URL; use the same tool they would use in a terminal. WebFetch is for AI-initiated lookups only.
 
 ## curl
 

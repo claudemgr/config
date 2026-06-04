@@ -17,7 +17,7 @@ The separator line is exactly: `# - - - - - - - - - - - - - - - - - - - - - - - 
 ##@Version           :  %Y%m%d%H%M-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  {LICENSE_NAME} or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  {scriptname --help | README.md}
 # @@Copyright        :  Copyright: (c) {year} Jason Hempstead, Casjays Developments
 # @@Created          :  {Weekday, Month DD, YYYY HH:MM TZ}
@@ -36,6 +36,7 @@ The separator line is exactly: `# - - - - - - - - - - - - - - - - - - - - - - - 
 VERSION="YYYYMMDDHHMM-git"
 ```
 
+- **All scripts (bash, sh, zsh, fish, and any other shell) are licensed under WTFPL** — always set `# @@License : WTFPL` in the header; never MIT, Apache, or any other license for shell scripts
 - `##@Version` uses double `#` — all other `@@` fields use single `#`
 - `@@Created` — full weekday + date + time + timezone: `Wednesday, May 13, 2026 10:58 EDT`
 - `@@Template` — template name if used; otherwise `shell/bash`, `shell/sh`, `shell/zsh`, `shell/fish`
@@ -116,7 +117,7 @@ The shebang line or file extension determines which conventions apply. Always ch
 
 ## Error Handling — `set -e` and `pipefail`
 
-`set -eo pipefail` is correct and required. **Do not add `-u` (nounset)** — scripts legitimately use empty or unset variables and `-u` fires false positives constantly. `set -e` itself has well-known false-positive exits that will silently abort a script if not handled. **You must know which commands return non-zero for normal, non-error reasons and guard them explicitly.**
+Use the strictest set of flags your shell supports: `set -eo pipefail` for bash/zsh, `set -e` for POSIX sh. **`-o pipefail` is a bash/ksh/zsh extension — it is not in POSIX and must not appear in `#!/usr/bin/env sh` scripts.** **Do not add `-u` (nounset)** — scripts legitimately use empty or unset variables and `-u` fires false positives constantly. `set -e` itself has well-known false-positive exits that will silently abort a script if not handled. **You must know which commands return non-zero for normal, non-error reasons and guard them explicitly.**
 
 | Command | Normal non-zero exit | Why it happens |
 |---------|---------------------|----------------|
@@ -175,7 +176,7 @@ echo "${OPTIONAL_ARG}"    # dies if not set, even though that's fine
 VALUE="${OPTIONAL_ARG:-}"
 ```
 
-Place `set -eo pipefail` (or `set -e` for sh) immediately after the header block.
+Place the shell flags immediately after the header block: `set -eo pipefail` for bash/zsh; `set -e` for POSIX sh.
 
 **`trap` for cleanup:** use `EXIT` to clean up temp files and resources on any exit — clean or otherwise:
 
@@ -189,6 +190,90 @@ trap '__cleanup' EXIT
 ```
 
 `EXIT` fires on every exit path including normal completion. `ERR` is for error-specific messages only — not as a substitute for understanding which commands have false-positive exits.
+
+## Signal Handling
+
+### Which signals to trap and why
+
+| Signal | Number | Trigger | When to trap |
+|--------|--------|---------|-------------|
+| `EXIT` | (pseudo) | Any exit path | **Always** — primary cleanup hook |
+| `INT` | 2 | Ctrl-C | When you need to print a "cancelled" message or suppress the default `^C` echo |
+| `TERM` | 15 | `kill` / container stop / systemd | When the script holds resources that must be released (sockets, lock files, child processes) |
+| `QUIT` | 3 | Ctrl-\ | Rarely trapped — only suppress if core dumps are unwanted in your environment |
+| `HUP` | 1 | Terminal closed / `nohup` | Trap in long-running daemons to reload config; ignore in short scripts |
+| `WINCH` | 28 | Terminal resize | Only in TUI/interactive scripts that reflow layout based on terminal dimensions |
+| `TSTP` | 20 | Ctrl-Z (suspend) | Almost never — let the shell handle job control; only trap if the script holds an exclusive resource |
+| `PIPE` | 13 | Broken pipe (reader closed) | Rarely — `pipefail` (bash/zsh) + error handling is usually enough; trap only if you need a custom message |
+
+`Ctrl+X` is not a POSIX signal — it has no special meaning in most terminals and does not raise a signal.
+
+### Standard pattern
+
+Always let `EXIT` do the cleanup. For signals that need extra behaviour (message, exit code), re-raise after cleanup so the caller sees the right `128+N` exit code:
+
+```bash
+set -eo pipefail
+
+TEMP_DIR=
+__cleanup() {
+  [ -n "${TEMP_DIR:-}" ] && rm -rf "${TEMP_DIR}"
+}
+
+# Re-raise TERM and INT so callers see 128+15 / 128+2 instead of 0
+__on_term() { echo "Terminated." >&2; exit 143; }
+__on_int()  { echo "Interrupted." >&2; exit 130; }
+
+trap '__cleanup' EXIT
+trap '__on_term' TERM
+trap '__on_int'  INT
+
+TEMP_DIR="$(mktemp -d)"
+```
+
+`EXIT` fires after `__on_term`/`__on_int` return (or call `exit`), so `__cleanup` always runs exactly once.
+
+### SIGWINCH — terminal resize
+
+Only relevant in interactive/TUI scripts that query terminal dimensions. Re-query `tput` in the handler; never cache `COLS`/`LINES` as globals without a resize hook:
+
+```bash
+COLS=$(tput cols)
+LINES=$(tput lines)
+
+__on_winch() {
+  COLS=$(tput cols)
+  LINES=$(tput lines)
+  # redraw or reflow here
+}
+trap '__on_winch' WINCH
+```
+
+### SIGHUP — daemon reload
+
+Long-running scripts acting as daemons should trap `HUP` to re-read config without restarting:
+
+```bash
+__on_hup() {
+  # reload config file, re-open log handles, etc.
+  : "reloading config..."
+}
+trap '__on_hup' HUP
+```
+
+Short scripts: ignore `HUP` with `trap '' HUP` or just don't trap it (the default action terminates the process, which is usually fine).
+
+### Rules
+
+- **Always trap `EXIT`** — it is the single reliable cleanup hook; fires on normal exit, error exit, and most signals
+- **Trap `TERM` and `INT`** in any script that creates files, starts child processes, holds network connections, or writes to a database — use explicit `exit N` to preserve `128+N` semantics for callers
+- **Never swallow `INT`** without re-raising — a script that traps `INT` and exits `0` breaks `Ctrl-C` in pipelines and interactive use
+- **`ERR` trap** is for diagnostic messages only (print the failing command, line number); never use it as a substitute for guarding false-positive exits
+- **`QUIT`** — do not trap unless you have a specific reason; the default (core dump / terminate) is usually correct
+- **`WINCH`** — trap only in scripts that actively render to the terminal; ignore in non-interactive scripts
+- **`TSTP`** — do not trap; let the shell handle `Ctrl-Z` normally
+- Declare all traps immediately after the shell flags (`set -eo pipefail` / `set -e`), before any code that creates resources
+- Do not use `trap - SIGNAL` to reset a signal inside a handler — it is confusing and rarely correct; structure cleanup in `__cleanup` and call it explicitly if needed
 
 ## IFS Safety
 

@@ -149,9 +149,10 @@ Load the matching file on demand — only when actively working in that language
 - Next step is clear → do it; pause only for genuine blockers or destructive-op confirmation
 
 ## Tool Preference
-See `~/.claude/memory/tool_conventions.md` for curl/wget/grep defaults, provider CLI auto-install rules, `act` usage, and image handling.
+See `~/.claude/memory/tool_conventions.md` for internet access rules, curl/wget/grep defaults, provider CLI auto-install rules, `act` usage, and image handling.
 
 Key rules always in effect:
+- **Internet access is available and must be used** — fetch docs, versions, READMEs, and any fact that changes over time; never say "I don't have internet access"
 - Use the right tool if installed: `jq` (JSON), `yq` (YAML), `bc` (math), `grep`/`sed`/`awk` (text)
 - Provider CLIs (`gh`, `glab`, `tea`) over raw `curl` for provider API ops
 - `grep` always with `--` before the query; never `egrep`/`fgrep`/`rgrep`
