@@ -224,10 +224,14 @@ For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — 
 - `--color auto` detects terminal capability (default); `yes` forces color; `no` disables it and removes emojis from output.
 - Both `--color auto` and `--color=auto` must work — flag library must support `=` syntax.
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
+- `help` (bare, no `--`) must be a recognized command at every level — `myapp help` and `myapp subcmd help` produce the same output as their `--help` equivalents.
+- **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root/admin, or check privilege state; exit immediately with the help text.
 
 ### Help output format
 
-All `--help` output follows the standard layout — item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
+**Applies everywhere help is shown** — `--help`, `help` (bare subcommand), and `subcommand help`. All produce identical output via the same function.
+
+Item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
 
 ```
 --help                                - Show this help message and exit
@@ -235,7 +239,11 @@ All `--help` output follows the standard layout — item left-aligned in a 38-ch
 init                                  - Initialize a new project
 ```
 
-With `cobra` or `flag`, override the usage function to match this format exactly. Never rely on the default `flag.Usage` or `cobra` auto-generated help — it does not follow the 38-char alignment.
+Implement a shared `printHelp(usage string, sections []HelpSection)` helper (or equivalent) that all commands and subcommands call — never duplicate the formatting logic. With `cobra` or `flag`, override the usage function to emit this format; never rely on default auto-generated help.
+
+`help` (bare, no `--`) must be registered as a command/alias at every level and call the same help function as `--help`:
+- `myapp help` == `myapp --help`
+- `myapp subcmd help` == `myapp subcmd --help`
 
 ### NO_COLOR support
 

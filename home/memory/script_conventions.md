@@ -1,6 +1,6 @@
 ---
-name: Bash script conventions
-description: Code standards, performance rules, and documentation requirements for CasjaysDev bash scripts
+name: Shell script conventions
+description: Code standards, performance rules, and documentation requirements for CasjaysDev shell scripts (bash, zsh, sh, fish). Does NOT cover scripting languages such as Python, Ruby, Perl, PHP, or JavaScript.
 type: user
 ---
 
@@ -459,50 +459,107 @@ Processes killed by a signal exit with `128 + {signal}`:
 
 ### Help output format
 
-All `__help()` output follows a single standard layout:
+**Applies everywhere help is shown.** Every context uses identical formatting. No exceptions.
+
+**Shell scripts** — `--help`/`-h` at the main level only; subcommands use bare `help` (no `--`). Shell native parsers (`getopts`, `zparseopts`, `argparse`) get complicated inside subcommand handlers, so `--` flags are avoided there.
+
+**Go / Rust / compiled languages** — `--help` and `help` both work at every level; the argument parser (clap, cobra, etc.) handles it cleanly.
 
 ```
 {item}                                - {description}
 ```
 
 - **Item column:** left-aligned, padded to exactly **38 characters** with spaces
-- **Separator:** `- ` (dash + one space) immediately after the 38-char item field
+- **Separator:** `- ` (dash + one space) immediately after the 38-char field
 - **Description:** plain text, ≤ **100 characters**
 - **Max line length:** 38 + 2 + 100 = **140 characters**
 
-```
-Usage: scriptname [options] [arguments]
+#### Reusable primitives
 
-Options:
---help                                - Show this help message and exit
---version                             - Show version and exit
---debug                               - Enable debug output
---no-color                            - Disable color output
-
-Commands:
-init                                  - Initialize a new project
-build                                 - Build the project
-clean                                 - Remove build artifacts
-```
-
-Implementation in bash using `printf`:
+Define these four functions once (in a shared `helpers.sh` or at the top of every script) and build all help output from them — never call `printf` directly inside a help function:
 
 ```bash
-__help() {
-  printf '\nUsage: %s [options] [arguments]\n\n' "${APPNAME}"
-  printf 'Options:\n'
-  printf '%-38s- %s\n' \
-    '--help'     'Show this help message and exit' \
-    '--version'  'Show version and exit' \
-    '--debug'    'Enable debug output' \
-    '--no-color' 'Disable color output'
+__help_header() {
+  # Usage line — call once at the top of every help block
+  printf '\n\033[1;37mUsage:\033[0m %s\n' "$1"
+}
+
+__help_section() {
+  # Section heading (Options, Commands, Arguments, etc.)
+  printf '\n\033[1;37m%s:\033[0m\n' "$1"
+}
+
+__help_line() {
+  # One item — item in 38-char field, then "- description"
+  printf '  %-38s- %s\n' "$1" "$2"
+}
+
+__help_footer() {
+  # Trailing blank line
   printf '\n'
 }
 ```
 
-- Use `printf '%-38s- %s\n'` — the `%-38s` left-aligns and pads to 38 chars; never use `echo` for formatted help output
-- Group items under section headers (`Options:`, `Commands:`, `Arguments:`) separated by a blank line
-- Every item in every section follows the same 38-char alignment — flags, subcommands, and positional arguments all align on the same column
+#### Building a help block
+
+Every help function (main, per-subcommand, nested) is assembled from the same four primitives:
+
+```bash
+# Main help
+__help() {
+  __help_header "${APPNAME} [options] [command]"
+  __help_section "Options"
+  __help_line "--help"     "Show this help message and exit"
+  __help_line "--version"  "Show version and exit"
+  __help_line "--debug"    "Enable debug output"
+  __help_line "--no-color" "Disable color output"
+  __help_section "Commands"
+  __help_line "init"       "Initialize a new project"
+  __help_line "build"      "Build the project"
+  __help_line "help"       "Show this help message"
+  __help_footer
+}
+
+# Subcommand help — no --help here; subcommands use bare "help" only
+__help_init() {
+  __help_header "${APPNAME} init <name> [help]"
+  __help_section "Arguments"
+  __help_line "<name>"  "Name of the project to initialize"
+  __help_line "help"    "Show this help message"
+  __help_section "Options"
+  __help_line "--force" "Overwrite existing files"
+  __help_footer
+}
+```
+
+#### Help dispatching
+
+Main level handles `-h`, `--help`, and bare `help`. Subcommand level handles bare `help` only — no `--help` inside subcommand handlers:
+
+```bash
+# Main argument parsing — --help and bare "help" both work
+case "${1:-}" in
+  -h|--help|help) __help; exit 0 ;;
+esac
+
+# Subcommand dispatch — bare "help" only inside subcommands
+case "${subcmd}" in
+  init)
+    case "${2:-}" in
+      help) __help_init; exit 0 ;;
+    esac
+    cmd_init "$@"
+    ;;
+  help|"") __help; exit 0 ;;
+esac
+```
+
+Rules:
+- **Main level:** `-h`, `--help`, and `help` are all equivalent — call the same `__help` function
+- **Subcommand level:** `help` only (no `--help`) — avoids shell parser complexity inside subcommand handlers
+- `help` with no subcommand shows the parent-level help
+- Never write separate implementations for each trigger — all must call the same `__help*` function
+- **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root, or check privilege state; exit immediately with the help text
 
 ### NO_COLOR support
 
@@ -522,35 +579,39 @@ fi
 
 **Note — flag name differs by language by design:** Shell scripts use `--no-color` (a boolean on/off flag). Compiled Go and Rust binaries use `--color auto|yes|no` (a three-value enum that also covers auto-detection). Both conventions honor the `NO_COLOR` env var. Do not apply the Go/Rust `--color` pattern to shell scripts, and do not apply the shell `--no-color` pattern to compiled binaries.
 
-### Argument parsing — use the shell's native parser
+### Argument parsing — use the shell's native builtin parser
 
-**Never write a bare `while`/`case` argument loop unless no parser is available for that shell.** Use the shell-native option parser:
+**Always use the shell's native builtin argument parser.** Never use a manual `while [[ $# -gt 0 ]]; do ... shift; done` loop — that pattern is fragile, inconsistent, and impossible to unit-test cleanly. Each shell has its own builtin; use it everywhere flags are needed.
 
 | Shell | Parser | Long option support |
 |-------|--------|-------------------|
-| bash | `getopt` (external GNU getopt) | Yes — `--long opt` and `--long=opt` both work |
-| sh (POSIX) | `getopts` (built-in, short only) or external `getopt` if available | `getopts`: short only; `getopt`: long options |
-| zsh | `zparseopts` (built-in) | Yes |
-| fish | `argparse` (built-in) | Yes |
+| bash | `getopts` built-in with `-:` trick | Short (`-h`) + long (`--help`) — not `--flag=value` |
+| sh (POSIX) | `getopts` built-in with `-:` trick | Same as bash |
+| zsh | `zparseopts` built-in | Yes — including `--flag=value` |
+| fish | `argparse` built-in | Yes |
 
-**bash — `getopt` pattern:**
+**bash / sh — `getopts` with `-:` trick (short + long flags):**
 
 ```bash
-_OPTS="$(getopt -o hv -l help,version,debug,no-color -n "${APPNAME}" -- "$@")" || { __help; exit 1; }
-eval set -- "${_OPTS}"
-while true; do
-  case "$1" in
-    -h|--help)     __help; exit 0 ;;
-    -v|--version)  __version; exit 0 ;;
-    --debug)       SCRIPTNAME_DEBUG=1; shift ;;
-    --no-color)    NO_COLOR=1; shift ;;
-    --)            shift; break ;;
-    *)             break ;;
+while getopts ":hv-:" opt; do
+  case "${opt}" in
+    h) __help; exit 0 ;;
+    v) __version; exit 0 ;;
+    -)
+      case "${OPTARG}" in
+        help)     __help; exit 0 ;;
+        version)  __version; exit 0 ;;
+        debug)    SCRIPTNAME_DEBUG=1 ;;
+        no-color) NO_COLOR=1 ;;
+        *) printf 'Unknown option: --%s\n' "${OPTARG}" >&2; exit 2 ;;
+      esac ;;
+    *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
   esac
 done
+shift $((OPTIND - 1))
 ```
 
-`getopt` normalizes both `--flag value` and `--flag=value` automatically — no manual `=` splitting needed.
+The `-:` in the optstring tells `getopts` to treat `-` as a valid option character; `${OPTARG}` then holds the long option name. This handles `--flag` and `--flag value` but NOT `--flag=value` — avoid `=` syntax in shell scripts.
 
 **zsh — `zparseopts` pattern:**
 
@@ -572,29 +633,6 @@ if set -q _flag_version;  __version; return 0; end
 if set -q _flag_debug;    set -g SCRIPTNAME_DEBUG 1; end
 if set -q _flag_no_color; set -gx NO_COLOR 1; end
 ```
-
-**sh (POSIX) — `getopts` for short flags + manual long via `case`:**
-
-```sh
-while getopts ":hv-:" opt; do
-  case "${opt}" in
-    h) __help; exit 0 ;;
-    v) __version; exit 0 ;;
-    -)
-      case "${OPTARG}" in
-        help)     __help; exit 0 ;;
-        version)  __version; exit 0 ;;
-        debug)    SCRIPTNAME_DEBUG=1 ;;
-        no-color) NO_COLOR=1 ;;
-        *) printf 'Unknown option: --%s\n' "${OPTARG}" >&2; exit 2 ;;
-      esac ;;
-    *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
-  esac
-done
-shift $((OPTIND - 1))
-```
-
-Note: POSIX `getopts` with `-:` trick handles `--long` but NOT `--long=value`. Use external `getopt` if `=` syntax is required in sh scripts.
 
 ## Library Scripts — Sourced vs Direct Execution
 

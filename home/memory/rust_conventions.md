@@ -162,10 +162,14 @@ For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2`
 - `--color auto` detects terminal capability (default); `yes` forces color; `no` disables it and removes emojis from output.
 - Both `--color auto` and `--color=auto` must work — clap handles this natively.
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
+- `help` (bare, no `--`) must be a registered subcommand at every level — `myapp help` and `myapp subcmd help` produce the same output as their `--help` equivalents.
+- **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root/admin, or check privilege state; exit immediately with the help text.
 
 ### Help output format
 
-All `--help` output follows the standard layout — item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
+**Applies everywhere help is shown** — `--help`, `help` (bare subcommand), and `subcommand help`. All produce identical output via the same function.
+
+Item left-aligned in a 38-character field, then `- `, then description ≤ 100 chars (140 max per line):
 
 ```
 --help                                - Show this help message and exit
@@ -173,7 +177,11 @@ All `--help` output follows the standard layout — item left-aligned in a 38-ch
 init                                  - Initialize a new project
 ```
 
-With `clap`, set `HelpTemplate` to match this format. Override the default template — `clap`'s built-in help does not follow the 38-char alignment.
+Set a custom `clap` `HelpTemplate` on the root command and every subcommand to match this format — `clap`'s built-in template does not follow the 38-char alignment. Define the template string as a shared constant so it is applied consistently everywhere.
+
+`help` (bare, no `--`) must be a registered subcommand at every level that calls the same help output as `--help`:
+- `myapp help` == `myapp --help`
+- `myapp subcmd help` == `myapp subcmd --help`
 
 ### NO_COLOR support
 
