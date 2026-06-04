@@ -19,7 +19,9 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 
 ## Toolchain Image — Decision Tree
 
-**Most projects do not need a custom `Dockerfile.build`.** Use the maintained per-language image first; only create a custom `:build` image when nothing suitable exists.
+**Runtime image selection (always check this first):** if `docker/Dockerfile.build` exists in the project, use that image — it takes priority over everything in the table below. The table below is guidance for *creating* a toolchain image, not for choosing one at runtime.
+
+**Most projects do not need a custom `Dockerfile.build`.** Use the maintained per-language image unless the project has a specific need that the standard image cannot meet.
 
 | Language | Use this image | Notes |
 |----------|---------------|-------|
@@ -29,6 +31,8 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 | Python | `python:alpine` | Official Alpine image; use `python:slim-bookworm` (Debian slim) when a native-dep package fails to build on musl |
 | Other | Official Alpine image where one exists, then official Debian slim | Never use a `:latest` Ubuntu or full Debian image |
 | Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain |
+
+Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language.
 
 ## Dockerfile.build — Custom Toolchain Image
 
