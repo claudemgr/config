@@ -178,6 +178,13 @@ Update when a feature from a newer version is adopted.
 - **`golangci-lint`** is required for all projects; config lives at `{project_dir}/.golangci.yml`; CI runs it in `ci.yml`; minimum enabled linters: `errcheck`, `govet`, `staticcheck`, `unused`, `gosimple`
 - Never suppress a lint warning with a `//nolint` directive without an explanatory comment on the line above stating why
 
+## Formatting & Line Width
+
+- **`gofmt`** (or `goimports`) is the canonical formatter — always run before committing; no manual style debates
+- **`gofmt` does not enforce a line length** — the Go community has no official limit; do not wrap lines artificially
+- For `golangci-lint`, set `lll.line-length: 120` in `.golangci.yml` as a soft guide — CI warns but does not fail on lines between 120–180; lines over 180 are always a violation
+- Long lines that are the result of `gofmt` formatting (e.g. function signatures, struct literals) are acceptable; only hand-written prose-style comments should be kept under 120
+
 ## Error Handling
 
 - Wrap errors with context using `fmt.Errorf("operation: %w", err)` — always wrap, never discard

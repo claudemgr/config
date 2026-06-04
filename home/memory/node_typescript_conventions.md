@@ -162,6 +162,19 @@ export default tseslint.config(
 - Prettier handles formatting; ESLint handles correctness — never use ESLint to enforce formatting
 - Prettier config at `.prettierrc.json`; run `prettier --check src` in CI
 
+**Standard `.prettierrc.json`** — use this exact config for all Node/TS/Bun projects:
+
+```json
+{
+  "useTabs": false,
+  "printWidth": 120,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "noSemi": true
+}
+```
+
 ## Testing
 
 Use **Vitest** for new projects (faster, native ESM, TypeScript-first). Jest is acceptable for existing projects.
