@@ -119,7 +119,7 @@ Key rules always in effect:
 ## Build & Execution
 - Full rules: `~/.claude/memory/execution_hierarchy.md`
 - Execution hierarchy: QEMU/KVM > Incus > Docker > host
-- **Never build on the host** — always use Docker. Toolchain image hierarchy: Go → `casjaysdev/go:latest`; Rust → `casjaysdev/rust:latest`; Node → `node:alpine`; Python → `python:alpine` (fall back to `python:slim-bookworm` for musl-incompatible native deps); other languages → official Alpine image. Only use a project's `docker/Dockerfile.build` (`:build` image) when no suitable maintained image exists. See `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
+- **Never build on the host** — always use Docker. Image selection order (first match wins): **(1)** if `docker/Dockerfile.build` exists in the project, use that image — always, regardless of language; **(2)** if no project image exists, use the standard maintained image for the project's language: Go → `casjaysdev/go:latest`; Rust → `casjaysdev/rust:latest`; Node → `node:alpine`; Python → `python:alpine` (fall back to `python:slim-bookworm` for musl-incompatible native deps); other languages → official language image. Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language. See `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
 
 ## UI/UX
@@ -210,7 +210,7 @@ Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor ·
 
 **Workflow creation order:** Not all workflow files carry the same risk — create them in this order:
 1. **Security-only workflows** (secret scan, SHA/digest policy, dependency audit) — no build dependency; safe to add anytime
-2. **`build-toolchain.yml`** (`:build` image) — **only if the project has a `docker/Dockerfile.build`** (i.e. no suitable maintained image exists). Add once it builds successfully locally. Skip this step entirely for Go/Rust/Node/Python projects that use the standard maintained images
+2. **`build-toolchain.yml`** (`:build` image) — **only if the project has a `docker/Dockerfile.build`**. Add once it builds successfully locally. Skip for projects that use a standard maintained image and have no `docker/Dockerfile.build`
 3. **`ci.yml` and `release.yml`** — add **last**, only after all code is complete, `make test` passes, and the lint gate is clean; these trigger a full build on push and will fail immediately if the code is not ready
 
 **Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
