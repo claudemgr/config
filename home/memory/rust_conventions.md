@@ -160,7 +160,7 @@ For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2`
 | `--color` | — | `auto` / `yes` / `no` | Control color output |
 
 - `--color auto` detects terminal capability (default); `yes` forces color; `no` disables it and removes emojis from output.
-- Both `--color auto` and `--color=auto` must work — clap handles this natively.
+- All flags must support both `--flag value` and `--flag=value` — clap handles this natively.
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
 - `help` (bare, no `--`) must be a registered subcommand at every level — `myapp help` and `myapp subcmd help` produce the same output as their `--help` equivalents.
 - **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root/admin, or check privilege state; exit immediately with the help text.
@@ -169,7 +169,7 @@ For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2`
 
 Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). The flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Same pattern for `--yes` and `--no`.
 
-**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+**Exception:** `--color` is the standard three-value enum — `--color auto`, `--color yes`, `--color no`. There is no `--no-color` flag; `--color no` and the `NO_COLOR` env var both disable color.
 
 ```rust
 // Declare toggle flags with clap derive — never compound hyphenated names.

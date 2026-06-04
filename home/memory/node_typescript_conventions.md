@@ -255,13 +255,15 @@ class AppError extends Error {
 | `--debug` | — | — | Enable debug output |
 | `--color` | — | `auto` / `yes` / `no` | Control color output |
 
+All flags must support both `--flag value` and `--flag=value` — commander handles this natively.
+
 Use `commander` for simple CLIs, `oclif` for multi-command plugin-style tools. Never hand-roll argument parsing.
 
 ### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
 
 Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). The flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Same for `--yes` and `--no`.
 
-**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+**Exception:** `--color` is the standard three-value enum — `--color auto`, `--color yes`, `--color no`. There is no `--no-color` flag; `--color no` and the `NO_COLOR` env var both disable color.
 
 ```typescript
 // commander example — flag takes a required argument

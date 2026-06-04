@@ -463,15 +463,15 @@ Processes killed by a signal exit with `128 + {signal}`:
 
 ### Standard flags (all interactive scripts, all shells)
 
-| Flag | Short | Behavior |
-|------|-------|----------|
-| `--help` | `-h` | Print help and exit 0 — never escalate privileges |
-| `--version` | `-v` | Print version and exit 0 — never escalate privileges |
-| `--debug` | *(none)* | Enable debug output |
-| `--no-color` | *(none)* | Disable color output |
+| Flag | Short | Values | Behavior |
+|------|-------|--------|----------|
+| `--help` | `-h` | — | Print help and exit 0 — never escalate privileges |
+| `--version` | `-v` | — | Print version and exit 0 — never escalate privileges |
+| `--debug` | *(none)* | — | Enable debug output |
+| `--color` | *(none)* | `auto` / `yes` / `no` | Control color output |
 
 - `-h` and `-v` are the **only** short flags defined by default. No other short flags unless explicitly specified in `{project_dir}/IDEA.md`.
-- `--debug` and `--no-color` have no short equivalents.
+- `--debug` and `--color` have no short equivalents.
 - `--help` and `--version` must **never** require root/sudo — exit immediately with the requested output, regardless of privilege state.
 
 ### Help output format
@@ -526,10 +526,10 @@ Every help function (main, per-subcommand, nested) is assembled from the same fo
 __help() {
   __help_header "${APPNAME} [options] [command]"
   __help_section "Options"
-  __help_line "--help"     "Show this help message and exit"
-  __help_line "--version"  "Show version and exit"
-  __help_line "--debug"    "Enable debug output"
-  __help_line "--no-color" "Disable color output"
+  __help_line "--help"       "Show this help message and exit"
+  __help_line "--version"    "Show version and exit"
+  __help_line "--debug"      "Enable debug output"
+  __help_line "--color auto" "Control color output (auto|yes|no)"
   __help_section "Commands"
   __help_line "init"       "Initialize a new project"
   __help_line "build"      "Build the project"
@@ -580,41 +580,88 @@ Rules:
 
 ### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
 
-Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). Instead the flag takes the feature name as a required argument: `--enable=tls`, `--disable=cache`. Use the same pattern for `--yes` and `--no`.
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). Instead the flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Use the same pattern for `--yes` and `--no`. Both `--flag=value` and `--flag value` forms must work.
 
-With the `getopts` `-:` trick, long option arguments require `=` syntax (`--enable=value`, not `--enable value`). Split on `=` in the handler:
-
-**Exception:** `--color` / `--no-color` follow no-color.org convention — keep as-is.
+**Exception:** `--color` is the standard three-value enum (`auto`/`yes`/`no`) — handled the same way.
 
 ```bash
-# bash/sh — getopts -: trick, = required for long option arguments
+# bash — both --flag=value and --flag value supported
 while getopts ":hv-:" opt; do
   case "${opt}" in
     -)
-      case "${OPTARG}" in
-        enable=*)   ENABLE_TARGET="${OPTARG#enable=}"   ;;
-        disable=*)  DISABLE_TARGET="${OPTARG#disable=}" ;;
-        yes=*)      YES_TARGET="${OPTARG#yes=}"         ;;
-        no=*)       NO_TARGET="${OPTARG#no=}"           ;;
-        # color is the exception — handled separately
-        color=*)    COLOR_FLAG="${OPTARG#color=}"       ;;
-        *) printf 'Unknown option: --%s\n' "${OPTARG%%=*}" >&2; exit 2 ;;
+      flag="${OPTARG%%=*}"
+      case "${flag}" in
+        debug)   SCRIPTNAME_DEBUG=1; continue ;;
+        help)    __help; exit 0 ;;
+        version) __version; exit 0 ;;
+      esac
+      if [[ "${OPTARG}" == *=* ]]; then
+        val="${OPTARG#*=}"
+      else
+        val="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ))
+      fi
+      case "${flag}" in
+        color)   COLOR_FLAG="${val}"     ;;
+        enable)  ENABLE_TARGET="${val}"  ;;
+        disable) DISABLE_TARGET="${val}" ;;
+        yes)     YES_TARGET="${val}"     ;;
+        no)      NO_TARGET="${val}"      ;;
+        *) printf 'Unknown option: --%s\n' "${flag}" >&2; exit 2 ;;
       esac ;;
+    h) __help; exit 0    ;;
+    v) __version; exit 0 ;;
     *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
   esac
 done
+shift $((OPTIND - 1))
+```
+
+```sh
+# POSIX sh — eval to consume next positional when no = present
+while getopts ":hv-:" opt; do
+  case "${opt}" in
+    -)
+      flag="${OPTARG%%=*}"
+      case "${flag}" in
+        debug)   SCRIPTNAME_DEBUG=1; continue ;;
+        help)    __help; exit 0 ;;
+        version) __version; exit 0 ;;
+      esac
+      if [ "${OPTARG}" != "${flag}" ]; then
+        val="${OPTARG#*=}"
+      else
+        eval "val=\${$OPTIND}"
+        OPTIND=$(( OPTIND + 1 ))
+      fi
+      case "${flag}" in
+        color)   COLOR_FLAG="${val}"     ;;
+        enable)  ENABLE_TARGET="${val}"  ;;
+        disable) DISABLE_TARGET="${val}" ;;
+        yes)     YES_TARGET="${val}"     ;;
+        no)      NO_TARGET="${val}"      ;;
+        *) printf 'Unknown option: --%s\n' "${flag}" >&2; exit 2 ;;
+      esac ;;
+    h) __help; exit 0    ;;
+    v) __version; exit 0 ;;
+    *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
 ```
 
 ```zsh
-# zsh — zparseopts, = optional
-zparseopts -D -E -- -enable:=opt_enable -disable:=opt_disable -yes:=opt_yes -no:=opt_no
+# zsh — zparseopts, = optional; both forms supported natively
+zparseopts -D -E -- -color:=opt_color -enable:=opt_enable -disable:=opt_disable \
+    -yes:=opt_yes -no:=opt_no
+COLOR_FLAG="${opt_color[2]}"
 ENABLE_TARGET="${opt_enable[2]}"
 DISABLE_TARGET="${opt_disable[2]}"
 ```
 
 ```fish
-# fish — argparse
-argparse 'enable=' 'disable=' 'yes=' 'no=' -- $argv
+# fish — argparse; both forms supported natively
+argparse 'color=' 'enable=' 'disable=' 'yes=' 'no=' -- $argv
+set COLOR_FLAG $_flag_color
 set ENABLE_TARGET $_flag_enable
 set DISABLE_TARGET $_flag_disable
 ```
@@ -633,9 +680,9 @@ if [[ -n "${NO_COLOR}" ]]; then
 fi
 ```
 
-`--no-color` flag sets the same state as `NO_COLOR` being present. Both must be checked; either disables color and emojis in output.
+`--color no` sets the same state as `NO_COLOR` being present. Both must be checked; either disables color and emojis in output.
 
-**Note — flag name differs by language by design:** Shell scripts use `--no-color` (a boolean on/off flag). Compiled Go and Rust binaries use `--color auto|yes|no` (a three-value enum that also covers auto-detection). Both conventions honor the `NO_COLOR` env var. Do not apply the Go/Rust `--color` pattern to shell scripts, and do not apply the shell `--no-color` pattern to compiled binaries.
+All scripts and compiled binaries use `--color auto|yes|no`. `--no-color` is not a valid flag anywhere — `--color no` covers it and is unambiguous.
 
 ### Argument parsing — use the shell's native builtin parser
 
@@ -643,12 +690,12 @@ fi
 
 | Shell | Parser | Long option support |
 |-------|--------|-------------------|
-| bash | `getopts` built-in with `-:` trick | Short (`-h`) + long (`--help`) — not `--flag=value` |
+| bash | `getopts` built-in with `-:` trick | Short (`-h`) + long (`--help`) + `--flag=value` + `--flag value` |
 | sh (POSIX) | `getopts` built-in with `-:` trick | Same as bash |
 | zsh | `zparseopts` built-in | Yes — including `--flag=value` |
 | fish | `argparse` built-in | Yes |
 
-**bash / sh — `getopts` with `-:` trick (short + long flags):**
+**bash / sh — `getopts` with `-:` trick (short + long flags, both `--flag=value` and `--flag value`):**
 
 ```bash
 while getopts ":hv-:" opt; do
@@ -656,12 +703,21 @@ while getopts ":hv-:" opt; do
     h) __help; exit 0 ;;
     v) __version; exit 0 ;;
     -)
-      case "${OPTARG}" in
-        help)     __help; exit 0 ;;
-        version)  __version; exit 0 ;;
-        debug)    SCRIPTNAME_DEBUG=1 ;;
-        no-color) NO_COLOR=1 ;;
-        *) printf 'Unknown option: --%s\n' "${OPTARG}" >&2; exit 2 ;;
+      flag="${OPTARG%%=*}"
+      case "${flag}" in
+        help)    __help; exit 0    ;;
+        version) __version; exit 0 ;;
+        debug)   SCRIPTNAME_DEBUG=1; continue ;;
+      esac
+      # value-taking flags — detect = inline vs space-separated
+      if [[ "${OPTARG}" == *=* ]]; then
+        val="${OPTARG#*=}"
+      else
+        val="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ))
+      fi
+      case "${flag}" in
+        color) COLOR_FLAG="${val}" ;;
+        *) printf 'Unknown option: --%s\n' "${flag}" >&2; exit 2 ;;
       esac ;;
     *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
   esac
@@ -669,27 +725,28 @@ done
 shift $((OPTIND - 1))
 ```
 
-The `-:` in the optstring tells `getopts` to treat `-` as a valid option character; `${OPTARG}` then holds the long option name. This handles `--flag` and `--flag value` but NOT `--flag=value` — avoid `=` syntax in shell scripts.
+The `-:` in the optstring tells `getopts` to treat `-` as a valid option character; `${OPTARG}` holds the rest after `--`. For value-taking flags, detect `=` in OPTARG to distinguish `--flag=value` from `--flag value`. Boolean flags (`--debug`) must be handled before the value-consuming block. POSIX sh uses `eval "val=\${$OPTIND}"` instead of `${!OPTIND}`.
 
 **zsh — `zparseopts` pattern:**
 
 ```zsh
-zparseopts -D -E -- h=opt_help -help=opt_help v=opt_version -version=opt_version -debug=opt_debug -no-color=opt_nocolor
+zparseopts -D -E -- h=opt_help -help=opt_help v=opt_version -version=opt_version \
+    -debug=opt_debug -color:=opt_color
 [[ -n "${opt_help}" ]]    && { __help; exit 0 }
 [[ -n "${opt_version}" ]] && { __version; exit 0 }
 [[ -n "${opt_debug}" ]]   && SCRIPTNAME_DEBUG=1
-[[ -n "${opt_nocolor}" ]] && NO_COLOR=1
+[[ -n "${opt_color}" ]]   && COLOR_FLAG="${opt_color[2]}"
 ```
 
 **fish — `argparse` pattern:**
 
 ```fish
-argparse h/help v/version debug no-color -- $argv
+argparse h/help v/version debug 'color=' -- $argv
 or return 1
-if set -q _flag_help;     __help; return 0; end
-if set -q _flag_version;  __version; return 0; end
-if set -q _flag_debug;    set -g SCRIPTNAME_DEBUG 1; end
-if set -q _flag_no_color; set -gx NO_COLOR 1; end
+if set -q _flag_help;    __help; return 0; end
+if set -q _flag_version; __version; return 0; end
+if set -q _flag_debug;   set -g SCRIPTNAME_DEBUG 1; end
+if set -q _flag_color;   set -g COLOR_FLAG $_flag_color; end
 ```
 
 ## Library Scripts — Sourced vs Direct Execution
