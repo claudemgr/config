@@ -199,6 +199,24 @@ This table covers files Claude actively manages and files with non-obvious place
 - Emojis in section headers are appropriate and encouraged; keep them consistent within a file
 - No `## Table of Contents` — headings are the navigation; ToC adds noise for short-to-medium READMEs
 
+### Badges
+
+Badges appear at the top of the README, immediately after the H1 title and description paragraph.
+
+**Every badge MUST be a linked badge** — `[![alt](image_url)](link_url)` is the only valid form. A bare `![alt](image_url)` with no wrapping link is never acceptable for a badge. A badge that does not link anywhere is useless noise.
+
+**Each badge links to the resource it represents:**
+
+| Badge | Links to |
+|-------|----------|
+| CI / build status | CI runs page (e.g. `…/actions/workflows/ci.yml`, `…/-/pipelines`, Jenkins job page) |
+| Release / version | Releases page (e.g. `…/releases`) |
+| License | `LICENSE.md` in the repo root |
+| Docs | Documentation site URL |
+| Any other badge | The most relevant page for the metric being displayed |
+
+**The CI badge MUST match the actual hosting platform** — detect by checking for workflow files: `.github/workflows/*.yml` → GitHub Actions; `.gitea/workflows/*.yml` → Gitea/Forgejo; `.gitlab-ci.yml` → GitLab CI; `Jenkinsfile` → Jenkins. Never use a GitHub Actions badge for a GitLab or Gitea project.
+
 ### Install section — platform coverage rule
 
 **The install section MUST cover every platform the project builds for.** Covering one platform when the Makefile builds eight is a documentation bug.
