@@ -257,6 +257,22 @@ class AppError extends Error {
 
 Use `commander` for simple CLIs, `oclif` for multi-command plugin-style tools. Never hand-roll argument parsing.
 
+### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
+
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). The flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Same for `--yes` and `--no`.
+
+**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+
+```typescript
+// commander example — flag takes a required argument
+program.option("--enable <feature>",  "Enable a named feature");
+program.option("--disable <feature>", "Disable a named feature");
+program.option("--yes <thing>",       "Confirm yes for a named operation");
+program.option("--no-op <thing>",     "Confirm no for a named operation");
+// Note: commander treats --no-X as a boolean negation; use --no-op or a different name
+// if the argument conflicts. In practice, prefer --disable over --no for Node CLIs.
+```
+
 ## NO_COLOR Support
 
 ```typescript
@@ -296,3 +312,4 @@ Pass via `--build-arg` in Docker or `--env` at container run time. Never hardcod
 - **`const` over `let`; never `var`**
 - **Explicit return types on all exported functions** — inferred types are fine for unexported helpers
 - **No `@ts-ignore`** — use `@ts-expect-error` with an explanatory comment on the line above when suppression is genuinely needed
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `setInterval`/`setTimeout` for simple intervals; `node-schedule` for cron-expression scheduling; `bullmq` for durable job queues with persistence.

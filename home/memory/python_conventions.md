@@ -215,6 +215,20 @@ def test_parse_version(version: str, expected: tuple[int, int, int]) -> None:
 
 Use `argparse` (stdlib) for simple tools, `typer` (type-hint-driven) for complex CLIs, `click` when typer is insufficient. Never hand-roll argument parsing.
 
+### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
+
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). The flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Same for `--yes` and `--no`.
+
+**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+
+```python
+# argparse example
+parser.add_argument("--enable",  metavar="FEATURE", help="Enable a named feature")
+parser.add_argument("--disable", metavar="FEATURE", help="Disable a named feature")
+parser.add_argument("--yes",     metavar="THING",   help="Confirm yes for a named operation")
+parser.add_argument("--no",      metavar="THING",   help="Confirm no for a named operation")
+```
+
 ## NO_COLOR Support
 
 ```python
@@ -262,3 +276,4 @@ Pass via `--build-arg` in Docker or `--env` at container run time. For installed
 - **f-strings** over `%`-formatting and `.format()`
 - **`logging` over `print`** — configure log level at the entry point; library code uses `logging.getLogger(__name__)`; never `print()` in library code
 - **No `sys.exit()` in library code** — only in CLI entry points; library code raises exceptions
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `asyncio.sleep` loop for async periodic tasks; `time.sleep` loop for sync tasks; `APScheduler` for multiple jobs or cron-expression scheduling; `schedule` library for simple single-process interval jobs.

@@ -390,6 +390,23 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
 - **Headers**: update `##@Version` to the current timestamp (`date +'%Y%m%d%H%M-git'`) and the first `VERSION=` assignment after the header on every change — only those two, nothing else
 - **Line length**: if a complete command is ≤180 characters, write it on a single line — including pipelines. Only split when the line exceeds 180 characters, or when the command contains an embedded program that inherently spans lines (e.g. a multi-line `awk` or `sed` script)
 
+## Setup and Install Script Env Prefix
+
+Setup, install, and uninstall scripts must prefix all environment variables with `{PROJECT_NAME}_` (uppercased). Never use generic prefixes like `INSTALL_`, `SETUP_`, or `UNINSTALL_` — they collide across projects and give no namespace.
+
+```bash
+# Correct — namespaced to the project
+MYAPP_PORT="${MYAPP_PORT:-8080}"
+MYAPP_CONFIG_DIR="${MYAPP_CONFIG_DIR:-/etc/myapp}"
+MYAPP_SKIP_CONFIRM="${MYAPP_SKIP_CONFIRM:-0}"
+
+# Wrong — generic, collides across projects
+INSTALL_PORT="${INSTALL_PORT:-8080}"
+SETUP_CONFIG_DIR="${SETUP_CONFIG_DIR:-/etc/myapp}"
+```
+
+The variable name after the prefix follows UPPER_SNAKE_CASE. Default values via `${VAR:-default}` are always provided for optional settings.
+
 ## Exit Codes
 
 Use standard POSIX and sysexits codes — never invent custom schemes.
@@ -560,6 +577,47 @@ Rules:
 - `help` with no subcommand shows the parent-level help
 - Never write separate implementations for each trigger — all must call the same `__help*` function
 - **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root, or check privilege state; exit immediately with the help text
+
+### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
+
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). Instead the flag takes the feature name as a required argument: `--enable=tls`, `--disable=cache`. Use the same pattern for `--yes` and `--no`.
+
+With the `getopts` `-:` trick, long option arguments require `=` syntax (`--enable=value`, not `--enable value`). Split on `=` in the handler:
+
+**Exception:** `--color` / `--no-color` follow no-color.org convention — keep as-is.
+
+```bash
+# bash/sh — getopts -: trick, = required for long option arguments
+while getopts ":hv-:" opt; do
+  case "${opt}" in
+    -)
+      case "${OPTARG}" in
+        enable=*)   ENABLE_TARGET="${OPTARG#enable=}"   ;;
+        disable=*)  DISABLE_TARGET="${OPTARG#disable=}" ;;
+        yes=*)      YES_TARGET="${OPTARG#yes=}"         ;;
+        no=*)       NO_TARGET="${OPTARG#no=}"           ;;
+        # color is the exception — handled separately
+        color=*)    COLOR_FLAG="${OPTARG#color=}"       ;;
+        *) printf 'Unknown option: --%s\n' "${OPTARG%%=*}" >&2; exit 2 ;;
+      esac ;;
+    *) printf 'Unknown option: -%s\n' "${OPTARG}" >&2; exit 2 ;;
+  esac
+done
+```
+
+```zsh
+# zsh — zparseopts, = optional
+zparseopts -D -E -- -enable:=opt_enable -disable:=opt_disable -yes:=opt_yes -no:=opt_no
+ENABLE_TARGET="${opt_enable[2]}"
+DISABLE_TARGET="${opt_disable[2]}"
+```
+
+```fish
+# fish — argparse
+argparse 'enable=' 'disable=' 'yes=' 'no=' -- $argv
+set ENABLE_TARGET $_flag_enable
+set DISABLE_TARGET $_flag_disable
+```
 
 ### NO_COLOR support
 

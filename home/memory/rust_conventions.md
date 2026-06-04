@@ -165,6 +165,36 @@ For Rust, use the `sysexits` crate or define constants locally. `clap` exits `2`
 - `help` (bare, no `--`) must be a registered subcommand at every level — `myapp help` and `myapp subcmd help` produce the same output as their `--help` equivalents.
 - **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root/admin, or check privilege state; exit immediately with the help text.
 
+### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
+
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). The flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Same pattern for `--yes` and `--no`.
+
+**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+
+```rust
+// Declare toggle flags with clap derive — never compound hyphenated names.
+#[derive(Parser)]
+struct Cli {
+    /// Enable a named feature
+    #[arg(long, value_name = "FEATURE")]
+    enable: Option<String>,
+
+    /// Disable a named feature
+    #[arg(long, value_name = "FEATURE")]
+    disable: Option<String>,
+
+    /// Confirm yes for a named operation
+    #[arg(long, value_name = "THING")]
+    yes: Option<String>,
+
+    /// Confirm no for a named operation
+    #[arg(long, value_name = "THING")]
+    no: Option<String>,
+}
+```
+
+Both `--enable featurename` and `--enable=featurename` work — clap handles both natively.
+
 ### Help output format
 
 **Applies everywhere help is shown** — `--help`, `help` (bare subcommand), and `subcommand help`. All produce identical output via the same function.
@@ -360,3 +390,4 @@ thiserror = "2"    # library crates (pick one, not both)
 - **Rust-only source** — no C/C++ in the binary (ring is the pre-approved exception)
 - **Embed assets at build time** — use `include_bytes!`, `include_str!`, or the `built` crate; never load from filesystem at runtime
 - **No hardcoded temp paths** — use `std::env::temp_dir()` and always prefix with `{project_org}/{internal_name}-XXXXXX` (`{internal_name}` is the frozen on-disk identifier; never `{project_name}` which may change). See `tempdir_conventions.md`.
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `tokio::time::interval` / `tokio::time::sleep` for async periodic tasks; a `std::thread::sleep` loop for sync periodic tasks; the `cron` crate for cron-expression parsing. Never `std::process::Command::new("cron")` or similar.

@@ -198,7 +198,7 @@ Update when a feature from a newer version is adopted.
 - **Strip release binaries** — always pass `-s -w` in LDFLAGS for `build`, `release`, and `docker` targets; `-s` strips the symbol table, `-w` strips DWARF debug info. The `dev` target (quick local build) omits `-s -w` to preserve debug symbols
 - **No `-musl` suffix** — never include `-musl` in the output binary name; the binary naming schema is `{name}-{GOOS}-{GOARCH}` regardless of libc used to build
 - **No `go build` on host** — always via `make dev`, `make build`, `make test` (Docker internally)
-- **No external cron** — use a built-in scheduler (e.g. `robfig/cron`, `go-co-op/gocron`, or a ticker loop); never depend on host cron or systemd timers for application-level scheduling
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `time.Ticker` or `time.Sleep` loop for simple periodic tasks; `go-co-op/gocron` for multiple jobs or cron-expression scheduling. Do not use `robfig/cron` in new code — prefer `go-co-op/gocron` which has a cleaner API and active maintenance.
 - **No `strconv.ParseBool()`** — use `config.ParseBool()` which handles 40+ variations
 - **No client-side rendering** — server-side Go templates only
 - **Single static binary** — `go:embed` for assets; zero runtime file deps
@@ -226,6 +226,24 @@ For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — 
 - `--help` and `--version` must never require root — always exit immediately with the requested output.
 - `help` (bare, no `--`) must be a recognized command at every level — `myapp help` and `myapp subcmd help` produce the same output as their `--help` equivalents.
 - **No escalation** — help at every level (main, subcommand, nested) must never call `sudo`, require root/admin, or check privilege state; exit immediately with the help text.
+
+### Toggle flags — `--enable`, `--disable`, `--yes`, `--no`
+
+Never use compound hyphenated flags (`--enable-tls`, `--disable-cache`). Instead the flag takes the feature name as a required argument: `--enable tls`, `--disable cache`. Use the same pattern for `--yes` and `--no`. This keeps the flag set small and routes all toggle intent through one handler.
+
+**Exception:** `--color` and `--no-color` follow the no-color.org convention — keep as-is.
+
+```go
+// Declare flags that take the thing-to-toggle as an argument.
+// Never: --enable-tls, --disable-cache, --yes-overwrite
+// Always: --enable tls, --disable cache, --yes overwrite
+rootCmd.Flags().StringVar(&enableFeature,  "enable",  "", "Enable a named feature")
+rootCmd.Flags().StringVar(&disableFeature, "disable", "", "Disable a named feature")
+rootCmd.Flags().StringVar(&yesTarget,      "yes",     "", "Confirm yes for a named operation")
+rootCmd.Flags().StringVar(&noTarget,       "no",      "", "Confirm no for a named operation")
+```
+
+Both `--enable featurename` and `--enable=featurename` work — cobra/pflag handles both natively.
 
 ### Help output format
 
