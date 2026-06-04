@@ -651,8 +651,7 @@ shift $((OPTIND - 1))
 
 ```zsh
 # zsh — zparseopts, = optional; both forms supported natively
-zparseopts -D -E -- -color:=opt_color -enable:=opt_enable -disable:=opt_disable \
-    -yes:=opt_yes -no:=opt_no
+zparseopts -D -E -- -color:=opt_color -enable:=opt_enable -disable:=opt_disable -yes:=opt_yes -no:=opt_no
 COLOR_FLAG="${opt_color[2]}"
 ENABLE_TARGET="${opt_enable[2]}"
 DISABLE_TARGET="${opt_disable[2]}"
@@ -730,8 +729,7 @@ The `-:` in the optstring tells `getopts` to treat `-` as a valid option charact
 **zsh — `zparseopts` pattern:**
 
 ```zsh
-zparseopts -D -E -- h=opt_help -help=opt_help v=opt_version -version=opt_version \
-    -debug=opt_debug -color:=opt_color
+zparseopts -D -E -- h=opt_help -help=opt_help v=opt_version -version=opt_version -debug=opt_debug -color:=opt_color
 [[ -n "${opt_help}" ]]    && { __help; exit 0 }
 [[ -n "${opt_version}" ]] && { __version; exit 0 }
 [[ -n "${opt_debug}" ]]   && SCRIPTNAME_DEBUG=1

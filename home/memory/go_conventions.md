@@ -198,7 +198,7 @@ Update when a feature from a newer version is adopted.
 - **Strip release binaries** — always pass `-s -w` in LDFLAGS for `build`, `release`, and `docker` targets; `-s` strips the symbol table, `-w` strips DWARF debug info. The `dev` target (quick local build) omits `-s -w` to preserve debug symbols
 - **No `-musl` suffix** — never include `-musl` in the output binary name; the binary naming schema is `{name}-{GOOS}-{GOARCH}` regardless of libc used to build
 - **No `go build` on host** — always via `make dev`, `make build`, `make test` (Docker internally)
-- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `time.Ticker` or `time.Sleep` loop for simple periodic tasks; `go-co-op/gocron` for multiple jobs or cron-expression scheduling. Do not use `robfig/cron` in new code — prefer `go-co-op/gocron` which has a cleaner API and active maintenance.
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `time.Ticker` or `time.Sleep` loop for simple periodic tasks; `go-co-op/gocron` for multiple jobs or cron-expression scheduling.
 - **No `strconv.ParseBool()`** — use `config.ParseBool()` which handles 40+ variations
 - **No client-side rendering** — server-side Go templates only
 - **Single static binary** — `go:embed` for assets; zero runtime file deps

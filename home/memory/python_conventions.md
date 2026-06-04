@@ -278,4 +278,4 @@ Pass via `--build-arg` in Docker or `--env` at container run time. For installed
 - **f-strings** over `%`-formatting and `.format()`
 - **`logging` over `print`** — configure log level at the entry point; library code uses `logging.getLogger(__name__)`; never `print()` in library code
 - **No `sys.exit()` in library code** — only in CLI entry points; library code raises exceptions
-- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `asyncio.sleep` loop for async periodic tasks; `time.sleep` loop for sync tasks; `APScheduler` for multiple jobs or cron-expression scheduling; `schedule` library for simple single-process interval jobs.
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `asyncio.sleep` loop for simple async periodic tasks; `time.sleep` loop for simple sync tasks; `APScheduler` for multiple jobs, cron-expression scheduling, or any non-trivial scheduling need.

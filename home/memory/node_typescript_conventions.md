@@ -314,4 +314,4 @@ Pass via `--build-arg` in Docker or `--env` at container run time. Never hardcod
 - **`const` over `let`; never `var`**
 - **Explicit return types on all exported functions** — inferred types are fine for unexported helpers
 - **No `@ts-ignore`** — use `@ts-expect-error` with an explanatory comment on the line above when suppression is genuinely needed
-- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `setInterval`/`setTimeout` for simple intervals; `node-schedule` for cron-expression scheduling; `bullmq` for durable job queues with persistence.
+- **No external cron** — never depend on host cron or systemd timers for application-level scheduling. Use in-process scheduling only: `setInterval`/`setTimeout` for simple intervals; `node-schedule` for cron-expression scheduling and date-based jobs.
