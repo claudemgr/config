@@ -71,7 +71,7 @@ Flag any missing field or wrong value.
 
 - Must use `clap` (derive API) for argument parsing — never hand-roll. Flag manual `std::env::args()` loops.
 - Must support `-h`/`--help` and `-v`/`--version` (clap generates these; verify they are not suppressed with `disable_help_flag` or `disable_version_flag`).
-- Must support `--debug` and `--color` (values: `auto`, `yes`, `no`). Flag if absent.
+- Must support `--debug` and `--color` (values: `auto` (default), `yes`, `no`). Flag if absent or if default is not `auto`.
 - Both `--color auto` and `--color=auto` must work — clap handles this natively; no extra parsing needed.
 - `--help` and `--version` must never be gated behind privilege checks. Flag any `nix::unistd::getuid()` or capability check before help/version output.
 

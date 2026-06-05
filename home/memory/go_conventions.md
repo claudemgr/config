@@ -233,7 +233,7 @@ For Go, import `golang.org/x/sys/unix` or define sysexits constants locally — 
 | `--help` | `-h` | — | Print help and exit 0 — never escalate privileges |
 | `--version` | `-v` | — | Print version and exit 0 — never escalate privileges |
 | `--debug` | — | — | Enable debug output |
-| `--color` | — | `auto` / `yes` / `no` | Control color output |
+| `--color` | — | `auto` (default) / `yes` / `no` | Color output — `auto`: TTY detect; `yes`: force on; `no`: force off |
 
 - `--color auto` detects terminal capability (default); `yes` forces color; `no` disables it and removes emojis from output.
 - All flags must support both `--flag value` and `--flag=value` — cobra/pflag handles this natively.

@@ -253,7 +253,9 @@ class AppError extends Error {
 | `--help` | `-h` | — | Print help and exit 0 |
 | `--version` | `-v` | — | Print version and exit 0 |
 | `--debug` | — | — | Enable debug output |
-| `--color` | — | `auto` / `yes` / `no` | Control color output |
+| `--color` | — | `auto` (default) / `yes` / `no` | Color output — `auto`: TTY detect; `yes`: force on; `no`: force off |
+
+- `--color auto` detects terminal capability (default); `yes` forces color on; `no` disables it and removes emojis from output.
 
 All flags must support both `--flag value` and `--flag=value` — commander handles this natively.
 

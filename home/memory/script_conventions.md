@@ -468,10 +468,11 @@ Processes killed by a signal exit with `128 + {signal}`:
 | `--help` | `-h` | — | Print help and exit 0 — never escalate privileges |
 | `--version` | `-v` | — | Print version and exit 0 — never escalate privileges |
 | `--debug` | *(none)* | — | Enable debug output |
-| `--color` | *(none)* | `auto` / `yes` / `no` | Control color output |
+| `--color` | *(none)* | `auto` (default) / `yes` / `no` | Color output — `auto`: TTY detect; `yes`: force on; `no`: force off |
 
 - `-h` and `-v` are the **only** short flags defined by default. No other short flags unless explicitly specified in `{project_dir}/IDEA.md`.
 - `--debug` and `--color` have no short equivalents.
+- `--color auto` detects terminal capability (default); `yes` forces color on; `no` disables it and removes emojis from output.
 - `--help` and `--version` must **never** require root/sudo — exit immediately with the requested output, regardless of privilege state.
 
 ### Help output format

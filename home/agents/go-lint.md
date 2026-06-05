@@ -51,7 +51,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 ### Standard CLI flags (binaries with a help flag)
 
 - Must support `-h`/`--help` and `-v`/`--version`. Flag if absent.
-- Must support `--debug` and `--color` (values: `auto`, `yes`, `no`). Flag if absent.
+- Must support `--debug` and `--color` (values: `auto` (default), `yes`, `no`). Flag if absent or if default is not `auto`.
 - `--color` and `--color=auto` (space and `=` forms) must both work — use `flag`, `pflag`, or `cobra`; never hand-roll argument parsing.
 - `--help` and `--version` must never be gated behind privilege checks. Flag any `os.Getuid()` or sudo check before printing help/version.
 
