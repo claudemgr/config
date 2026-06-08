@@ -2,6 +2,7 @@
   "model": "sonnet",
   "agent": "general",
   "language": "english",
+  "autoCompactEnabled": true,
   "cleanupPeriodDays": 60,
   "autoUpdatesChannel": "stable",
   "plansDirectory": "./.claude/plans",
@@ -327,6 +328,17 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/session-start.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/pre-compact.sh",
             "timeout": 10
           }
         ]
