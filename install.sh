@@ -100,7 +100,14 @@ if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
     \claude mcp remove --scope user fetch 2>/dev/null || true
     \claude mcp add --scope user --transport stdio fetch -- npx -y @anthropic-ai/mcp-server-fetch 2>/dev/null || true
   fi
-  \claude config set -g autoCompactEnabled true 2>/dev/null || true
+  python3 -c "
+import json, pathlib
+p = pathlib.Path.home() / '.claude.json'
+if p.exists():
+    d = json.loads(p.read_text())
+    d['autoCompactEnabled'] = True
+    p.write_text(json.dumps(d, indent=2))
+" 2>/dev/null || true
   if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
     __printf_color "The claude config files, plugins, and MCP servers have been installed" "$PRINTF_SET_GREEN"
   else
