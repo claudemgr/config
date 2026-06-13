@@ -21,16 +21,18 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 
 **Runtime image selection (always check this first):** if `docker/Dockerfile.build` exists in the project, use that image — it takes priority over everything in the table below. The table below is guidance for *creating* a toolchain image, not for choosing one at runtime.
 
-**Most projects do not need a custom `Dockerfile.build`.** Use the maintained per-language image unless the project has a specific need that the standard image cannot meet.
+**Go and Rust projects NEVER get a `docker/Dockerfile.build`.** The maintained images are comprehensive enough that no custom toolchain image is ever needed for those languages — this is an absolute rule, not a suggestion.
+
+**All other languages:** use the maintained per-language image unless the project has a specific need that the standard image cannot meet.
 
 | Language | Use this image | Notes |
 |----------|---------------|-------|
-| Go | `casjaysdev/go:latest` | Alpine; latest stable Go; golangci-lint, staticcheck, govulncheck, goreleaser, and ~20 more tools pre-installed; `CGO_ENABLED=0` by default; `GOTOOLCHAIN=auto` |
-| Rust | `casjaysdev/rust:latest` | Alpine; stable + nightly; clippy, rustfmt, cargo-audit, cargo-nextest, cargo-zigbuild, 30 cross-compile targets, sccache pre-installed |
+| Go | `casjaysdev/go:latest` | Alpine; latest stable Go; goreleaser, golangci-lint, staticcheck, gofumpt, gotestsum, ko, air, buf, goose, goimports, stringer, gopls, govulncheck, dlv, gops, benchstat, wire, mockgen, protoc-gen-go, protoc-gen-go-grpc pre-installed; `CGO_ENABLED=0`; `GOTOOLCHAIN=auto`. **Never create `docker/Dockerfile.build` for a Go project.** |
+| Rust | `casjaysdev/rust:latest` | Alpine; stable + nightly; rustfmt, clippy, rust-src, rust-analyzer, llvm-tools-preview, miri; C/C++ toolchain (clang, lld, cmake, gdb); mingw-w64-gcc; zig; binaryen; 30+ cross-compile targets (musl/glibc Linux, Windows GNU, macOS, FreeBSD, WASM, embedded ARM/RISC-V, Android); cargo-binstall; 40+ cargo tools (cargo-audit, cargo-deny, cargo-tarpaulin, cargo-llvm-cov, sccache, cargo-zigbuild, wasm-pack, cargo-nextest, cargo-release, cargo-dist, cargo-deb, and more). **Never create `docker/Dockerfile.build` for a Rust project.** |
 | Node / TypeScript | `node:alpine` | Official Alpine image — add project tools via `npm ci` inside the container |
 | Python | `python:alpine` | Official Alpine image; use `python:slim-bookworm` (Debian slim) when a native-dep package fails to build on musl |
 | Other | Official Alpine image where one exists, then official Debian slim | Never use a `:latest` Ubuntu or full Debian image |
-| Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain |
+| Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain. **Never for Go or Rust.** |
 
 Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language.
 

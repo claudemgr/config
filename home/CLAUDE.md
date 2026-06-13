@@ -120,6 +120,7 @@ Key rules always in effect:
 - Full rules: `~/.claude/memory/execution_hierarchy.md`
 - Execution hierarchy: QEMU/KVM > Incus > Docker > host
 - **Never build on the host** — always use Docker. Image selection order (first match wins): **(1)** if `docker/Dockerfile.build` exists in the project, use that image — always, regardless of language; **(2)** if no project image exists, use the standard maintained image for the project's language: Go → `casjaysdev/go:latest`; Rust → `casjaysdev/rust:latest`; Node → `node:alpine`; Python → `python:alpine` (fall back to `python:slim-bookworm` for musl-incompatible native deps); other languages → official language image. Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language. See `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
+- **Go and Rust projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/go:latest` and `casjaysdev/rust:latest` are fully comprehensive maintained images; no custom toolchain image is ever needed for these languages. This rule is absolute.
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
 
 ## UI/UX
