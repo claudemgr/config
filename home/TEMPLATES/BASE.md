@@ -486,6 +486,7 @@ Must contain:
 - [ ] No hardcoded machine-specific values
 - [ ] No TODO/FIXME/HACK in committed code
 - [ ] No commented-out code
+- [ ] No bare `@mentions` in commit message body (write names without `@` or wrap in backticks — bare `@username` creates a GitHub contributor notification)
 - [ ] Documentation updated if behavior changed
 
 ## Pre-Release Checklist
