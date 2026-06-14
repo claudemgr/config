@@ -199,6 +199,8 @@ Dependency graph takes priority over label order. Numbered/lettered sequence is 
 
 **Message format:** `{emoji} Title (≤64 chars) {emoji}` + blank line + body + `- path: change` bullets per file
 
+**No bare `@` in commit bodies** — any `@name` in a commit message body creates a GitHub contributor notification and links the handle. Never use `@username` in a commit message unless intentionally crediting a real contributor; write names without `@` or wrap in backticks to prevent parsing.
+
 Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
 
 **Cadence:** one logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
