@@ -39,6 +39,7 @@ Body: what changed and why (2–5 sentences).
 - Bullets describe the change, not the file name
 - No "updated", "modified", "changed" as sole verbs — be specific
 - No AI attribution (no `Co-Authored-By:`, no "Generated with" footers)
+- No bare `@mentions` in the body — any `@username` creates a GitHub contributor notification; write names without `@` or wrap in backticks unless intentionally crediting a real contributor
 
 ## What NOT to do
 
