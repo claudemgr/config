@@ -137,8 +137,9 @@ ls -la "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 
 - **NEVER** create or modify files in the project directory during testing — all runtime output goes to the temp dir
 - **Coverage files are test output** — never write `coverage.out` or any coverage artifact to `$PWD`/the project tree. Where it goes depends on context:
-  - **Inside a `--rm` container**: write to `/tmp/coverage.out` — the entire container filesystem is destroyed on exit, so the full `{project_org}/{internal_name}-XXXXXX` namespacing is unnecessary and impractical (the container doesn't know those values without extra env vars).
+  - **Single container invocation** (Makefile `sh -c "…"`, or a `container:` job where all steps share one container instance): write to `/tmp/coverage.out` — the container is destroyed on exit and `/tmp` is shared within the same instance.
+  - **Multi-step `docker run` pattern** (step 1 writes via one `docker run`, step 2 reads via a separate `docker run`): `/tmp` is NOT shared across separate container invocations — write to the workspace-mounted path (e.g. `coverage.out` inside `-w /app`) so it persists between the two runs. The runner workspace is ephemeral and exempt.
   - **On the host (outside any container)**: follow the full tempdir convention — `${TMPDIR:-/tmp}/{project_org}/{internal_name}-XXXXXX/coverage.out`.
-  - **CI runner workspaces**: ephemeral by definition; exempt from the host rule. Use whatever path the tool expects.
+  - **CI runner workspaces**: ephemeral by definition; exempt from the host rule. Use whatever path the tool or pattern requires.
 - **`$PWD` not `$(pwd)` in docker `-v` flags** — `$(pwd)` is a shell command substitution that Claude Code's static analyzer cannot resolve, triggering a permission prompt on every invocation. `$PWD` is statically analyzable and identical in value. In Makefiles, `$(PWD)` is the correct Makefile variable form.
 - For Docker Compose testing rules, see `~/.claude/memory/dockerfile_conventions.md § AI Docker Compose rules`
