@@ -590,7 +590,7 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 
 `ci.yml` must enforce a minimum coverage threshold. The threshold is defined in `{project_dir}/IDEA.md` under `## Business logic`. If not specified, default is 60%. CI must fail when coverage drops below the threshold — a passing build with uncovered code is a silent regression.
 
-**Go:** use `go test -cover ./... | tee coverage.out` and parse the total; fail if below threshold.
+**Go:** use `go test -cover -coverprofile=/tmp/coverage.out ./...` then `go tool cover -func=/tmp/coverage.out` to parse the total; fail if below threshold. Use `/tmp/coverage.out` (not a bare filename) — CI runner workspaces are ephemeral but explicit paths avoid confusion.
 **Rust:** use `cargo tarpaulin` or `cargo llvm-cov`; fail if below threshold.
 
 ## Security Requirements
