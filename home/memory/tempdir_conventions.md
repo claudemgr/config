@@ -136,4 +136,6 @@ ls -la "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 ## AI-Specific Rules
 
 - **NEVER** create or modify files in the project directory during testing — all runtime output goes to the temp dir
+- **Coverage files are test output** — write `-coverprofile=/tmp/coverage.out` inside the container (ephemeral with `--rm`), or mount a temp dir. Never write `coverage.out` or any coverage artifact to `$PWD`/the project tree. CI runner workspaces are ephemeral and exempt from this rule.
+- **`$PWD` not `$(pwd)` in docker `-v` flags** — `$(pwd)` is a shell command substitution that Claude Code's static analyzer cannot resolve, triggering a permission prompt on every invocation. `$PWD` is statically analyzable and identical in value. In Makefiles, `$(PWD)` is the correct Makefile variable form.
 - For Docker Compose testing rules, see `~/.claude/memory/dockerfile_conventions.md § AI Docker Compose rules`
