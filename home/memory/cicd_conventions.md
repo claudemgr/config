@@ -590,7 +590,7 @@ Use 7 days for transient build artifacts; 30 days for release staging artifacts 
 
 `ci.yml` must enforce a minimum coverage threshold. The threshold is defined in `{project_dir}/IDEA.md` under `## Business logic`. If not specified, default is 60%. CI must fail when coverage drops below the threshold — a passing build with uncovered code is a silent regression.
 
-**Go:** use `go test -cover -coverprofile=/tmp/coverage.out ./...` then `go tool cover -func=/tmp/coverage.out` to parse the total; fail if below threshold. Inside a container step use `/tmp/coverage.out` — the container filesystem (or runner workspace) is ephemeral, so full `{project_org}/{internal_name}` namespacing is unnecessary. On the host outside any container, follow the full tempdir convention instead.
+**Go:** use `go test -cover -coverprofile="$COVDIR/coverage.out" ./...` then `go tool cover -func="$COVDIR/coverage.out"` to parse the total; fail if below threshold. Always follow the full tempdir convention: `mkdir -p "/tmp/{project_org}"` then `COVDIR=$(mktemp -d "/tmp/{project_org}/{internal_name}-XXXXXX")`. In a CI `container:` job write `COVDIR` to `$GITHUB_ENV` so subsequent steps can read it. In a Makefile `sh -c`, expand `$(PROJECTORG)` and `$(PROJECTNAME)` at Make-time.
 **Rust:** use `cargo tarpaulin` or `cargo llvm-cov`; fail if below threshold.
 
 ## Security Requirements
