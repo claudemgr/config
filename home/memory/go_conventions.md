@@ -120,7 +120,7 @@ Every target that uses `GO_DOCKER` must create the cache dirs as its first step:
 ```makefile
 build:
 	@mkdir -p $(BINDIR) $(GO_CACHE) $(GO_BUILD)
-	$(GO_DOCKER) go build -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
+	$(GO_DOCKER) go build -buildvcs=false -trimpath -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
 
 test:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
