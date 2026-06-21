@@ -105,9 +105,8 @@ GO_DOCKER := docker run --rm -it \
 ```
 
 - Always `casjaysdev/go:latest` (rolling tag — never pinned)
-- `CGO_ENABLED=0` — always set explicitly; pure Go, no C, no exceptions
-- `-e GOFLAGS=-buildvcs=false` — **required**: when `-v $PWD:/app` mounts `.git` into the container, Git 2.35.2+ rejects it as an "unsafe directory" because the host file owner (UID 1000) differs from the container user (root, UID 0). `go build` calls git internally to stamp VCS info and fails with "exit status 128". `GOFLAGS=-buildvcs=false` suppresses VCS stamping globally for all `go build` and `go test` calls inside the container. This is safe because version info is already embedded via `-X main.Version=...` LDFLAGS.
-- `GOTOOLCHAIN=auto` is set in the image — it picks up the Go version declared in `go.mod` automatically
+- `CGO_ENABLED=0` and `GOFLAGS=-buildvcs=false` are `casjaysdev/go:latest` image defaults (Docker `ENV`); set explicitly in `GO_DOCKER` for clarity and as a safety net if the image ever changes. `GOTELEMETRY=off`, `GOTOOLCHAIN=auto`, and `GOPROXY=https://proxy.golang.org,direct` are also image defaults — do not set them in templates.
+- `-e GOFLAGS=-buildvcs=false` — **required reason**: when `-v $PWD:/app` mounts `.git` into the container, Git 2.35.2+ rejects it as an "unsafe directory" because the host file owner (UID 1000) differs from the container user (root, UID 0). `go build` calls git internally to stamp VCS info and fails with "exit status 128". `GOFLAGS=-buildvcs=false` suppresses VCS stamping globally for all `go build` and `go test` calls inside the container. This is safe because version info is already embedded via `-X main.Version=...` LDFLAGS.
 - `GO_CACHE` and `GO_BUILD` use `?=` so host env vars (`GOMODCACHE`, `GOCACHE`) or custom XDG paths are honored; defaults are `~/go/pkg/mod` and `~/.cache/go-build`
 - Every target that uses `GO_DOCKER` must `@mkdir -p $(GO_CACHE) $(GO_BUILD)` first so host dirs exist before Docker mounts them
 - Project source is mounted at `/app`; output dirs (`binaries/`) are subdirs of `/app` and land on the host automatically
