@@ -99,11 +99,14 @@ GO_DOCKER := docker run --rm -it \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
+	-e CGO_ENABLED=0 \
+	-e GOFLAGS=-buildvcs=false \
 	casjaysdev/go:latest
 ```
 
 - Always `casjaysdev/go:latest` (rolling tag — never pinned)
-- `CGO_ENABLED=0` is the image default — opt in per build with `-e CGO_ENABLED=1`
+- `CGO_ENABLED=0` — always set explicitly; pure Go, no C, no exceptions
+- `-e GOFLAGS=-buildvcs=false` — **required**: when `-v $PWD:/app` mounts `.git` into the container, Git 2.35.2+ rejects it as an "unsafe directory" because the host file owner (UID 1000) differs from the container user (root, UID 0). `go build` calls git internally to stamp VCS info and fails with "exit status 128". `GOFLAGS=-buildvcs=false` suppresses VCS stamping globally for all `go build` and `go test` calls inside the container. This is safe because version info is already embedded via `-X main.Version=...` LDFLAGS.
 - `GOTOOLCHAIN=auto` is set in the image — it picks up the Go version declared in `go.mod` automatically
 - `GO_CACHE` and `GO_BUILD` use `?=` so host env vars (`GOMODCACHE`, `GOCACHE`) or custom XDG paths are honored; defaults are `~/go/pkg/mod` and `~/.cache/go-build`
 - Every target that uses `GO_DOCKER` must `@mkdir -p $(GO_CACHE) $(GO_BUILD)` first so host dirs exist before Docker mounts them
@@ -117,7 +120,7 @@ Every target that uses `GO_DOCKER` must create the cache dirs as its first step:
 ```makefile
 build:
 	@mkdir -p $(BINDIR) $(GO_CACHE) $(GO_BUILD)
-	$(GO_DOCKER) go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
+	$(GO_DOCKER) go build -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BINDIR)/$(PROJECTNAME) ./src
 
 test:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
@@ -128,7 +131,7 @@ dev:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD) "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
 		echo "Quick dev build..." && \
-		$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
+		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
 		echo "Built: $$BUILD_DIR/$(PROJECTNAME)" && \
 		echo "Test:  docker run --rm -it --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
 ```
@@ -393,6 +396,8 @@ GO_DOCKER := docker run --rm -it \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
+	-e CGO_ENABLED=0 \
+	-e GOFLAGS=-buildvcs=false \
 	casjaysdev/go:latest
 ```
 
@@ -408,6 +413,8 @@ GO_DOCKER := docker run --rm -it \
 	-v $(PWD):/app \
 	-v $(GO_VOL):/usr/local/share/go \
 	-w /app \
+	-e CGO_ENABLED=0 \
+	-e GOFLAGS=-buildvcs=false \
 	casjaysdev/go:latest
 ```
 
