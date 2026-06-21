@@ -51,7 +51,7 @@ RUST_DOCKER := docker run --rm -it \
 - Every target that uses `RUST_DOCKER` must `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)` first so host dirs exist before Docker mounts them and downloaded crates persist across runs
 - `CARGO_HOME` is `/usr/local/share/cargo` inside the image (not `/usr/local/cargo` as in the official `rust:alpine`)
 - `RUSTUP_HOME` is `/usr/local/share/rustup`; sccache cache is at `/root/.cache/sccache`
-- `RUSTC_WRAPPER=sccache` and `CARGO_INCREMENTAL=0` are `casjaysdev/rust:latest` image defaults (Docker `ENV`, not just profile.d — active for all invocations, not just login shells). Mount `SCCACHE_CACHE` to persist the cache; omit the mount and every build starts cold. To opt out: `-e RUSTC_WRAPPER=`
+- `RUSTC_WRAPPER=sccache` and `CARGO_INCREMENTAL=0` are `casjaysdev/rust:latest` image defaults — set in both the Docker `ENV` table (active for all `docker run` invocations) and `/etc/profile.d/rust.sh` (interactive login shells). Mount `SCCACHE_CACHE` to persist the cache; omit the mount and every build starts cold. To opt out: `-e RUSTC_WRAPPER=`
 - See **Named Volume Fallback** below for when bind-mounting is not desired
 
 ## Makefile — Standard Targets
