@@ -400,6 +400,18 @@ Failed deliveries retry with exponential backoff:
 
 Queue workers are idempotent — a notification ID processed twice produces exactly one delivery.
 
+### Inter-channel failover
+
+When a channel fails to deliver a notification, the delivery engine automatically tries the next enabled channel in the routing rule's failover order:
+
+- Each notification type has a configurable primary channel and one or more fallback channels
+- On primary channel failure (DEGRADED or FAILED state, or delivery error): attempt the first fallback
+- On fallback failure: attempt the next fallback; continue until all configured channels exhausted
+- If all channels fail: move to retry queue; retry with the primary channel after backoff delay
+- Failover only applies to channels in ACTIVE state — skip DISABLED, CONFIGURING, TESTING, FAILED channels
+
+Admin configures fallback chains per notification type in the routing rules UI (e.g. Slack → Teams → email as final fallback).
+
 ---
 
 ## Step 15 — Template system
@@ -420,11 +432,14 @@ Required transactional templates to seed:
 - `login_new_device` — new device/location alert
 - `account_suspended` — suspension notice
 
-Security rules:
+Security and compliance rules:
 - All user-supplied values escaped before rendering — no raw HTML injection
 - Unsubscribe token is a signed, time-limited token — never the user's ID or email
 - One-click unsubscribe (`List-Unsubscribe-Post` header) on all marketing email
 - SPF/DKIM/DMARC compliance: set appropriate headers; document required DNS records
+- **CAN-SPAM compliance** — all marketing email includes sender's physical address, clear subject line, working unsubscribe mechanism that takes effect within 10 business days
+- **GDPR compliance** — send only to users who have a legal basis (consent or legitimate interest); honor right-to-erasure requests by purging delivery logs for that user; do not use email addresses for purposes beyond what the user consented to; document the legal basis in the preference record
+- **Localization** — templates support multiple locales; locale selected from user preference → account locale → request `Accept-Language` → default `en`; all built-in template content must be string-key driven (no hardcoded English strings inside template logic); provide a mechanism to add translations without code changes
 
 ---
 
@@ -503,7 +518,7 @@ Implement admin-facing features:
 - Delivery metrics: sent/delivered/failed/bounced counts per channel
 - Bounce/complaint management: suppress future sends to bounced addresses
 - Rate limiting controls: per-channel limits, global maximum, burst allowance
-- Routing rules UI: configure delivery mode (sequential/parallel/first-available) per notification type
+- Routing rules UI: configure delivery mode (sequential/parallel/first-available) and inter-channel failover chain per notification type
 
 ---
 
@@ -524,7 +539,12 @@ Write tests covering:
 - Template rendering: variables substituted; HTML escaped; missing variable handled gracefully
 - Delivery idempotency: same notification ID processed twice produces one delivery
 - Retry logic: failed delivery retried with backoff; dead letter after max attempts
+- Inter-channel failover: primary DEGRADED/FAILED → fallback channel attempted automatically
 - Webhook signature: valid signature accepted; invalid rejected
+- Audit log: every delivery attempt and config change creates an immutable audit_log entry
+- CAN-SPAM: marketing email includes physical address; unsubscribe link works within 10 days
+- GDPR: erasure request deletes delivery logs; legal basis documented per user in preference record
+- Localization: template renders correct locale for user preference; falls back to `en`
 - Help content: every channel has non-empty help.md and all config fields have tooltip content
 
 ---
@@ -556,6 +576,11 @@ Non-negotiable rules — must not be changed or removed:
 - User-supplied values are always escaped before template rendering
 - Unsubscribe tokens are signed and time-limited — never use user ID or email as token
 - Marketing email requires explicit opt-in; transactional email cannot be fully disabled
+- All configuration changes and delivery attempts recorded in append-only audit_log
+- CAN-SPAM and GDPR compliance required for all email channels (unsubscribe, physical address, legal basis)
+- Templates are locale-aware; locale resolution: user preference → account → Accept-Language → en
+- Inter-channel failover configured per notification type; automatic on channel failure
+- No AI service required or used in production; AI tools assist development only
 ```
 
 **SPEC.md** — append a `## Notifications overrides (notifications-builder)` section recording which channels were installed and the non-negotiable rules above.
@@ -573,6 +598,11 @@ Non-negotiable rules — must not be changed or removed:
 - **Deduplication is required** — spec defines exact time windows per priority; implement them
 - **Never silently drop** — dead letter queue for exhausted retries; always recoverable
 - **Idempotent delivery** — every delivery path must be safe to execute twice
+- **Audit everything** — every configuration change, every delivery attempt, every delivery result goes into the append-only audit_log; no operation is silent
+- **Privacy compliance** — CAN-SPAM: physical address + working unsubscribe on all marketing email; GDPR: send only with legal basis, honor erasure requests, document consent
+- **Localization ready** — templates are locale-driven; no hardcoded English strings in template logic; translation mechanism required from day one
+- **Inter-channel failover** — primary channel failure triggers automatic attempt on configured fallback channels; admin configures fallback chains per notification type
+- **AI for development only** — AI tools assist in scaffolding channel plugins; no AI service required or used at runtime in production
 - **No credentials in code** — provider keys in database (encrypted) only; never env vars or config files (except SMTP env vars as pre-fill hints)
 - **No raw HTML injection** — all user-supplied values escaped before template rendering
 - **No partial implementation** — no stubs, no TODOs in logic, no calls to non-existent functions

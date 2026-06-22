@@ -324,6 +324,8 @@ Implement the configuration interfaces from the spec. Key screens:
 
 **User self-service**:
 - Current plan and usage with upgrade/downgrade flow (with proration preview)
+- **Cancellation flow** — users can cancel their subscription at any time; no dark patterns; cancellation takes effect at period end unless explicitly immediate; send confirmation notification
+- **Data export** — users can request a full export of their billing data (invoices, payment history, subscription history) in a machine-readable format (CSV or JSON); export must complete within 30 days of request (GDPR Article 20)
 - Payment method management with provider selection
 - Invoice list with download (PDF/CSV)
 
@@ -392,6 +394,37 @@ The audit log is append-only — no UPDATE or DELETE ever touches it. Implement 
 
 ---
 
+## Step 16b — Daily reconciliation
+
+Implement daily reconciliation per provider per the spec's Reconciliation section. Reconciliation runs as a scheduled background job:
+
+1. For each enabled provider, fetch the provider's transaction list for the previous day via their API
+2. Compare against the local `payment_attempts` and `invoices` tables
+3. Flag discrepancies: amounts that differ, transactions in provider but not locally, transactions locally but not in provider
+4. Write reconciliation results to `audit_log` with actor="reconciliation-job"
+5. If discrepancies exceed a configurable threshold, alert the admin immediately
+6. Produce a daily reconciliation report accessible in the admin billing dashboard
+
+Reconciliation report fields per provider: date, transactions checked, matched, discrepancies found, total amount reconciled, discrepancy amount, status (CLEAN / DISCREPANCIES).
+
+The admin dashboard must display the reconciliation status for each provider, date of last successful reconciliation, and any unresolved discrepancies.
+
+---
+
+## Step 16c — Provider testing environment
+
+Each provider plugin must support a test/sandbox mode. Implement:
+
+- `test_mode` boolean per provider in the database; configurable per provider in the admin UI
+- When test_mode=true: use the provider's sandbox API endpoint and test credentials instead of production
+- Test credentials stored encrypted separately from production credentials; same database field naming with `_test` suffix
+- The test connection panel (from the Integrated Help System step) runs test charges against the sandbox
+- Test mode indicator shown prominently in the admin UI — providers in test mode display a "SANDBOX" badge
+
+This is the "production-like testing environment" the spec requires. Never use production credentials for tests, and never use test credentials in production. The `test_mode` flag must be explicitly disabled (defaulting to true at initial setup) before a provider goes live.
+
+---
+
 ## Step 17 — Migration strategy (if migrating from existing system)
 
 If the project has an existing billing implementation, implement the migration strategy from the spec (Section 20):
@@ -419,6 +452,10 @@ Write tests covering:
 - Provider disabled: every operation on a disabled provider returns disabled error
 - Zero-provider mode: invoice generated, manual payment tracked, no crashes
 - Tooltip coverage: every provider config field has a non-empty tooltip entry in tooltips.json
+- Reconciliation: job runs, matches expected count, flags injected discrepancy correctly
+- Test mode: provider in test_mode=true uses sandbox endpoint; flipping to production requires explicit action
+- Cancellation: user cancellation flow completes without billing after period end; no double-charge
+- Data export: export endpoint returns all invoices and payment history; data is portable (CSV or JSON)
 
 ---
 
@@ -444,6 +481,11 @@ Non-negotiable rules — must not be changed or removed:
 - Grace period required before any service suspension — never immediate termination on payment failure
 - Idempotency enforced on all payment operations — duplicate attempts are no-ops
 - Webhook signature validation required before processing any provider event
+- Daily reconciliation required per enabled provider; discrepancies flagged and reported
+- Cancellation always available with no dark patterns; data export offered to all users
+- No provider lock-in — billing data exportable in portable format (CSV/JSON)
+- Every provider defaults to test/sandbox mode; must be explicitly switched to production
+- AI tools assist development only — no AI service required or used in production billing
 ```
 
 **SPEC.md** — append a `## Billing overrides (billing-builder)` section recording which features were installed and the non-negotiable rules above.
@@ -462,6 +504,11 @@ Non-negotiable rules — must not be changed or removed:
 - **Append-only audit** — the audit log never has rows updated or deleted
 - **Idempotency everywhere** — payment attempts, webhooks, and renewal events must be idempotent
 - **Grace before suspend** — never immediately terminate on payment failure; grace period is mandatory
+- **Reconciliation daily** — every enabled provider requires a daily reconciliation job; discrepancies are flagged and reported; unresolved discrepancies alert the admin
+- **User control** — cancellation must always be available with no dark patterns; data export (invoices + payment history) must be offered; both are non-negotiable
+- **No provider lock-in** — billing data must be exportable in a portable format; the migration strategy (Step 17) applies to provider-to-provider moves too; never use a provider-proprietary data format as the source of truth
+- **Test before live** — every provider defaults to sandbox/test mode; test_mode must be explicitly disabled before production use; never use production credentials in sandbox
+- **AI for development only** — AI tools (Claude Code) assist in scaffolding this system; the production billing system requires no AI service to operate; no LLM calls at payment time
 - **Anti-patterns** — never do: store sensitive payment data directly, hard-code credentials, use env vars for provider config, enable providers by default, make synchronous external calls in transactions, trust client-side calculations
 - **No partial implementation** — no stubs, no TODOs in logic, no calls to non-existent functions
 - **Discover before creating** — check whether files already exist; extend rather than overwrite
