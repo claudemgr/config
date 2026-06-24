@@ -301,11 +301,13 @@ act -P ubuntu-latest=catthehacker/ubuntu:act-latest
 
 ## Toolchain Image (build-toolchain.yml)
 
-Every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/{project_name}:build`. This image is built and pushed monthly so the toolchain stays current. It is the only image workflows use for build, test, lint, and security scan steps — no inline tool installation.
+> **Go and Rust projects NEVER have a `docker/Dockerfile.build` or `build-toolchain.yml`.** `casjaysdev/go:latest` and `casjaysdev/rust:latest` are fully comprehensive maintained images — no custom toolchain image is ever needed. All Go and Rust CI jobs use `container: image: casjaysdev/go:latest` (or `casjaysdev/rust:latest`) directly, with no `ensure-build-image` gate and no `build-toolchain.yml`. This rule is absolute.
 
-### Build image existence gate — required in every workflow
+For all other languages (Node, Python, and any project with a custom toolchain need), every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/{project_name}:build`. This image is built and pushed monthly so the toolchain stays current. It is the only image workflows use for build, test, lint, and security scan steps — no inline tool installation.
 
-**No workflow may proceed if the build image does not exist.** Every workflow (`ci.yml`, `release.yml`) MUST start with an `ensure-build-image` job. All subsequent jobs `needs: ensure-build-image` and use `${{ needs.ensure-build-image.outputs.image }}` as their container.
+### Build image existence gate — required in every non-Go/non-Rust workflow
+
+**No workflow may proceed if the build image does not exist.** Every non-Go/non-Rust workflow (`ci.yml`, `release.yml`) MUST start with an `ensure-build-image` job. All subsequent jobs `needs: ensure-build-image` and use `${{ needs.ensure-build-image.outputs.image }}` as their container.
 
 `ensure-build-image` is **pull-only and fails fast** — it never builds the image inline. If the image is missing, the job fails immediately with a clear error and a zero-waste exit. Building the toolchain image inline wastes CI minutes on an uncontrolled build and masks the root cause (the image was never bootstrapped). The correct response to a missing image is to trigger `build-toolchain.yml` via `workflow_dispatch`.
 

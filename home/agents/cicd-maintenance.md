@@ -90,9 +90,7 @@ If all checks pass:
    ```
    uses: actions/checkout@{new-sha}  # v6.0.2   ← update from v6.0.1
    ```
-3. Commit via `gitcommit --dir {project_dir} all` — message format:
-   `🔧 Fix stale action tag comment after Renovate bump 🔧`
-4. `gitcommit` pushes automatically
+3. Report the edited file(s) back to the caller. Do not commit — the caller runs `gitcommit --dir {project_dir} all` with message: `🔧 Fix stale action tag comment after Renovate bump 🔧`
 
 ### Step 4: Merge
 
@@ -121,7 +119,7 @@ After merging, update `~/.claude/memory/cicd_conventions.md` — "Common Action 
 | `owner/action-name` | vX.Y.Z | `{new-40-char-sha}` |
 ```
 
-Commit: `gitcommit --dir {project_dir} all`
+Report the updated SHA table row(s) back to the caller. Do not commit — the caller runs `gitcommit --dir {project_dir} all`.
 
 ### Merge decision summary
 

@@ -47,13 +47,15 @@ Forgejo exposes both `forgejo.*` and `github.*` namespaces in workflows. Use `fo
 
 ## Build Image Gate (`ensure-build-image`)
 
-Same rule as `cicd_conventions.md`: every workflow in `.forgejo/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Forgejo package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
+> **Go and Rust projects NEVER use `ensure-build-image` and NEVER have `build-toolchain.yml`.** Go CI jobs use `container: image: casjaysdev/go:latest` directly; Rust CI jobs use `container: image: casjaysdev/rust:latest` directly. No `ensure-build-image` gate, no custom toolchain image — this rule is absolute for Go and Rust.
+
+For all other languages: every workflow in `.forgejo/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Forgejo package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
 
 A separate scheduled workflow at `.forgejo/workflows/build-toolchain.yml` rebuilds the `:build` image monthly so the toolchain stays current — analogous to the GitHub `build-toolchain.yml` documented in `cicd_conventions.md`. Push it to the Forgejo registry using `${{ secrets.FORGEJO_TOKEN }}` as the registry password.
 
 OCI annotations on every image pushed by these workflows: `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.created`, `org.opencontainers.image.licenses` — populate from `${{ forgejo.repository }}`, `${{ forgejo.sha }}`, build timestamp, and the project license.
 
-**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image.
+**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image (or the maintained language image for Go/Rust).
 
 ---
 
@@ -72,7 +74,7 @@ jobs:
   build:
     runs-on: docker
     container:
-      image: golang:alpine
+      image: casjaysdev/go:latest   # Go projects always use this directly — never golang:alpine
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Build
@@ -93,9 +95,25 @@ Forgejo instances may mirror `actions/` from Codeberg, Forgejo's own action cach
 
 ## Secret Scanning (truffleHog)
 
-Use the `trufflesecurity/trufflehog@{sha}` composite action — never `apk add` + `docker run` inline. The build toolchain image (`{project_org}/{project_name}:build`) and any other tooling must come from a pre-built image, never installed during the job.
+Use the `trufflesecurity/trufflehog@{sha}` composite action — never `apk add` + `docker run` inline. For Go/Rust projects use the maintained image directly; for other languages use the `:build` toolchain image via `ensure-build-image`.
 
 ```yaml
+# Go/Rust: use maintained image directly — no ensure-build-image
+secret-scan:
+  runs-on: docker
+  container:
+    image: casjaysdev/go:latest   # or casjaysdev/rust:latest
+  steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      with:
+        fetch-depth: 0
+    - uses: trufflesecurity/trufflehog@{sha}
+      with:
+        base: ${{ forgejo.event.before }}
+        head: ${{ forgejo.event.after }}
+        extra_args: --only-verified
+
+# Other languages: gate on ensure-build-image
 secret-scan:
   needs: ensure-build-image
   runs-on: docker

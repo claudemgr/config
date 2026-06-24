@@ -110,11 +110,13 @@ If a container must remain running after the session (e.g. a dev environment sta
 
 ## Project Toolchain Image
 
-Before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `golang:alpine` / `rust:alpine` / `node:alpine` container. Generic alpine variants are only a fallback for projects without `docker/Dockerfile.build`.
+> **Go and Rust projects NEVER have a `docker/Dockerfile.build`.** For Go use `casjaysdev/go:latest` directly; for Rust use `casjaysdev/rust:latest` directly. Never check for `docker/Dockerfile.build` on a Go or Rust project — it will not exist and must never be created.
+
+For all other languages: before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `node:alpine` / `python:alpine` container. Generic alpine variants are only a fallback for projects without `docker/Dockerfile.build`.
 
 If the image is not in the registry, do not build it inline — stop and tell the user to trigger `build-toolchain.yml` via `workflow_dispatch`.
 
-**Bootstrap order** — when adding `docker/Dockerfile.build` to a project: commit it alone first, trigger `build-toolchain.yml` via `workflow_dispatch`, verify the image is in the registry, then commit `ci.yml`/`release.yml`. Never commit a CI workflow that uses the build image before the image exists.
+**Bootstrap order** — when adding `docker/Dockerfile.build` to a non-Go/non-Rust project: commit it alone first, trigger `build-toolchain.yml` via `workflow_dispatch`, verify the image is in the registry, then commit `ci.yml`/`release.yml`. Never commit a CI workflow that uses the build image before the image exists.
 
 ## Docker Run Conventions
 
