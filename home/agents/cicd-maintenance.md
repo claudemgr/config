@@ -149,7 +149,7 @@ Report the updated SHA table row(s) back to the caller. Do not commit — the ca
 | Go vuln scan | `go.sum` present | `govulncheck ./...` |
 | Rust vuln scan | `Cargo.lock` present | `cargo audit` |
 | Node vuln scan | `package-lock.json` present | `npm audit --audit-level=high` |
-| Container scan | Dockerfile present | `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasecurity/trivy:0.70.0 image --exit-code 1 --severity CRITICAL,HIGH {image}` (GitLab: use `image: aquasecurity/trivy:0.70.0` job image instead) |
+| Container scan | Dockerfile present | `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.70.0 image --exit-code 1 --severity CRITICAL,HIGH {image}` (GitLab: use `image: aquasec/trivy:0.70.0` job image instead) |
 
 ### Hard rules
 

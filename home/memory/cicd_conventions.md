@@ -656,7 +656,7 @@ A critical or high CVE in a direct dependency is a hard build failure — not a 
   run: |
     docker run --rm \
       -v /var/run/docker.sock:/var/run/docker.sock \
-      aquasecurity/trivy:0.70.0 image \
+      aquasec/trivy:0.70.0 image \
       --exit-code 1 --severity CRITICAL,HIGH {image}
 ```
 
@@ -664,19 +664,19 @@ A critical or high CVE in a direct dependency is a hard build failure — not a 
 # GitLab CI job
 image-scan:
   stage: security
-  image: aquasecurity/trivy:0.70.0
+  image: aquasec/trivy:0.70.0
   script:
     - trivy image --exit-code 1 --severity CRITICAL,HIGH {image}
 ```
 
 ```groovy
 // Jenkins declarative pipeline step
-docker.image('aquasecurity/trivy:0.70.0').inside('--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock') {
+docker.image('aquasec/trivy:0.70.0').inside('--entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock') {
     sh 'trivy image --exit-code 1 --severity CRITICAL,HIGH {image}'
 }
 ```
 
-Current stable Trivy version: **0.70.0**. Update this when Renovate opens a digest bump PR for `aquasecurity/trivy`.
+Current stable Trivy version: **0.70.0**. Update this when Renovate opens a digest bump PR for `aquasec/trivy`.
 
 See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commit checks, and the full vulnerability scanning policy.
 
