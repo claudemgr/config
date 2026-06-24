@@ -20,6 +20,10 @@ type: user
 └── AI.md
 ```
 
+## Docker Build Pattern
+
+**Rust projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/rust:latest` is a fully comprehensive maintained image; no custom toolchain image is ever needed. This rule is absolute.
+
 ## Makefile — Standard Variables
 
 ```makefile

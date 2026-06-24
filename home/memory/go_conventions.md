@@ -89,6 +89,8 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 
 ## Docker Build Pattern
 
+**Go projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/go:latest` is a fully comprehensive maintained image; no custom toolchain image is ever needed. This rule is absolute.
+
 ```makefile
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build
