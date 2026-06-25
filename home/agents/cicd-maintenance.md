@@ -160,6 +160,8 @@ Report the updated SHA table row(s) back to the caller. Do not commit — the ca
 - **GitLab**: never use `CI_JOB_TOKEN` with write access in MR pipelines from forks
 - **Workflow-level permissions baseline** (GitHub): `contents: read` — no job in `security.yml` needs write access
 - **All security jobs run in parallel** — no `needs:` (GitHub) or stage-level parallelism (GitLab) required between them
+- **All public repos must have `renovate.json` at root** — Renovate is the only supported dependency update tool. Flag its absence when auditing. Never add Dependabot (`.github/dependabot.yml`) — it is GitHub-only and duplicates Renovate's work. Flag and remove `dependabot.yml` if present; migrate the project to Renovate.
+- **`docker/build-push-action` must always set `provenance: false`** — without it, Docker BuildKit injects an OCI attestation manifest that registries render as a spurious `unknown/unknown` platform entry alongside `linux/amd64`/`linux/arm64`. Use `actions/attest-build-provenance` for release binary attestation instead. Flag any `docker/build-push-action` step missing `provenance: false`.
 
 ### Correct `workflow-policy` check (GitHub / Gitea / Forgejo)
 
