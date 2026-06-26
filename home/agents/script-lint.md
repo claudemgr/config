@@ -82,9 +82,24 @@ For any interactive script (has a `__help()` function):
   - sh: `getopts` built-in (or external `getopt` for long options)
   - Flag a hand-rolled `while true; do case "$1" in` loop when a native parser was available
 
-### Triple sync (interactive scripts only)
-- If the script has a `__help()` function, check whether `man/{scriptname}.1` and `completions/_{scriptname}_completions.bash` exist in the repo. Flag if missing.
-- Hook scripts, sourced library files, and non-interactive scripts are exempt from triple sync.
+### Triple sync (installed bin scripts only)
+
+Triple sync (`__help()` + man page + completions) is **only required for scripts designed to be installed and run persistently** — i.e. scripts that end up in a system or user bin directory. Determine whether triple sync applies by checking the script's location and install destination:
+
+**Requires triple sync** — script lives in or is installed to a persistent bin directory:
+- `bin/` in the project root
+- `~/.local/bin/`, `/usr/local/bin/`, `/usr/bin/`, `/usr/sbin/`, `/bin/`, `/sbin/`
+- Any path the project's `install.sh` / `setup.sh` copies the script to under a bin directory
+
+**Exempt from triple sync** — never flag these:
+- `install.sh`, `setup.sh`, `uninstall.sh`, and any variant (these are run-once bootstrap scripts)
+- Everything under `scripts/` — build helpers, CI glue, task runners
+- Hook scripts (pre-commit, Claude Code hooks, git hooks)
+- Sourced library files (`.sh` files that are `source`d / `.`-included, not executed directly)
+- Non-interactive scripts (no `__help()` function)
+- One-off utility scripts not intended for persistent installation
+
+**How to check:** if the script has a `__help()` function AND its path or install destination is a bin directory, check that `man/{scriptname}.1` and `completions/_{scriptname}_completions.bash` exist in the repo. Flag if either is missing.
 
 ### Exit and return codes
 
@@ -126,7 +141,7 @@ Standard sysexits.h codes for reference:
 3. [UUOC] line {N}: `cat file | grep` → use `grep pattern file`
 4. [COMMENT] line {N}: inline comment on code line — move above
 5. [VERSION] header @@Version (202601010000-git) does not match VERSION= (202602020000-git)
-6. [TRIPLE-SYNC] man/scriptname.1 missing
+6. [TRIPLE-SYNC] man/scriptname.1 missing (bin-installed script requires man page + completions)
 7. [FLAGS] --color flag missing from argument parser
 8. [FLAGS] NO_COLOR env var not checked
 9. [FLAGS] short flag -x defined but not in IDEA.md
