@@ -84,22 +84,20 @@ For any interactive script (has a `__help()` function):
 
 ### Triple sync (installed bin scripts only)
 
-Triple sync (`__help()` + man page + completions) is **only required for scripts designed to be installed and run persistently** — i.e. scripts that end up in a system or user bin directory. Determine whether triple sync applies by checking the script's location and install destination:
+Triple sync (`__help()` + man page + completions) is **only required for scripts whose SOURCE LOCATION in the repo is a persistent bin directory**. The determination is based solely on where the script lives in the repo — never on where an install script happens to copy it at deploy time.
 
-**Requires triple sync** — script lives in or is installed to a persistent bin directory:
+**Requires triple sync** — script's source path in the repo is directly under a bin directory:
 - `bin/` in the project root
-- `~/.local/bin/`, `/usr/local/bin/`, `/usr/bin/`, `/usr/sbin/`, `/bin/`, `/sbin/`
-- Any path the project's `install.sh` / `setup.sh` copies the script to under a bin directory
+- `~/.local/bin/`, `/usr/local/bin/`, `/usr/bin/`, `/usr/sbin/`, `/bin/`, `/sbin/` (only when the repo directly manages files at those paths)
 
-**Exempt from triple sync** — never flag these:
-- `install.sh`, `setup.sh`, `uninstall.sh`, and any variant (these are run-once bootstrap scripts)
-- Everything under `scripts/` — build helpers, CI glue, task runners
+**Exempt from triple sync — never flag these, regardless of install destination:**
+- Everything under `scripts/` — utility helpers, build glue, task runners, or any other purpose. An install script (e.g. `scriptmgr`'s `install.sh`) may copy `scripts/*` to `/usr/local/bin`; that is irrelevant — `scripts/` source files are unconditionally exempt.
+- `install.sh`, `setup.sh`, `uninstall.sh`, and any root-level bootstrap or lifecycle variant
 - Hook scripts (pre-commit, Claude Code hooks, git hooks)
 - Sourced library files (`.sh` files that are `source`d / `.`-included, not executed directly)
 - Non-interactive scripts (no `__help()` function)
-- One-off utility scripts not intended for persistent installation
 
-**How to check:** if the script has a `__help()` function AND its path or install destination is a bin directory, check that `man/{scriptname}.1` and `completions/_{scriptname}_completions.bash` exist in the repo. Flag if either is missing.
+**How to check:** if the script has a `__help()` function AND its source path in the repo is under `bin/` or a system bin directory, check that `man/{scriptname}.1` and `completions/_{scriptname}_completions.bash` exist in the repo. Flag if either is missing. Never flag based on where an install or deploy script copies the file.
 
 ### Exit and return codes
 
