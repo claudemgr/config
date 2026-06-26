@@ -86,6 +86,36 @@ For any interactive script (has a `__help()` function):
 - If the script has a `__help()` function, check whether `man/{scriptname}.1` and `completions/_{scriptname}_completions.bash` exist in the repo. Flag if missing.
 - Hook scripts, sourced library files, and non-interactive scripts are exempt from triple sync.
 
+### Exit and return codes
+
+- **Bare `exit` (no code)** — flag always. Use `exit 0` for explicit success, `exit 1` (or a sysexits code) for failure, or `exit "$?"` when intentionally propagating the last command's status. A bare `exit` makes the exit status depend on whatever ran last, which is rarely intentional.
+- **Bare `return` (no code) outside a function's final statement** — flag. Use `return 0`, `return 1`, or `return "$?"`. Bare `return` as the very last line of a function is acceptable (it propagates `$?` and is idiomatic), but bare `return` mid-function is a bug waiting to happen.
+- **Exit codes outside standard ranges** — flag any `exit N` or `return N` where N is not in `0–2`, `64–78` (sysexits.h), or `128–143` (signal deaths 128+signum).
+
+Standard sysexits.h codes for reference:
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 0 | — | Success |
+| 1 | — | General error |
+| 2 | — | Misuse of shell built-in |
+| 64 | EX_USAGE | Command line usage error |
+| 65 | EX_DATAERR | Data format error |
+| 66 | EX_NOINPUT | Cannot open input |
+| 67 | EX_NOUSER | User not found |
+| 68 | EX_NOHOST | Host not found |
+| 69 | EX_UNAVAILABLE | Service unavailable |
+| 70 | EX_SOFTWARE | Internal software error |
+| 71 | EX_OSERR | System error |
+| 72 | EX_OSFILE | Critical OS file missing |
+| 73 | EX_CANTCREAT | Cannot create output file |
+| 74 | EX_IOERR | I/O error |
+| 75 | EX_TEMPFAIL | Temporary failure |
+| 76 | EX_PROTOCOL | Remote protocol error |
+| 77 | EX_NOPERM | Permission denied |
+| 78 | EX_CONFIG | Configuration error |
+| 128–143 | — | Signal death (128 + signal number) |
+
 ## Output Format
 
 ```
@@ -106,6 +136,8 @@ For any interactive script (has a `__help()` function):
 13. [GREP] line {N}: `fgrep` used — replace with `grep -F`
 14. [GREP] line {N}: `rgrep` used — replace with `grep -r`
 15. [EXIT] line {N}: exit code {N} is outside standard ranges (0–2, 64–78, 128–143)
+16. [EXIT] line {N}: bare `exit` with no code — use `exit 0`, `exit 1`, or `exit "$?"` to be explicit
+17. [EXIT] line {N}: bare `return` mid-function with no code — use `return 0`, `return 1`, or `return "$?"`
 ```
 
 If no issues: `{scriptname}: clean`
