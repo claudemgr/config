@@ -49,6 +49,7 @@ Agents are specialized sub-models invoked automatically based on what you ask, o
 |-------|-------------|
 | `bootstrap` | Start a new project from a spec file (`{project_dir}/AI.md`), or re-bootstrap after a spec change. Reads PART 0–6 of the spec and executes everything — directory layout, build system, config, metadata. Reconciles `TODO.AI.md` if it exists. |
 | `spec-migrator` | Migrate a project with `SPEC.md`, a project-spec `CLAUDE.md`, or a sparse `AI.md` to the standard `AI.md` + `IDEA.md` + `CLAUDE.md` loader structure. Also runs a bootstrap wizard for projects with no spec files at all. |
+| `go-server-to-api` | Audit a Go project after its AI.md has been replaced with a new spec (SERVER↔API), then generate a complete `TODO.AI.md` covering all migration tasks. |
 | `planner` | Design an implementation plan before writing code. Use when a task touches 3+ files, has ambiguous requirements, or needs architectural tradeoffs evaluated. Returns a step-by-step plan and flags risks. Does not write code. |
 | `commit-prep` | Prepare a `COMMIT_MESS` file for the current git working tree without polluting the main conversation with raw diff output. |
 
@@ -61,6 +62,7 @@ Agents are specialized sub-models invoked automatically based on what you ask, o
 | `security-auditor` | Threat modeling, OWASP audits, secrets scanning, dependency CVEs, auth flows, and hardening reviews. Best run on a PR or feature before it ships. |
 | `beta-tester` | Structured beta testing from a user perspective — exploratory testing, edge case discovery, UAT against specs. Use before a release or after a major feature lands. |
 | `test-writer` | Write tests for existing code — unit, integration, table-driven, fuzz targets. |
+| `designer` | Designer-level UI/UX implementation for web, desktop, mobile, and TUI. Use for new screens, component design, theme systems, layout, and accessibility audits. |
 
 ### 🔎 Research & Exploration
 
@@ -84,10 +86,21 @@ Agents are specialized sub-models invoked automatically based on what you ask, o
 | Agent | When to use |
 |-------|-------------|
 | `devops` | Infrastructure, CI/CD, containers, orchestration — Dockerfile review, Kubernetes manifests, CI pipeline design, secrets management, deployment strategies. |
+| `cicd-maintenance` | Handle Renovate dependency update PRs/MRs on GitHub/GitLab/Gitea/Forgejo; audit and fix CI workflow files; run SHA 3-point verification; merge clean PRs; update the SHA table. |
+| `rpm-builder` | RPM spec file authoring and build workflow for CasjaysDev packages — own binaries, scripts, services, and third-party repackaging. Generates spec files, Docker build commands, signing steps, and `createrepo_c` invocations. |
 | `doc-sync` | Sync the `__help()`, man page, and completions triple after a bash script changes. Also syncs `README.md` when feature or CLI changes warrant it. |
 | `statusline-setup` | Configure the Claude Code status line — add, remove, or fix fields. |
 | `claude-code-guide` | Answers questions about Claude Code CLI features, hooks, slash commands, MCP servers, settings, and the Claude API. Use when the question is about how Claude Code works, not about a project. |
 | `general` | Catch-all for everyday tasks — writing, editing, research, coding — when no specialist agent fits. |
+
+### 🏗️ Scaffolding
+
+| Agent | When to use |
+|-------|-------------|
+| `billing-builder` | Interactive billing and subscription system scaffolder. Covers subscription plans, payment provider abstraction (47+ providers across 8 categories), usage metering, tax compliance, invoicing, and administrative controls. |
+| `notifications-builder` | Interactive notification system scaffolder. Covers 30 channels across 7 categories, SMTP auto-enable behavior, channel plugin architecture, routing rules, user preferences, and administrative controls. |
+| `support-builder` | Interactive customer support system scaffolder. Covers ticketing (9-state machine), live chat, knowledge base, deterministic bot automation, SLA management, canned responses, and agent workspace. |
+| `go-auth-builder` | Interactive auth scaffolder for Go HTTP server projects. Covers admin auth, API tokens, user accounts, orgs/teams, custom domains, DB schemas, middleware, handlers, HTML templates, routes, and i18n. |
 
 ---
 
