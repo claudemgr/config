@@ -12,7 +12,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 
 - `CGO_ENABLED=0` must be set in every `go build` invocation (Makefile, CI, Docker). Flag any build command missing it.
 - Flag any `go build`, `go run`, or `go test` invoked directly on the host — all must run inside Docker via `make build`, `make dev`, `make test`.
-- **If a `Makefile` exists at the project root with a `build` or `test` target, raw `docker run ... go build` / `go test` commands outside the Makefile are a violation** — use `make build` / `make test` instead. Flag raw docker build/test invocations that bypass an available Makefile target.
+- **If a `Makefile` exists at the project root with a `build` or `test` target, raw `docker run ... go build` / `go test` commands in local development scripts or AI-driven work are a violation** — use `make build` / `make test` instead. Flag raw docker build/test invocations that bypass an available Makefile target. **Exception: CI/CD workflow files (`.github/workflows/`, `.gitea/workflows/`, `.forgejo/workflows/`, `.gitlab-ci.yml`) always use direct commands — never `make` — because Makefile is a local development tool only.**
 - Makefile must use `casjaysdev/go:latest` as the Docker image — never a pinned tag or `golang:alpine`. Flag any image other than `casjaysdev/go:latest`.
 - `GO_DOCKER` definition must include `-e GOFLAGS=-buildvcs=false` — Git 2.35.2+ rejects mounted `.git` dirs as unsafe; without this flag `go build` fails with exit 128. Flag if `-e GOFLAGS=-buildvcs=false` is absent from the `GO_DOCKER` docker run line.
 - All `go build` invocations (Makefile and CI YAML `container:` jobs) must include `-buildvcs=false` inline as well. Flag any bare `go build` without it.
