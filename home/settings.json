@@ -306,7 +306,8 @@
       "Bash(nm:*)",
       "Bash(strip:*)",
       "Bash(act:*)",
-      "Bash(setupmgr:*)"
+      "Bash(setupmgr:*)",
+      "Bash(claude:*)"
     ],
     "deny": [
       "Bash(git commit:*)",
