@@ -226,7 +226,7 @@ pipeline {
             parallel {
                 stage('Secret Scan') {
                     steps {
-                        sh 'docker run --rm -it --name "trufflehog-$(tr -dc \'a-z0-9\' </dev/urandom | head -c8)" -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
+                        sh 'docker run --rm --name "trufflehog-$(tr -dc \'a-z0-9\' </dev/urandom | head -c8)" -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
                     }
                 }
                 stage('Vuln Scan') {

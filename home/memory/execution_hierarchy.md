@@ -120,7 +120,7 @@ If the image is not in the registry, do not build it inline — stop and tell th
 
 ## Docker Run Conventions
 
-- **`docker run` must use `--rm -it --name {project_name}-XXXX`** — every build/test container must self-remove on exit, be interactive-capable, and carry a traceable name; `XXXX` = 8-char random suffix (`$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)` in Makefile)
+- **`docker run` must use `--rm --name {project_name}-XXXX`** — every build/test container must self-remove on exit and carry a traceable name; never use `-it` for batch build/test commands (breaks CI — no TTY); `XXXX` = 8-char random suffix (`$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)` in Makefile)
 - **Dev images: rolling tags** — never pinned
 - **Target `linux/amd64` + `linux/arm64`** by default
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`

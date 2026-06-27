@@ -305,7 +305,7 @@ renovate:
   steps:
     - name: Self-hosted Renovate
       run: |
-        docker run --rm -it \
+        docker run --rm \
           --name renovate-$RANDOM \
           -e RENOVATE_TOKEN="${{ secrets.RENOVATE_TOKEN }}" \
           -e RENOVATE_PLATFORM=gitea \

@@ -261,7 +261,7 @@ docker/
 - Running the language toolchain directly on the host
 - Treating Docker as "CI-only" or "release-only"
 - `--privileged` or `--net=host` without documented justification
-- `docker run` without `--rm -it --name {project_name}-XXXX` for build/test containers
+- `docker run` without `--rm --name {project_name}-XXXX` for build/test containers (also flag `-it` on batch commands — breaks CI)
 
 ## Build Rules
 

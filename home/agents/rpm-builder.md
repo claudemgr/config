@@ -279,7 +279,7 @@ EPEL needed.
 
 ```sh
 # Start the build container
-docker run --rm -it \
+docker run --rm \
   --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \

@@ -42,7 +42,7 @@ PLATFORMS  ?= linux/amd64,linux/arm64
 
 NPM_CACHE ?= $(HOME)/.npm
 
-NODE_DOCKER := docker run --rm -it \
+NODE_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \
@@ -66,7 +66,7 @@ NODE_DOCKER := docker run --rm -it \
 ```makefile
 NPM_CACHE ?= $(HOME)/.npm
 
-NODE_DOCKER := docker run --rm -it \
+NODE_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \

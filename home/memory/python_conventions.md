@@ -43,7 +43,7 @@ PLATFORMS  ?= linux/amd64,linux/arm64
 PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
-PY_DOCKER := docker run --rm -it \
+PY_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \
@@ -69,7 +69,7 @@ PY_DOCKER := docker run --rm -it \
 PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
-PY_DOCKER := docker run --rm -it \
+PY_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \

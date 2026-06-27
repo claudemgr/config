@@ -205,7 +205,7 @@ the target's mock config defines (including EPEL for EL targets).
 
 ```sh
 # 1. Start the build container (interactive)
-docker run --rm -it \
+docker run --rm \
   --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \
@@ -243,7 +243,7 @@ Pass either a `.spec` or a `.src.rpm` as the CMD:
 
 ```sh
 # From a spec file — entrypoint runs spectool + rpmbuild -bs, then mock --rebuild
-docker run --rm -it \
+docker run --rm \
   --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \
@@ -256,7 +256,7 @@ docker run --rm -it \
   /root/rpmbuild/SPECS/{name}.spec
 
 # From a pre-built SRPM — passed directly to mock --rebuild
-docker run --rm -it \
+docker run --rm \
   --privileged \
   --name rpmbuild-{name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
   -v "$HOME/rpmbuild:/root/rpmbuild" \

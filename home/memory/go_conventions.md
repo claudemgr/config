@@ -50,7 +50,7 @@ REGISTRY  := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build
 
-GO_DOCKER := docker run --rm -it \
+GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -95,7 +95,7 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build
 
-GO_DOCKER := docker run --rm -it \
+GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -134,7 +134,7 @@ dev:
 		echo "Quick dev build..." && \
 		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
 		echo "Built: $$BUILD_DIR/$(PROJECTNAME)" && \
-		echo "Test:  docker run --rm -it --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
+		echo "Test:  docker run --rm --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
 ```
 
 Always builds into a temp dir for `dev`, never to a hardcoded path.
@@ -144,7 +144,7 @@ Always builds into a temp dir for `dev`, never to a hardcoded path.
 ```makefile
 some-target:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
-	@docker run --rm -it \
+	@docker run --rm \
 		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 		-v $(PWD):/app \
 		-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -391,7 +391,7 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build
 
-GO_DOCKER := docker run --rm -it \
+GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -409,7 +409,7 @@ Use `?=` so a host `GOMODCACHE` or `GOCACHE` env var (or custom XDG path) overri
 ```makefile
 GO_VOL := go-state
 
-GO_DOCKER := docker run --rm -it \
+GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/app \
 	-v $(GO_VOL):/usr/local/share/go \

@@ -113,7 +113,7 @@ All build-time tool invocations run inside Docker — language files define the 
 # Shared pattern — each language substitutes its own image, cache vars, and mounts
 CACHE_DIR ?= $(HOME)/.cache/{lang}   # ?= honors host env var override
 
-LANG_DOCKER := docker run --rm -it \
+LANG_DOCKER := docker run --rm \
     --name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
     -v $(PWD):/app \
     -v $(CACHE_DIR):/root/.cache/{lang} \
