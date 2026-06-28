@@ -91,7 +91,7 @@ Rules:
 Every container or Incus instance started by AI must have an explicit lifetime — never leave one running indefinitely:
 
 - **Test containers / instances:** stop and remove immediately after the test completes (pass or fail)
-- **Build containers:** `--rm -it --name {project_name}-XXXX` on all `docker run` invocations; self-remove on exit, interactive-capable, named for traceability (`XXXX` = random 8-char suffix)
+- **Build containers:** `--rm` on all `docker run` invocations; self-remove on exit. Never add `--name` to batch build/test containers — it causes "container name already in use" failures when two or more agents run concurrently. `--name` is only for service/daemon containers that must be referenced by name after launch.
 - **Incus instances:** `incus launch {image} {project_name}-XXXX`; `incus delete --force {project_name}-XXXX` when done; same 8-char random suffix convention as Docker
 - **Long-running service containers (integration tests):** set a `--stop-timeout` and enforce it; if a container has not exited within 60s of `docker stop`, force-kill with `docker kill`
 - **No containers or instances survive a session end** — everything started during a session must be stopped before the session ends
@@ -120,7 +120,7 @@ If the image is not in the registry, do not build it inline — stop and tell th
 
 ## Docker Run Conventions
 
-- **`docker run` must use `--rm --name {project_name}-XXXX`** — every build/test container must self-remove on exit and carry a traceable name; never use `-it` for batch build/test commands (breaks CI — no TTY); `XXXX` = 8-char random suffix (`$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)` in Makefile)
+- **`docker run` must use `--rm`** — every batch build/test container must self-remove on exit; never add `--name` to batch containers (causes "container already in use" when multiple agents run concurrently — Docker prevents two containers sharing a name); never use `-it` for batch commands (breaks CI — no TTY). `--name` is reserved for service/daemon containers that need to be referenced after launch.
 - **Dev images: rolling tags** — never pinned
 - **Target `linux/amd64` + `linux/arm64`** by default
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`

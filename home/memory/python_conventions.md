@@ -44,7 +44,6 @@ PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
 PY_DOCKER := docker run --rm \
-	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \
 	-v $(UV_CACHE):/root/.cache/uv \
@@ -70,7 +69,6 @@ PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
 PY_DOCKER := docker run --rm \
-	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \
 	-v $(UV_CACHE):/root/.cache/uv \

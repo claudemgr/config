@@ -40,7 +40,6 @@ RUSTUP_CACHE  ?= $(HOME)/.rustup
 SCCACHE_CACHE ?= $(HOME)/.cache/sccache
 
 RUST_DOCKER := docker run --rm \
-	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v "$(PWD)":/app \
 	-v $(CARGO_CACHE):/usr/local/share/cargo \
 	-v $(RUSTUP_CACHE):/usr/local/share/rustup \
@@ -96,7 +95,6 @@ RUST_RUSTUP_VOL  := rust-rustup
 RUST_SCCACHE_VOL := rust-sccache
 
 RUST_DOCKER := docker run --rm \
-	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	-v "$(PWD)":/app \
 	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
 	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \
