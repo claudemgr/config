@@ -39,7 +39,11 @@ CARGO_CACHE   ?= $(HOME)/.cargo
 RUSTUP_CACHE  ?= $(HOME)/.rustup
 SCCACHE_CACHE ?= $(HOME)/.cache/sccache
 
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 RUST_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v "$(PWD)":/app \
 	-v $(CARGO_CACHE):/usr/local/share/cargo \
 	-v $(RUSTUP_CACHE):/usr/local/share/rustup \
@@ -95,6 +99,7 @@ RUST_RUSTUP_VOL  := rust-rustup
 RUST_SCCACHE_VOL := rust-sccache
 
 RUST_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v "$(PWD)":/app \
 	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
 	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \

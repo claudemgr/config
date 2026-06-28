@@ -121,6 +121,8 @@ If the image is not in the registry, do not build it inline — stop and tell th
 ## Docker Run Conventions
 
 - **`docker run` must use `--rm`** — every batch build/test container must self-remove on exit; never add `--name` to batch containers (causes "container already in use" when multiple agents run concurrently — Docker prevents two containers sharing a name); never use `-it` for batch commands (breaks CI — no TTY). `--name` is reserved for service/daemon containers that need to be referenced after launch.
+- **Resource limits on all toolchain containers** — always pass `--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS)` where both vars default to `4g` and `2` respectively (overrideable per project or per machine). When many Claude Code instances each spawn multiple agents that each launch containers, the machine runs out of CPU/memory without per-container caps.
+- **Go build cache must be project-scoped** — `GO_BUILD ?= $(HOME)/.cache/go-build/$(PROJECTNAME)`. The Go compile cache (`~/.cache/go-build`) is NOT safe for concurrent writes from separate `go` processes; a shared path across projects causes corruption and stalls. The module download cache (`GO_CACHE = ~/go/pkg/mod`) IS safe to share (Go uses file locking for writes). Rust's sccache and cargo registry are also safe to share.
 - **Dev images: rolling tags** — never pinned
 - **Target `linux/amd64` + `linux/arm64`** by default
 - **Container startup chain: `tini → entrypoint.sh → app`** — never override or bypass; all startup customization goes in `entrypoint.sh`

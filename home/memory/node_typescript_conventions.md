@@ -42,7 +42,11 @@ PLATFORMS  ?= linux/amd64,linux/arm64
 
 NPM_CACHE ?= $(HOME)/.npm
 
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 NODE_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \
 	-w /build \
@@ -65,7 +69,11 @@ NODE_DOCKER := docker run --rm \
 ```makefile
 NPM_CACHE ?= $(HOME)/.npm
 
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 NODE_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \
 	-w /build \

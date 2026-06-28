@@ -48,9 +48,13 @@ RELDIR    := releases
 REGISTRY  := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 
 GO_CACHE  ?= $(HOME)/go/pkg/mod
-GO_BUILD  ?= $(HOME)/.cache/go-build
+GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
+
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
 
 GO_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \

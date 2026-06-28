@@ -43,7 +43,11 @@ PLATFORMS  ?= linux/amd64,linux/arm64
 PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 PY_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \
 	-v $(UV_CACHE):/root/.cache/uv \
@@ -68,7 +72,11 @@ PY_DOCKER := docker run --rm \
 PIP_CACHE ?= $(HOME)/.cache/pip
 UV_CACHE  ?= $(HOME)/.cache/uv
 
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 PY_DOCKER := docker run --rm \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(PIP_CACHE):/root/.cache/pip \
 	-v $(UV_CACHE):/root/.cache/uv \
