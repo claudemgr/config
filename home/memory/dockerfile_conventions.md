@@ -88,7 +88,7 @@ jobs:
 
 ## Structure
 
-Two-stage build: `builder` compiles the binary; runtime stage is minimal Alpine.
+Two-stage build: `builder` compiles the binary; runtime stage is minimal Alpine by default. **Exception: `Dockerfile.aio`** (all-in-one variant bundling PostgreSQL + Valkey + Tor) must use `debian:latest` — those services require glibc and system libraries unavailable on Alpine/musl. Never use Alpine for AIO images.
 
 Section headers use `=` fence comments:
 ```dockerfile
