@@ -2,7 +2,7 @@
   "model": "claude-opus-4-5",
   "fallbackModel": ["sonnet", "haiku"],
   "availableModels": ["sonnet", "haiku", "opus", "claude-opus-4-5", "claude-opus-4-8"],
-  "enforceAvailableModels": true,
+  "enforceAvailableModels": false,
   "agent": "general",
   "language": "english",
   "autoCompactWindow": 140000,
@@ -432,7 +432,7 @@
     ]
   },
   "env": {
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-opus-4-5",
     "COLORTERM": "truecolor",
     "BASH_MAX_OUTPUT_LENGTH": "20000",
     "MAX_MCP_OUTPUT_TOKENS": "8000",
