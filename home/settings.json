@@ -1,7 +1,7 @@
 {
   "model": "claude-opus-4-5",
   "fallbackModel": ["sonnet", "haiku"],
-  "availableModels": ["sonnet", "haiku", "opus", "claude-opus-4-5", "claude-opus-4-8"],
+  "availableModels": ["sonnet", "haiku", "opus", "claude-sonnet-5", "claude-opus-4-5", "claude-opus-4-8"],
   "enforceAvailableModels": false,
   "agent": "general",
   "language": "english",
