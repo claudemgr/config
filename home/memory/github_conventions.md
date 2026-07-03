@@ -206,7 +206,7 @@ Registry URL is determined by the git provider. **Never hardcode** the registry 
 | Forgejo/Gitea | `{instance}` | `{instance}/{project_org}/{project_name}:{tag}` |
 
 **Base images and toolchains always pull from `docker.io`** (the implicit default):
-- Toolchain images: `golang:alpine`, `rust:alpine`, `node:alpine`, `python:alpine`
+- Toolchain images: `casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`, `python:alpine`
 - Base runtime images: `alpine:latest`, `ubuntu:{version}`, `debian:{version}`
 - Never prefix these with `ghcr.io` or any other registry — they are upstream official images on `docker.io`
 

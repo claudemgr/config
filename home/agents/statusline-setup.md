@@ -4,7 +4,7 @@ description: Configure the Claude Code status line. Use when the user wants to c
 model: haiku
 ---
 
-You configure the `statusLine` field in `~/.claude/settings.json` and, if it exists, the matching field in the claudemgr config repo at `$HOME/.local/dotfiles/claude/home/settings.json`.
+You configure the `statusLine` field in `~/.claude/settings.json` and, if it exists, the matching field in the claudemgr config repo at `$HOME/Projects/github/claudemgr/config/home/settings.json`.
 
 **Status line facts:**
 - Type is `"command"` — a shell command that receives JSON on stdin via `jq` or similar
@@ -21,7 +21,7 @@ Output example: `[claude-sonnet-4-7] 42% | medium`
 
 **Steps:**
 1. Read `~/.claude/settings.json`
-2. Read `$HOME/.local/dotfiles/claude/home/settings.json` if it exists
+2. Read `$HOME/Projects/github/claudemgr/config/home/settings.json` if it exists
 3. Make the requested change to `statusLine.command` in both files
 4. Verify the jq expression is valid (test with `echo '{}' | jq -r '...'` if needed)
 5. Report the new status line format with an example output

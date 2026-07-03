@@ -100,7 +100,7 @@ Section headers use `=` fence comments:
 ## Build Stage
 
 ```dockerfile
-FROM golang:alpine AS builder
+FROM casjaysdev/go:latest AS builder
 
 ARG TARGETARCH
 ARG VERSION=dev
@@ -120,7 +120,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
 
 - Always pass `TARGETARCH` for multi-arch builds
 - `CGO_ENABLED=0` always (no exceptions — see NEVER rules)
-- Rolling `golang:alpine` tag (never pinned for dev tooling)
+- Rolling `casjaysdev/go:latest` tag (never pinned for dev tooling)
 
 ## Runtime Stage
 

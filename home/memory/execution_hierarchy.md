@@ -15,7 +15,7 @@ Never run anything directly on the host unless no lower option works. Always use
 
 | Tier | Image to use | When |
 |------|-------------|------|
-| Docker | Official alpine variant: `golang:alpine`, `rust:alpine`, `node:alpine`, etc. | Build, test, debug — never debian/ubuntu based |
+| Docker | Maintained toolchain image: `casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`, `python:alpine`, etc. | Build, test, debug — never debian/ubuntu based |
 | Incus | Distro image matching the target OS | systemd, service installs, OS config, distro compatibility |
 | QEMU/KVM | Full OS image matching the target OS | Kernel-level, firmware, hardware emulation, full install testing |
 

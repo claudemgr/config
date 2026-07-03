@@ -112,7 +112,7 @@ The deliverable is **one self-contained artifact** (binary, package, library, or
 
 ## ⚠️ CRITICAL: Docker for All Builds
 
-The language toolchain MUST NOT run on the host machine. All builds, tests, lint, and format checks execute inside a project-provided Docker container using an official language image (`golang:alpine`, `rust:alpine`, `node:alpine`, etc.). Host role: edit files, run version control, orchestrate Docker.
+The language toolchain MUST NOT run on the host machine. All builds, tests, lint, and format checks execute inside a project-provided Docker container using the standard maintained image for the language (`casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`, `python:alpine`, etc.). Host role: edit files, run version control, orchestrate Docker.
 
 ## ⚠️ CRITICAL: Keep Documentation in Sync
 
@@ -251,7 +251,7 @@ docker/
 
 ### Mandatory Image Properties
 
-- Base image: official language alpine variant (e.g., `golang:alpine`, `rust:alpine`, `node:alpine`) — rolling, never pinned to a version tag
+- Base image: standard maintained image for the language (`casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`) — rolling, never pinned to a version tag
 - Non-root user matching host UID/GID by default
 - Language toolchain cache mounted as named volumes
 - `CGO_ENABLED=0` for Go; static linking for Rust; equivalent for other languages

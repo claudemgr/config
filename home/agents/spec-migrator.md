@@ -99,8 +99,8 @@ Ask:
    ```
 
 2. **`AI.md`**:
-   - **Go project**: copy `$HOME/.local/dotfiles/claude/../go/TEMPLATE.md` as `AI.md`
-   - **Rust project**: copy `$HOME/.local/dotfiles/claude/../rust/TEMPLATE.md` as `AI.md`
+   - **Go project**: copy the matching spec from `$HOME/Projects/github/claudemgr/go/` as `AI.md` — `SERVER.md` (full server), `API.md` (API-only service), or `APPLICATION.md` (CLI/desktop app)
+   - **Rust project**: copy the matching spec from `$HOME/Projects/github/claudemgr/rust/` as `AI.md` — same three spec types
    - **Other language**: generate a project-type-appropriate AI.md (see Generic AI.md template below)
 
 3. **`CLAUDE.md`** — loader only:
@@ -142,8 +142,8 @@ SPEC.md typically contains both WHAT and HOW mixed together. Split it:
 2. Classify every section/paragraph as WHAT or HOW
 3. Draft IDEA.md (three required sections) from the WHAT content
 4. Draft AI.md from the HOW content:
-   - If language is Go: start from `$HOME/.local/dotfiles/claude/../go/TEMPLATE.md`, merge SPEC.md HOW content into the appropriate sections
-   - If language is Rust: start from `$HOME/.local/dotfiles/claude/../rust/TEMPLATE.md`, same
+   - If language is Go: start from the matching spec in `$HOME/Projects/github/claudemgr/go/` (`SERVER.md`, `API.md`, or `APPLICATION.md`), merge SPEC.md HOW content into the appropriate sections
+   - If language is Rust: start from the matching spec in `$HOME/Projects/github/claudemgr/rust/`, same
    - Otherwise: generate a generic AI.md using the Generic AI.md template below, incorporating SPEC.md HOW content
 5. If `CLAUDE.md` doesn't exist, create the loader
 6. Show a diff-style summary of what will be created/changed

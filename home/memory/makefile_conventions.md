@@ -173,7 +173,7 @@ All build commands run inside Docker, so host OS differences are mostly irreleva
 
 - Source files (`src/`, `tests/`, `*.go`, `*.rs`, `*.ts`, `*.py`)
 - `.git/` directory
-- Base Docker images (`golang:alpine`, `rust:alpine`, etc.) — only project images are cleaned
+- Base Docker images (`casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`, etc.) — only project images are cleaned
 - `AI.md`, `IDEA.md`, `CLAUDE.md`, `release.txt`, `Makefile`
 
 `clean` removes only build artifacts: `binaries/`, `releases/`, `dist/`, language caches (`target/`, `__pycache__/`, `.mypy_cache/`, `node_modules/`).

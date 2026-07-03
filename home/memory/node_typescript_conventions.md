@@ -179,7 +179,7 @@ export default tseslint.config(
   "tabWidth": 2,
   "singleQuote": true,
   "trailingComma": "all",
-  "noSemi": true
+  "semi": false
 }
 ```
 

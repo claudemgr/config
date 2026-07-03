@@ -81,7 +81,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 5. [BUILDVCS] Makefile line {N}: `go build` missing `-buildvcs=false`
 6. [MAKEFILE] Makefile line {N}: PROJECTNAME hardcoded as "myapp" — must infer from git remote
 7. [MAKEFILE] Makefile line {N}: uses VCS_REF — rename to CommitID
-8. [MAKEFILE] Makefile line {N}: golang:1.23 pinned — use golang:alpine
+8. [MAKEFILE] Makefile line {N}: golang:1.23 pinned — use casjaysdev/go:latest
 9. [MKDIR] Makefile line {N}: GO_DOCKER invoked without preceding `@mkdir -p $(GO_CACHE) $(GO_BUILD)`
 10. [BINARY] Makefile line {N}: output name uses `macos` — must use `darwin` (GOOS term)
 11. [BINARY] Makefile line {N}: output name uses `x86_64` — must use `amd64` (GOARCH term)
