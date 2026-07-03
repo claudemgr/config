@@ -246,7 +246,7 @@ pipeline {
 }
 ```
 
-Language-specific: the `docker/Dockerfile.build` for Rust pre-installs `cargo-audit`, `cargo-cyclonedx`, etc. — swap `go build`/`go test`/`govulncheck` for `cargo build`/`cargo test`/`cargo audit`. The agent image resolves dynamically from the git remote — no hardcoded org or project name.
+Language-specific: `casjaysdev/rust:latest` pre-installs `cargo-audit`, `cargo-deny`, etc. — swap `go build`/`go test`/`govulncheck` for `cargo build`/`cargo test`/`cargo audit`. Rust projects never get a `docker/Dockerfile.build`. The agent image resolves dynamically from the git remote — no hardcoded org or project name.
 
 ---
 

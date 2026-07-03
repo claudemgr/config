@@ -220,7 +220,7 @@ Blocklists complement rate limiting and GeoIP — they block known-bad IPs and d
 Every public-facing repo MUST have `.github/SECURITY.md` defining:
 
 - Supported versions or the supported release policy
-- The security reporting path (email, HackerOne, etc.) — NOT a public issue tracker
+- The security reporting path — GitHub private vulnerability reporting (`https://github.com/{project_org}/{project_name}/security/advisories/new`, the repo's Security tab → "Report a vulnerability") is the PRIMARY channel; the security email is a secondary/CC contact only, never the main way. NOT a public issue tracker
 - That vulnerabilities MUST NOT be filed as public bug reports
 - Expected disclosure/response timeline (e.g. acknowledge within 48h, patch within 90 days)
 - Links to `/.well-known/security.txt` and the project's contact page when those features exist
