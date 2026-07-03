@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031805-git
+##@Version           :  202607031823-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031805-git"
+VERSION="202607031823-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -122,7 +122,8 @@ __match() {
 __require_cmd python3
 __require_cmd grep
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-PROTECT_HOST_INPUT="$(</dev/stdin)"
+# $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
+PROTECT_HOST_INPUT="$(cat)"
 PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_INPUT" | __extract_command)"
 # Raw command kept for pipeline-shaped rules — sub-command splitting severs
 # pipes, so "docker ps -q | xargs docker kill" is only visible here.
