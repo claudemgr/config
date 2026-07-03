@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202606080000-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  post-compact.sh
-# @@Description      :  PostCompact hook: re-inject project-dir and global context after compaction
-# @@Changelog        :  Updated to reload MEMORY.md and convention files post-compaction
+# @@Description      :  SessionStart(compact) hook: re-inject project-dir and global context after compaction
+# @@Changelog        :  Registered as SessionStart matcher=compact; emit additionalContext so the model sees it
 # @@TODO             :
 # @@Other            :  Compaction drops old context — this hook re-anchors Claude to the project
 # @@Resource         :
@@ -18,8 +18,8 @@
 
 set -euo pipefail
 
-# Drain stdin (compaction summary) — must consume it
-INPUT="$(cat)"
+# Drain stdin (session-start payload) — must consume it
+POST_COMPACT_INPUT="$(cat)"
 
 project=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -f "$project/CLAUDE.md" ] || [ -f "$project/AI.md" ] || exit 0
@@ -37,5 +37,5 @@ Context was compacted. Re-establish full state before continuing:
 
 python3 -c "
 import json, sys
-print(json.dumps({'systemMessage': sys.argv[1]}))
+print(json.dumps({'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': sys.argv[1]}}))
 " "$MSG"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605240000-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -8,7 +8,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Surgical protection: only auth-critical files and core OS binary dirs
+# @@Changelog        :  Per-sub-command container exemption; catch \\rm, \$HOME, /* targets; fail-open redirect check
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202605240000-git"
+VERSION="202607031500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -45,7 +45,8 @@ CORE_BINARY='(/bin|/sbin|/usr/bin|/usr/sbin)'
 AUTH_CRITICAL='(/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd))'
 # Home-directory root only — the home dir ITSELF, not subpaths.
 # e.g. /root and /home/jason are protected; /root/Projects is not.
-HOME_LITERAL='(/root|/home/[^/[:space:]&|;()`<>]+|~)'
+# $HOME (unexpanded) and ~ are equivalent spellings of the same target.
+HOME_LITERAL='(/root|/home/[^/[:space:]&|;()`<>]+|~|\$HOME)'
 # Truly destructive verbs: delete and wipe only. chmod/chown are NOT here — they configure, not destroy.
 DESTRUCTIVE_VERBS='rm|rmd|rmdir|shred|truncate|wipefs'
 # Write verbs that install/overwrite files.
@@ -74,19 +75,36 @@ except Exception:
 '
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# __is_container_mediated <command> - 0 if the command runs inside a container/sandbox.
-__is_container_mediated() {
-  case "$1" in
-  "docker exec "* | "docker run "*) return 0 ;;
-  "docker compose exec "* | "docker compose run "*) return 0 ;;
-  "docker-compose exec "* | "docker-compose run "*) return 0 ;;
-  "incus exec "* | "incus shell "*) return 0 ;;
-  "lxc exec "*) return 0 ;;
-  "podman exec "* | "podman run "*) return 0 ;;
-  "kubectl exec "*) return 0 ;;
-  "nsenter "* | "chroot "*) return 0 ;;
-  esac
-  return 1
+# __strip_container_subcmds - split the command on newlines and shell separators,
+# drop sub-commands that run inside a container/sandbox, print the rest one per line.
+# Splitting is intentionally naive (quoted separators over-split) — over-splitting
+# only makes the check stricter, never looser. Exempting per sub-command closes the
+# old whole-command-prefix bypass: "docker run --rm img true; rm -rf ~" no longer
+# gets a free pass just because the string STARTS with "docker run ".
+__strip_container_subcmds() {
+  python3 -c '
+import re, sys
+cmd = sys.stdin.read()
+prefixes = (
+    "docker exec ", "docker run ",
+    "docker compose exec ", "docker compose run ",
+    "docker-compose exec ", "docker-compose run ",
+    "incus exec ", "incus shell ",
+    "lxc exec ",
+    "podman exec ", "podman run ",
+    "kubectl exec ",
+    "nsenter ", "chroot ",
+)
+kept = []
+for part in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
+    sub = part.strip()
+    if not sub:
+        continue
+    if sub.startswith(prefixes):
+        continue
+    kept.append(sub)
+print("\n".join(kept))
+'
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # __block <reason> - emit a structured BLOCKED message and exit 2.
@@ -109,19 +127,21 @@ CMD="$(printf '%s' "$INPUT" | __extract_command)"
 # Empty / non-Bash payload - nothing to inspect.
 [ -z "$CMD" ] && exit 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Container-mediated commands are explicitly trusted at this layer.
-if __is_container_mediated "$CMD"; then
-  exit 0
-fi
+# Container-mediated sub-commands are explicitly trusted at this layer;
+# everything else in a compound/multi-line command is still inspected.
+CMD="$(printf '%s' "$CMD" | __strip_container_subcmds)"
+[ -z "$CMD" ] && exit 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Word-boundary fragment reused across rules.
-WORD_START='(^|[[:space:];|&`(])'
-# Up to 8 non-flag, non-operator tokens between a verb and its target path.
-TOKEN_GAP='([[:space:]]+[^[:space:]&|;()`<>]+){0,8}'
+# Includes backslash so the house-style alias bypass "\rm" is still caught.
+WORD_START='(^|[[:space:];|&`(\])'
+# Up to 32 non-flag, non-operator tokens between a verb and its target path.
+TOKEN_GAP='([[:space:]]+[^[:space:]&|;()`<>]+){0,32}'
 # Path tails — match the root itself OR any subpath beneath it.
 CORE_BINARY_TAIL="${CORE_BINARY}([[:space:]/]|\$)"
 AUTH_CRITICAL_TAIL="${AUTH_CRITICAL}([[:space:]]|\$)"
-HOME_TAIL="${HOME_LITERAL}/?([[:space:]]|\$)"
+# Trailing /* (wipe-the-contents form) is as destructive as the dir itself.
+HOME_TAIL="${HOME_LITERAL}(/\*?)?([[:space:]]|\$)"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 1: destructive verb on auth-critical files.
 if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+${AUTH_CRITICAL_TAIL}"; then
@@ -135,8 +155,8 @@ fi
 if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+${HOME_TAIL}"; then
   __block "destructive command targeting the home directory itself"
 fi
-# Rule 4: destructive verb on the filesystem root /.
-if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+/([[:space:]]|\$)"; then
+# Rule 4: destructive verb on the filesystem root / (including the /* contents form).
+if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+/\*?([[:space:]]|\$)"; then
   __block "destructive op targeting the filesystem root /"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -145,6 +165,9 @@ fi
 __check_redirects() {
   python3 - "$1" <<'PYSCRIPT'
 import re, sys
+# Any unexpected exception must fail OPEN (exit 0) — the documented design is
+# that a broken hook never blocks every Bash call; only a real match exits 1.
+sys.excepthook = lambda *a: sys.exit(0)
 cmd = sys.argv[1]
 auth_critical = re.compile(
     r"^/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd)$"

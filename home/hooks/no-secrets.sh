@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605181200-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,11 +10,11 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Initial version
+# @@Changelog        :  Add python3 fail-open guard, JSON parse guard, restrict placeholder suppression to the matched secret text
 # @@TODO             :  None
 # @@Other            :  Applies to Write (new_content) and Edit (new_string) tool calls.
 # @@Other            :  Template/example env files (.env.example, .env.sample, etc.) are exempted.
-# @@Other            :  Placeholder-surrounded matches (changeme, your_key_here, <TOKEN>, {SECRET}, etc.) are skipped.
+# @@Other            :  Matches containing placeholder text (changeme, your_key_here, <TOKEN>, {SECRET}, etc.) inside the matched value are skipped.
 # @@Resource         :  ~/.claude/memory/sensitive_data.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -22,7 +22,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202605181200-git"
+VERSION="202607031500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -30,13 +30,23 @@ set -uo pipefail
 INPUT="$(cat)"
 [ -z "$INPUT" ] && exit 0
 
+# Fail-open if python3 is missing — a broken hook exits 0 (no-op) so we never silently block every Write/Edit call.
+if ! command -v python3 >/dev/null 2>&1; then
+  printf 'no-secrets.sh: required command not found: python3\n' >&2
+  exit 0
+fi
+
 HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
 import json
 import os
 import re
 import sys
 
-d = json.loads(os.environ.get("HOOK_INPUT", "{}"))
+# Fail-open on malformed payloads — a broken hook must never block every Write/Edit call.
+try:
+    d = json.loads(os.environ.get("HOOK_INPUT", "{}"))
+except json.JSONDecodeError:
+    sys.exit(0)
 
 tool_name  = d.get("tool_name", "")
 tool_input = d.get("tool_input", {})
@@ -87,8 +97,9 @@ PATTERNS = [
     ("PyPI API Token",           r"pypi-[A-Za-z0-9_\-]{40,}"),
 ]
 
-# Placeholder indicators — if any appear in a 60-char window around the match,
-# treat the match as an example/template value and skip it.
+# Placeholder indicators — suppression applies only when one of these patterns
+# appears inside the matched secret text itself; surrounding text (comments,
+# code braces like {label}) must never mask a real key on a nearby line.
 PLACEHOLDER_RE = re.compile(
     r"changeme"
     r"|placeholder"
@@ -118,15 +129,9 @@ findings = []
 
 for label, pattern in PATTERNS:
     for m in re.finditer(pattern, content):
-        start = m.start()
-        end   = m.end()
-        # 60-char context window around the match.
-        ctx_start = max(0, start - 60)
-        ctx_end   = min(len(content), end + 60)
-        # Exclude the matched value itself from the placeholder check so the
-        # placeholder regex only fires on surrounding text.
-        surrounding = content[ctx_start:start] + content[end:ctx_end]
-        if PLACEHOLDER_RE.search(surrounding):
+        # Suppress only when a placeholder pattern overlaps the matched secret
+        # text itself — a genuinely templated value like {your_token_here}.
+        if PLACEHOLDER_RE.search(m.group(0)):
             continue
         findings.append((label, redact(m.group())))
 

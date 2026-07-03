@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605160000-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  session-start.sh
 # @@Description      :  SessionStart hook: inject project-dir context to anchor every session
-# @@Changelog        :  New File
+# @@Changelog        :  Use hookSpecificOutput.additionalContext so the context reaches the model (systemMessage is user-display only)
 # @@TODO             :
 # @@Other            :  Silently exits if not inside a git repo with a project CLAUDE.md or AI.md
 # @@Resource         :
@@ -31,5 +31,5 @@ Read AI.md and IDEA.md before acting on this project."
 
 python3 -c "
 import json, sys
-print(json.dumps({'systemMessage': sys.argv[1]}))
+print(json.dumps({'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': sys.argv[1]}}))
 " "$MSG"

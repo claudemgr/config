@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605160000-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,13 +10,19 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse hook: block reading ~/.claude/ deployed copies when home/ source exists
-# @@Changelog        :  New File
+# @@Changelog        :  Fail open with a stderr warning when jq is missing
 # @@TODO             :
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md)
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
+
+# Fail open when jq is missing — a broken hook must never block every Read call
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'drift-guard-read.sh: jq not found — drift guard disabled\n' >&2
+  exit 0
+fi
 
 INPUT="$(cat)"
 

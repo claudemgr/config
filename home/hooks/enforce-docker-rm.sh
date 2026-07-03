@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031200-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,16 +10,27 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm and --name (prevents orphaned/untargetable containers)
-# @@Changelog        :  Add --name enforcement for targeted container cleanup
+# @@Changelog        :  Add python3 guard; widen pre-filter to regex docker\s+run (tabs/newlines/multi-space)
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031200-git"
+VERSION="202607031500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
+
+# __require_cmd <name> - bail with a clear error if a required tool is missing.
+# A broken hook exits 0 (no-op) so we never silently block every Bash call.
+__require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf 'enforce-docker-rm.sh: required command not found: %s\n' "$1" >&2
+    exit 0
+  fi
+}
+
+__require_cmd python3
 
 ENFORCE_DOCKER_RM_INPUT="$(cat)"
 
@@ -31,8 +42,10 @@ import shlex
 import sys
 
 raw = os.environ.get("ENFORCE_DOCKER_RM_HOOK_INPUT", "")
+# strict=False accepts raw control characters (tabs/newlines) inside strings
+# so a payload with an embedded tab cannot bypass the hook via a parse failure
 try:
-    payload = json.loads(raw)
+    payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
 
@@ -44,8 +57,9 @@ cmd = payload.get("tool_input", {}).get("command", "")
 if not cmd:
     sys.exit(0)
 
-# Only inspect commands that contain "docker run"
-if "docker run" not in cmd and "docker  run" not in cmd:
+# Only inspect commands that contain docker + run separated by any whitespace
+# (spaces, tabs, or backslash-newline continuations)
+if not re.search(r"docker\s+run", cmd):
     sys.exit(0)
 
 # Tokenise with shlex; split on pipes/semicolons/&& first

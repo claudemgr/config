@@ -195,7 +195,6 @@
       "Bash(docker-compose:*)",
       "Bash(incus:*)",
       "Bash(git:*)",
-      "Bash(pkill:*)",
       "Bash(rm:*)",
       "Bash(rmd:*)",
       "Bash(rmdir:*)",
@@ -334,21 +333,9 @@
             "timeout": 10
           }
         ]
-      }
-    ],
-    "PreCompact": [
+      },
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/pre-compact.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PostCompact": [
-      {
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
@@ -364,7 +351,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/drift-guard-read.sh"
+            "command": "$HOME/.claude/hooks/drift-guard-read.sh",
+            "timeout": 10
           }
         ]
       },
@@ -373,23 +361,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/protect-host.sh"
+            "command": "$HOME/.claude/hooks/protect-host.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/block-host-toolchain.sh"
+            "command": "$HOME/.claude/hooks/block-host-toolchain.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/enforce-docker-rm.sh"
+            "command": "$HOME/.claude/hooks/enforce-docker-rm.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-force-push.sh"
+            "command": "$HOME/.claude/hooks/no-force-push.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/validate-workflows.sh"
+            "command": "$HOME/.claude/hooks/validate-workflows.sh",
+            "timeout": 120
           }
         ]
       },
@@ -398,15 +391,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
+            "command": "$HOME/.claude/hooks/no-ai-attribution.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-secrets.sh"
+            "command": "$HOME/.claude/hooks/no-secrets.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-forbidden-files.sh"
+            "command": "$HOME/.claude/hooks/no-forbidden-files.sh",
+            "timeout": 10
           }
         ]
       },
@@ -415,15 +411,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-ai-attribution.sh"
+            "command": "$HOME/.claude/hooks/no-ai-attribution.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-secrets.sh"
+            "command": "$HOME/.claude/hooks/no-secrets.sh",
+            "timeout": 10
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/no-forbidden-files.sh"
+            "command": "$HOME/.claude/hooks/no-forbidden-files.sh",
+            "timeout": 10
           }
         ]
       }

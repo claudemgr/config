@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605181200-git
+##@Version           :  202607031500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,18 +10,24 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  New File
+# @@Changelog        :  Deny wins over allow, case-insensitive basename/extension checks, python3 fail-open guard
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202605181200-git"
+VERSION="202607031500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
 INPUT="$(cat)"
+
+# Fail-open if python3 is missing — a broken hook exits 0 (no-op) so we never silently block every Write/Edit call.
+if ! command -v python3 >/dev/null 2>&1; then
+  printf 'no-forbidden-files.sh: required command not found: python3\n' >&2
+  exit 0
+fi
 
 HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
 import json
@@ -211,26 +217,30 @@ def is_allowed(fp, bn):
             return True
     return False
 
-if is_allowed(norm_path, basename):
-    sys.exit(0)
-
 # ------------------------------------------------------------------
 # FORBIDDEN FILE PATTERNS — prompt confirmation before writing
+# Deny wins over allow: these checks run BEFORE the allowlist so that
+# credential files under allowlisted paths (.github/, vendor/, ...) still block.
 # Patterns are split across variables to avoid triggering other hooks
 # when this script itself is written.
 # ------------------------------------------------------------------
 
+# All entries lowercase — compared case-insensitively against basename.lower().
 FORBIDDEN_BASENAMES = {
     ".netrc",
     "credentials.json", "service-account.json", "service_account.json",
     "secrets.json", "secrets.yaml", "secrets.yml",
     "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
     "id_rsa.pub", "id_ed25519.pub",
-    ".DS_Store", "Thumbs.db", "desktop.ini",
-    # These are allowed under .github/ (auto-allowlisted by path pattern) but
-    # require confirmation at repo root or anywhere else.
-    "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
-    "SECURITY.md", "PULL_REQUEST_TEMPLATE.md",
+    ".ds_store", "thumbs.db", "desktop.ini",
+}
+
+# Doc files allowed under .github/ (auto-allowlisted by path pattern) but
+# requiring confirmation at repo root or anywhere else.
+# All entries lowercase — compared case-insensitively against basename.lower().
+LOCATION_RESTRICTED_BASENAMES = {
+    "contributing.md", "code_of_conduct.md",
+    "security.md", "pull_request_template.md",
 }
 
 FORBIDDEN_EXTENSIONS = {
@@ -255,9 +265,11 @@ FORBIDDEN_PATH_PATTERNS = [
 ]
 
 def is_forbidden(fp, bn):
-    if bn in FORBIDDEN_BASENAMES:
+    # Basename and extension checks are case-insensitive (ID_RSA, cert.PEM, Secrets.json).
+    bn_lower = bn.lower()
+    if bn_lower in FORBIDDEN_BASENAMES:
         return bn, "credential/secrets/OS-detritus file"
-    _, ext = os.path.splitext(bn)
+    _, ext = os.path.splitext(bn_lower)
     if ext in FORBIDDEN_EXTENSIONS:
         return bn, "private key or certificate file"
     fp_lower = fp.lower()
@@ -267,6 +279,15 @@ def is_forbidden(fp, bn):
     return None, None
 
 matched_name, reason = is_forbidden(norm_path, basename)
+
+# Allowlist only rescues files NOT forbidden by name/extension/path — deny wins over allow.
+if matched_name is None and is_allowed(norm_path, basename):
+    sys.exit(0)
+
+# Location-restricted docs under allowlisted paths were rescued above; anywhere else they need confirmation.
+if matched_name is None and basename.lower() in LOCATION_RESTRICTED_BASENAMES:
+    matched_name, reason = basename, "doc file only auto-allowed under .github/"
+
 if matched_name is None:
     sys.exit(0)
 
