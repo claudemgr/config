@@ -91,7 +91,7 @@ Rules:
 Every container or Incus instance started by AI must have an explicit lifetime — never leave one running indefinitely:
 
 - **Test containers / instances:** stop and remove immediately after the test completes (pass or fail)
-- **Build containers:** `--rm` on all `docker run` invocations; self-remove on exit. Never add `--name` to batch build/test containers — it causes "container name already in use" failures when two or more agents run concurrently. `--name` is only for service/daemon containers that must be referenced by name after launch.
+- **Build containers:** `--rm --name {project_name}-XXXX` on all `docker run` invocations; self-remove on exit. `XXXX` is a random 8-char lowercase alphanumeric suffix (`$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`) — the suffix prevents "container name already in use" collisions when multiple agents run concurrently, and the name makes targeted cleanup (`docker stop {project_name}-XXXX`) possible when a container hangs. Never launch an unnamed container — an anonymous `--rm` container that hangs can only be found by image-grepping `docker ps`.
 - **Incus instances:** `incus launch {image} {project_name}-XXXX`; `incus delete --force {project_name}-XXXX` when done; same 8-char random suffix convention as Docker
 - **Long-running service containers (integration tests):** set a `--stop-timeout` and enforce it; if a container has not exited within 60s of `docker stop`, force-kill with `docker kill`
 - **No containers or instances survive a session end** — everything started during a session must be stopped before the session ends
@@ -120,7 +120,7 @@ If the image is not in the registry, do not build it inline — stop and tell th
 
 ## Docker Run Conventions
 
-- **`docker run` must use `--rm`** — every batch build/test container must self-remove on exit; never add `--name` to batch containers (causes "container already in use" when multiple agents run concurrently — Docker prevents two containers sharing a name); never use `-it` for batch commands (breaks CI — no TTY). `--name` is reserved for service/daemon containers that need to be referenced after launch.
+- **`docker run` must use `--rm --name {project_name}-XXXX`** — every batch build/test container must self-remove on exit AND carry a name for targeted cleanup. `XXXX` = random 8-char lowercase alphanumeric suffix (`$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`; in Makefiles: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`). The random suffix makes concurrent runs collision-free, and `docker stop {project_name}-XXXX` / `docker ps --filter name={project_name}-` gives precise cleanup without broad sweeps. Never use `-it` for batch commands (breaks CI — no TTY); `-it` is only for interactive shells.
 - **Resource limits on all toolchain containers** — always pass `--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS)` where both vars default to `4g` and `2` respectively (overrideable per project or per machine). When many Claude Code instances each spawn multiple agents that each launch containers, the machine runs out of CPU/memory without per-container caps.
 - **Go build cache must be project-scoped** — `GO_BUILD ?= $(HOME)/.cache/go-build/$(PROJECTNAME)`. The Go compile cache (`~/.cache/go-build`) is NOT safe for concurrent writes from separate `go` processes; a shared path across projects causes corruption and stalls. The module download cache (`GO_CACHE = ~/go/pkg/mod`) IS safe to share (Go uses file locking for writes). Rust's sccache and cargo registry are also safe to share.
 - **Dev images: rolling tags** — never pinned

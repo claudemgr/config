@@ -43,6 +43,7 @@ DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
 
 RUST_DOCKER := docker run --rm \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v "$(PWD)":/app \
 	-v $(CARGO_CACHE):/usr/local/share/cargo \
@@ -99,6 +100,7 @@ RUST_RUSTUP_VOL  := rust-rustup
 RUST_SCCACHE_VOL := rust-sccache
 
 RUST_DOCKER := docker run --rm \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v "$(PWD)":/app \
 	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \

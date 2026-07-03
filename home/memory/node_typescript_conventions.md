@@ -46,6 +46,7 @@ DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
 
 NODE_DOCKER := docker run --rm \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \
@@ -73,6 +74,7 @@ DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
 
 NODE_DOCKER := docker run --rm \
+	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/build \
 	-v $(NPM_CACHE):/root/.npm \

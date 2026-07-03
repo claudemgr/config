@@ -144,7 +144,7 @@ LANG_DOCKER := docker run --rm \
 
 Go and Rust use **named volumes** — Docker creates them automatically; no `mkdir -p` needed. Node and Python use **host dir mounts** — always `@mkdir -p` the host dir before the docker run.
 
-- Always `--rm -it --name $(PROJECTNAME)-XXXX` — never leave build containers running; `-it` enables interactive use; `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`
+- Always `--rm --name $(PROJECTNAME)-XXXX` — never leave build containers running; the name enables targeted cleanup (`docker stop $(PROJECTNAME)-XXXX`); `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`. Never add `-it` to batch build/test targets (breaks CI — no TTY); `-it` only on explicit interactive-shell targets (e.g. `make shell`)
 - Always `-w /app` — explicit working directory
 - Mount project root at `/app`; output dirs (`binaries/`, `dist/`) are subdirs of `/app`
 

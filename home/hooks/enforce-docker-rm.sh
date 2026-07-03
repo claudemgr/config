@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202605181200-git
+##@Version           :  202607031200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -9,28 +9,28 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
-# @@Description      :  PreToolUse hook: block docker run without --rm (prevents orphaned containers)
-# @@Changelog        :  New File
+# @@Description      :  PreToolUse hook: block docker run without --rm and --name (prevents orphaned/untargetable containers)
+# @@Changelog        :  Add --name enforcement for targeted container cleanup
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202605181200-git"
+VERSION="202607031200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
-INPUT="$(cat)"
+ENFORCE_DOCKER_RM_INPUT="$(cat)"
 
-HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
+ENFORCE_DOCKER_RM_HOOK_INPUT="$ENFORCE_DOCKER_RM_INPUT" python3 - <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("HOOK_INPUT", "")
+raw = os.environ.get("ENFORCE_DOCKER_RM_HOOK_INPUT", "")
 try:
     payload = json.loads(raw)
 except json.JSONDecodeError:
@@ -78,28 +78,43 @@ for sub in sub_cmds:
     # Also accept --rm=true
     has_rm = any(t in ("--rm", "--rm=true") for t in clean[2:])
 
+    # Check for --name in the argument list
+    # Accept both "--name value" and "--name=value" forms
+    has_name = any(t == "--name" or t.startswith("--name=") for t in clean[2:])
+
     # docker run --help and dry-run forms are fine
     is_help = any(t in ("--help", "-h") for t in clean[2:])
 
-    if not has_rm and not is_help:
+    if is_help:
+        continue
+
+    missing = []
+    if not has_rm:
+        missing.append("--rm")
+    if not has_name:
+        missing.append("--name")
+
+    if missing:
         # Reconstruct a short form for the message
         short = " ".join(clean[:6]) + (" ..." if len(clean) > 6 else "")
-        violations.append(short)
+        violations.append((short, missing))
 
 if not violations:
     sys.exit(0)
 
 msg = (
-    "BLOCKED: docker run without --rm detected.\n\n"
-    "Every build/test container must self-remove on exit to prevent orphaned containers.\n\n"
+    "BLOCKED: docker run missing required flag(s).\n\n"
+    "Every container must use --rm (self-remove on exit, no orphans) and\n"
+    "--name {project_name}-XXXX (targeted cleanup: docker stop {project_name}-XXXX).\n"
+    "XXXX = random 8-char lowercase alphanumeric suffix.\n\n"
     "Violating command(s):\n"
 )
-for v in violations:
-    msg += f"  {v}\n"
+for short, missing in violations:
+    msg += f"  {short}  (missing: {', '.join(missing)})\n"
 
 msg += (
-    "\nFix: add --rm to each docker run invocation:\n"
-    "  docker run --rm [OPTIONS] IMAGE [COMMAND]\n\n"
+    "\nFix pattern:\n"
+    "  docker run --rm --name \"{project_name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" [OPTIONS] IMAGE [COMMAND]\n\n"
     "If this container must persist after the session (e.g. a user-requested dev environment),\n"
     "confirm with the user first and document the container name/ID."
 )
