@@ -369,7 +369,7 @@ Apply to: IPv6, onion addresses, API tokens, hashes, UUIDs, Base64 blobs.
 
 Every web UI footer uses this exact row order, centered, top to bottom:
 
-1. **Onion address** (only when Tor is enabled and running): 🧅 icon + the full `.onion` address in a monospace code pill + copy-to-clipboard button
+1. **Onion address** (only when Tor is enabled and running): 🧅 icon + the full `.onion` address in a monospace code pill + copy-to-clipboard button with visible "Copied!" feedback
 2. **Page links**: About • Privacy • Contact • Help
 3. **Branding**: Made with ❤️ • {projectversion}
 4. **Build stamp**: `Last update: {build_datetime}` in human-readable format `%B %-d, %Y at %H:%M:%S %Z` (e.g. `December 4, 2025 at 13:05:13 EST`), linked to the health endpoint
@@ -476,6 +476,7 @@ Use the full CSS variable block from the **Design Token System** section above �
 - **i18n-ready** — no hardcoded user-visible strings; use a translation key from the first commit
 - **No feature gating** — GUI, TUI, and CLI surfaces expose the same core capabilities
 - **Feedback for every action** — button press, form submit, background task — user always knows something happened
+- **Copy buttons MUST show visible "Copied!" feedback** — on success swap to a checkmark plus the translated "Copied!" label (i18n key `copied`, rendered server-side into `data-copied-label`) for 2 s via a `.copied` class; success colors come from CSS custom properties; announce via `aria-live="polite"`; icon-only buttons swap their own content and carry `aria-live="polite"` on the button itself
 - **Consistent spacing** — use a spacing scale (e.g. 4 px base unit: 4, 8, 12, 16, 24, 32, 48); never arbitrary pixel values
 - **Anything user-facing MUST use `%B %-d, %Y at %H:%M:%S %Z`** — (e.g. `December 4, 2025 at 13:05:13 EST`); use `%Y-%m-%dT%H:%M:%S%:z` (RFC 3339) only where machine-readability matters (API responses, logs, health endpoints, data exports)
 
