@@ -371,7 +371,7 @@ Every web UI footer uses this exact row order, centered, top to bottom:
 
 1. **Onion address** (only when Tor is enabled and running): 🧅 icon + the full `.onion` address in a monospace code pill + copy-to-clipboard button with visible "Copied!" feedback
 2. **Page links**: About • Privacy • Contact • Help
-3. **Branding**: Made with ❤️ • {projectversion}
+3. **Branding**: Made with ❤️ • {project_version}
 4. **Build stamp**: `Last update: {build_datetime}` in human-readable format `%B %-d, %Y at %H:%M:%S %Z` (e.g. `December 4, 2025 at 13:05:13 EST`), linked to the health endpoint
 
 Rules:
