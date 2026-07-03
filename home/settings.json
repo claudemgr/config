@@ -21,6 +21,8 @@
     "allow": [
       "Read(**)",
       "Write(**)",
+      "Write(~/Projects/**/.git/COMMIT_MESS)",
+      "Edit(~/Projects/**/.git/COMMIT_MESS)",
       "Edit(**/.git/COMMIT_MESS)",
       "Edit(**/.git/COMMIT_EDITMSG)",
       "Edit(**/AI.md)",
