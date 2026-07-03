@@ -625,6 +625,8 @@ Every external action (`uses: owner/action@...`) MUST be pinned to a full commit
 - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 ```
 
+**The trailing `# vX.Y.Z` version annotation is required and stays inline** — this is an explicit exception to the comments-above rule. Renovate reads and rewrites the same-line comment when bumping pins; moving it above the `uses:` line breaks that automation and loses the human-readable version at a glance.
+
 **When updating a pinned SHA**, verify three things:
 
 1. **Action is still maintained** — check the upstream repo is not archived, deprecated, or abandoned
