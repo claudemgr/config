@@ -379,6 +379,11 @@
           },
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/bound-shell-lifetime.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/no-force-push.sh",
             "timeout": 10
           },

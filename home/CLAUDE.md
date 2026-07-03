@@ -102,6 +102,17 @@ Key rules always in effect:
 - Only remove project-specific resources; never broad sweeps (`docker system prune`, `rm -rf /tmp/*`)
 - Full rules: `~/.claude/memory/execution_hierarchy.md`
 
+## Shell Lifetime & Timeouts
+Every shell command must be bounded to its operation — enforced by `bound-shell-lifetime.sh`.
+- **Timeout tiers** — lookups/status ≤30s · network/package ops ≤120s · builds/tests ≤600s; pass an explicit `timeout` on every Bash call sized to the tier
+- **Never poll for harness-tracked work** — subagents and background tasks deliver a task-notification on completion; a sentinel-file poll loop (`until [ -f *.done ]; do sleep N; done`) is forbidden — end the turn and let the notification resume it
+- **Polling external state must be bounded** — wrap the loop in `timeout {n}` or add an iteration cap; `while true`/`until` + `sleep` with no bound is forbidden
+- **No open-ended sleeps** — `sleep infinity` and any single sleep >600s are forbidden; for longer waits, end the turn or use a scheduler
+- **No detachment** — `nohup`, `setsid`, `disown` escape both timeouts and task tracking; use run_in_background (tracked, notifies on exit, stoppable)
+- **Follow modes are bounded** — `tail -f` / `watch` only inside `timeout {n}`; otherwise read the file once
+- **`&` requires ownership** — capture `PID=$!` at launch or close with `wait`; stop every background shell as soon as its output is consumed
+- **Exemptions** — anything already under `timeout {n}`; container-mediated payloads (container lifetime is governed by the Cleanup rules and `enforce-docker-rm.sh`)
+
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
 - **Never run unrequested destructive ops, even to "fix"** — stop and ask
