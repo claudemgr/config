@@ -46,9 +46,12 @@ Example:
 
     project_name:  mytool
     project_org:   casjay
-    internal_name: mytool        # FROZEN — set once at first-time setup, never edit
-    internal_org:  casjay        # FROZEN — set once at first-time setup, never edit
-    language:      go            # primary implementation language
+    # FROZEN — set once at first-time setup, never edit
+    internal_name: mytool
+    # FROZEN — set once at first-time setup, never edit
+    internal_org:  casjay
+    # primary implementation language
+    language:      go
     official_site: https://mytool.example.com
 
 ## Business logic
@@ -514,10 +517,14 @@ Must contain:
 
 project_name:  {project_name}
 project_org:   {project_org}
-internal_name: {internal_name}   # FROZEN
-internal_org:  {internal_org}    # FROZEN
-language:      {language}        # e.g. go, rust, typescript, python
-official_site: {official_site}   # optional
+# FROZEN
+internal_name: {internal_name}
+# FROZEN
+internal_org:  {internal_org}
+# e.g. go, rust, typescript, python
+language:      {language}
+# optional
+official_site: {official_site}
 
 ## Business logic
 

@@ -66,11 +66,14 @@ For `.ps1` and `.cmd`/`.bat` scripts: omit shellcheck lines entirely; use platfo
 ### Standard boilerplate variables (after header)
 
 ```bash
-APPNAME="${0##*/}"          # or shell-specific equivalent above
+# or shell-specific equivalent above
+APPNAME="${0##*/}"
 VERSION="YYYYMMDDHHMM-git"
 RUN_USER="${USER}"
-SET_UID="${UID}"            # or shell-specific equivalent above
-SCRIPT_SRC_DIR="..."       # shell-specific — see table
+# or shell-specific equivalent above
+SET_UID="${UID}"
+# shell-specific — see table
+SCRIPT_SRC_DIR="..."
 ```
 
 **Section separators** between logical blocks:
@@ -167,7 +170,8 @@ count=$(( count + 1 ))
 ```bash
 # BAD — -u kills the script on optional/empty vars
 set -euo pipefail
-echo "${OPTIONAL_ARG}"    # dies if not set, even though that's fine
+# dies if not set, even though that's fine
+echo "${OPTIONAL_ARG}"
 
 # GOOD — check only where unset is a real bug
 : "${REQUIRED_VAR:?REQUIRED_VAR must be set}"
@@ -285,7 +289,8 @@ IFS=':'
 read -ra parts <<< "${value}"
 
 # GOOD — IFS change is scoped to the read command only
-IFS=':' read -ra parts <<< "${value}"  # read is a builtin; IFS here is a command prefix, not global
+# read is a builtin; IFS here is a command prefix, not global
+IFS=':' read -ra parts <<< "${value}"
 
 # GOOD — when IFS must be changed for a block, save/restore
 old_IFS="${IFS}"
@@ -816,9 +821,12 @@ name="$(basename -- "$path")"
 dir="$(dirname -- "$path")"
 
 # GOOD
-name="${path##*/}"      # basename
-dir="${path%/*}"        # dirname
-stem="${name%.ext}"     # strip extension
+# basename
+name="${path##*/}"
+# dirname
+dir="${path%/*}"
+# strip extension
+stem="${name%.ext}"
 ```
 
 **String matching — `[[ ]]`, NOT `echo | grep`:**
@@ -1121,18 +1129,30 @@ __is_ip4_public() {
   [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
   local a b c d
   IFS='.' read -r a b c d <<< "$ip"
-  (( a == 0 )) && return 1                              # 0.0.0.0/8
-  (( a == 10 )) && return 1                             # 10.0.0.0/8
-  (( a == 127 )) && return 1                            # 127.0.0.0/8 loopback
-  (( a == 100 && b >= 64 && b <= 127 )) && return 1    # 100.64.0.0/10 CGNAT
-  (( a == 169 && b == 254 )) && return 1               # 169.254.0.0/16 link-local
-  (( a == 172 && b >= 16 && b <= 31 )) && return 1     # 172.16.0.0/12
-  (( a == 192 && b == 0 && c == 0 )) && return 1       # 192.0.0.0/24 IETF protocol
-  (( a == 192 && b == 0 && c == 2 )) && return 1       # 192.0.2.0/24 TEST-NET-1
-  (( a == 192 && b == 168 )) && return 1               # 192.168.0.0/16
-  (( a == 198 && b == 51 && c == 100 )) && return 1    # 198.51.100.0/24 TEST-NET-2
-  (( a == 203 && b == 0 && c == 113 )) && return 1     # 203.0.113.0/24 TEST-NET-3
-  (( a >= 224 )) && return 1                            # 224.0.0.0+ multicast/reserved
+  # 0.0.0.0/8
+  (( a == 0 )) && return 1
+  # 10.0.0.0/8
+  (( a == 10 )) && return 1
+  # 127.0.0.0/8 loopback
+  (( a == 127 )) && return 1
+  # 100.64.0.0/10 CGNAT
+  (( a == 100 && b >= 64 && b <= 127 )) && return 1
+  # 169.254.0.0/16 link-local
+  (( a == 169 && b == 254 )) && return 1
+  # 172.16.0.0/12
+  (( a == 172 && b >= 16 && b <= 31 )) && return 1
+  # 192.0.0.0/24 IETF protocol
+  (( a == 192 && b == 0 && c == 0 )) && return 1
+  # 192.0.2.0/24 TEST-NET-1
+  (( a == 192 && b == 0 && c == 2 )) && return 1
+  # 192.168.0.0/16
+  (( a == 192 && b == 168 )) && return 1
+  # 198.51.100.0/24 TEST-NET-2
+  (( a == 198 && b == 51 && c == 100 )) && return 1
+  # 203.0.113.0/24 TEST-NET-3
+  (( a == 203 && b == 0 && c == 113 )) && return 1
+  # 224.0.0.0+ multicast/reserved
+  (( a >= 224 )) && return 1
   return 0
 }
 ```
@@ -1145,13 +1165,19 @@ Returns 0 if `$1` is a public (globally routable) IPv6 address, 1 if private, re
 __is_ip6_public() {
   local ip="${1:-}"
   [[ -z "$ip" ]] && return 1
-  ip="${ip%%\%*}"          # strip zone ID (e.g. fe80::1%eth0)
-  local low="${ip,,}"      # lowercase for pattern matching
+  # strip zone ID (e.g. fe80::1%eth0)
+  ip="${ip%%\%*}"
+  # lowercase for pattern matching
+  local low="${ip,,}"
   [[ "$low" == "::" || "$low" == "::1" ]] && return 1
-  [[ "$low" =~ ^fe[89ab][0-9a-f]?:  ]] && return 1    # fe80::/10 link-local
-  [[ "$low" =~ ^f[cd]               ]] && return 1    # fc00::/7  unique-local
-  [[ "$low" =~ ^::ffff:             ]] && return 1    # IPv4-mapped
-  [[ "$low" =~ ^[23]                ]] || return 1    # must be global unicast
+  # fe80::/10 link-local
+  [[ "$low" =~ ^fe[89ab][0-9a-f]?:  ]] && return 1
+  # fc00::/7  unique-local
+  [[ "$low" =~ ^f[cd]               ]] && return 1
+  # IPv4-mapped
+  [[ "$low" =~ ^::ffff:             ]] && return 1
+  # must be global unicast
+  [[ "$low" =~ ^[23]                ]] || return 1
   return 0
 }
 ```

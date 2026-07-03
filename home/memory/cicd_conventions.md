@@ -365,7 +365,8 @@ name: Build Toolchain Image
 
 on:
   schedule:
-    - cron: '0 4 1 * *'  # 1st of each month at 04:00 UTC
+    # 1st of each month at 04:00 UTC
+    - cron: '0 4 1 * *'
   workflow_dispatch:
 
 permissions:
@@ -457,10 +458,14 @@ jobs:
   release:
     needs: build
     permissions:
-      contents: write      # create GitHub release + upload assets
-      packages: write      # push to ghcr.io
-      id-token: write      # OIDC token for cosign signing
-      attestations: write  # GitHub artifact attestations (SBOM, provenance)
+      # create GitHub release + upload assets
+      contents: write
+      # push to ghcr.io
+      packages: write
+      # OIDC token for cosign signing
+      id-token: write
+      # GitHub artifact attestations (SBOM, provenance)
+      attestations: write
     ...
 ```
 
@@ -516,7 +521,8 @@ jobs:
     # Builds and pushes ghcr.io/{org}/{name}-builder:latest
     ...
   build-app:
-    needs: build-base   # app Dockerfile FROM references the builder image
+    # app Dockerfile FROM references the builder image
+    needs: build-base
     ...
 ```
 
@@ -583,7 +589,8 @@ Always set an explicit retention period on `actions/upload-artifact` — never r
   with:
     name: binaries
     path: binaries/
-    retention-days: 7   # build artifacts; use 30 for release staging
+    # build artifacts; use 30 for release staging
+    retention-days: 7
 ```
 
 Use 7 days for transient build artifacts; 30 days for release staging artifacts that may need re-download before a release is finalized.
@@ -752,7 +759,8 @@ The `release` job needs `contents: write` to push the tag — it already has thi
 ```yaml
 - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
   with:
-    fetch-depth: 0   # required: full history needed to inspect and push tags
+    # required: full history needed to inspect and push tags
+    fetch-depth: 0
 
 - name: Ensure release tag
   run: |

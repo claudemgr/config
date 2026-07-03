@@ -29,7 +29,8 @@ variables:
   BUILD_IMAGE: "$CI_REGISTRY_IMAGE:build"
 
 default:
-  image: $BUILD_IMAGE   # Go/Rust: use casjaysdev/go:latest or casjaysdev/rust:latest directly; others: toolchain image baked from docker/Dockerfile.build
+  # Go/Rust: use casjaysdev/go:latest or casjaysdev/rust:latest directly; others: toolchain image baked from docker/Dockerfile.build
+  image: $BUILD_IMAGE
 ```
 
 > **Go and Rust projects NEVER have a `docker/Dockerfile.build` or `build-toolchain` pipeline.** For Go set `BUILD_IMAGE: casjaysdev/go:latest`; for Rust set `BUILD_IMAGE: casjaysdev/rust:latest`. No `ensure-build-image` gate. This rule is absolute.
@@ -106,7 +107,8 @@ secret-scan:
   stage: security
   image: trufflesecurity/trufflehog:latest
   variables:
-    GIT_DEPTH: 0          # full history required
+    # full history required
+    GIT_DEPTH: 0
   script:
     - trufflehog git file://. --since-commit HEAD~1 --fail
   rules:
@@ -115,7 +117,8 @@ secret-scan:
 
 vuln-scan:
   stage: security
-  image: $BUILD_IMAGE     # govulncheck/cargo-audit/npm audit pre-installed in the build image
+  # govulncheck/cargo-audit/npm audit pre-installed in the build image
+  image: $BUILD_IMAGE
   script:
     - govulncheck ./...
   rules:

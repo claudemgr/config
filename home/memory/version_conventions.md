@@ -41,9 +41,12 @@ Every downstream consumer reads from the single Makefile `VERSION` variable — 
 ```go
 // main.go — set by LDFLAGS at build time
 var (
-    Version   = "dev"     // -X 'main.Version=$(VERSION)'
-    CommitID  = "unknown" // -X 'main.CommitID=$(COMMIT_ID)'
-    BuildDate = "unknown" // -X 'main.BuildDate=$(BUILD_DATE)'
+    // -X 'main.Version=$(VERSION)'
+    Version   = "dev"
+    // -X 'main.CommitID=$(COMMIT_ID)'
+    CommitID  = "unknown"
+    // -X 'main.BuildDate=$(BUILD_DATE)'
+    BuildDate = "unknown"
 )
 ```
 

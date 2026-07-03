@@ -84,8 +84,10 @@ Ask:
    ## Project variables
    project_name:  {answer}
    project_org:   {answer}
-   internal_name: {project_name}   # FROZEN — never edit after first run
-   internal_org:  {project_org}    # FROZEN — never edit after first run
+   # FROZEN — never edit after first run
+   internal_name: {project_name}
+   # FROZEN — never edit after first run
+   internal_org:  {project_org}
 
    ## Business logic
    ### Product scope & non-goals

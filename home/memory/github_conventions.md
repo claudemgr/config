@@ -145,7 +145,8 @@ Call from other workflows:
 ```yaml
 jobs:
   build:
-    uses: ./.github/workflows/reusable-build.yml   # same-repo reuse
+    # same-repo reuse
+    uses: ./.github/workflows/reusable-build.yml
     with:
       platform: "linux/amd64"
 ```
@@ -160,10 +161,12 @@ For multi-platform or multi-version builds:
 
 ```yaml
 strategy:
-  fail-fast: false      # never cancel other matrix cells when one fails
+  # never cancel other matrix cells when one fails
+  fail-fast: false
   matrix:
     os: [ubuntu-latest]
-    go: ["stable", "oldstable"]   # test current + prior stable release
+    # test current + prior stable release
+    go: ["stable", "oldstable"]
 ```
 
 `fail-fast: false` is always required — see all failures in one run, not just the first.

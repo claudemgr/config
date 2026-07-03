@@ -170,28 +170,47 @@ ALWAYS_ALLOW_BASENAMES = {
     ".npmignore", ".npmrc", ".nvmrc", ".node-version",
     ".ruby-version", ".python-version", ".tool-versions",
     ".golangci.yml", ".golangci.yaml",
-    "config.nims",       # Nim
-    "DESCRIPTION",       # R package
-    "NAMESPACE",         # R package
+    # Nim
+    "config.nims",
+    # R package
+    "DESCRIPTION",
+    # R package
+    "NAMESPACE",
 }
 
 ALWAYS_ALLOW_EXTENSIONS = {
-    ".proto",    # Protocol Buffers
-    ".thrift",   # Thrift
-    ".avsc",     # Avro schema
-    ".capnp",    # Cap'n Proto
-    ".fbs",      # FlatBuffers
-    ".nimble",   # Nim package manifest
-    ".cabal",    # Haskell Cabal
-    ".opam",     # OCaml OPAM
-    ".gemspec",  # Ruby gemspec
-    ".podspec",  # CocoaPods
-    ".rockspec", # LuaRocks
-    ".tf",       # Terraform
-    ".tfvars",   # Terraform vars
-    ".hcl",      # HCL config
-    ".sol",      # Solidity
-    ".vy",       # Vyper
+    # Protocol Buffers
+    ".proto",
+    # Thrift
+    ".thrift",
+    # Avro schema
+    ".avsc",
+    # Cap'n Proto
+    ".capnp",
+    # FlatBuffers
+    ".fbs",
+    # Nim package manifest
+    ".nimble",
+    # Haskell Cabal
+    ".cabal",
+    # OCaml OPAM
+    ".opam",
+    # Ruby gemspec
+    ".gemspec",
+    # CocoaPods
+    ".podspec",
+    # LuaRocks
+    ".rockspec",
+    # Terraform
+    ".tf",
+    # Terraform vars
+    ".tfvars",
+    # HCL config
+    ".hcl",
+    # Solidity
+    ".sol",
+    # Vyper
+    ".vy",
 }
 
 ALWAYS_ALLOW_PATH_PATTERNS = [
@@ -244,13 +263,20 @@ LOCATION_RESTRICTED_BASENAMES = {
 }
 
 FORBIDDEN_EXTENSIONS = {
-    ".pem",   # private keys / certificates
-    ".key",   # private key (generic)
-    ".p12",   # PKCS#12 bundle
-    ".pfx",   # PFX bundle
-    ".jks",   # Java KeyStore
-    ".p8",    # Apple private key
-    ".ppk",   # PuTTY private key
+    # private keys / certificates
+    ".pem",
+    # private key (generic)
+    ".key",
+    # PKCS#12 bundle
+    ".p12",
+    # PFX bundle
+    ".pfx",
+    # Java KeyStore
+    ".jks",
+    # Apple private key
+    ".p8",
+    # PuTTY private key
+    ".ppk",
 }
 
 # Patterns split to avoid triggering sibling hooks on this file itself

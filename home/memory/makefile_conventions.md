@@ -111,7 +111,8 @@ All build-time tool invocations run inside Docker — language files define the 
 
 ```makefile
 # Shared pattern — each language substitutes its own image, cache vars, and mounts
-CACHE_DIR ?= $(HOME)/.cache/{lang}   # ?= honors host env var override
+# ?= honors host env var override
+CACHE_DIR ?= $(HOME)/.cache/{lang}
 
 LANG_DOCKER := docker run --rm \
     --name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \

@@ -88,7 +88,8 @@ Rules:
 ### Running Go tests
 
 ```bash
-make test   # runs inside Docker; enforces coverage threshold
+# runs inside Docker; enforces coverage threshold
+make test
 ```
 
 Never run `go test` directly on host — always via `make test` (Docker internally).
@@ -116,7 +117,8 @@ mod tests {
 
 Running Rust tests — always inside Docker:
 ```bash
-make test   # cargo fmt --check → cargo clippy -- -D warnings → cargo test --lib --no-fail-fast
+# cargo fmt --check → cargo clippy -- -D warnings → cargo test --lib --no-fail-fast
+make test
 ```
 
 ---

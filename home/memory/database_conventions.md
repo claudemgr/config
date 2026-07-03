@@ -56,9 +56,12 @@ func EnsureSchema(db *sql.DB) error {
 ```go
 func isAlreadyExistsError(err error) bool {
     msg := strings.ToLower(err.Error())
-    return strings.Contains(msg, "duplicate column") ||   // SQLite
-           strings.Contains(msg, "already exists") ||     // PostgreSQL
-           strings.Contains(msg, "duplicate column name") // MySQL
+    // SQLite
+    return strings.Contains(msg, "duplicate column") ||
+           // PostgreSQL
+           strings.Contains(msg, "already exists") ||
+           // MySQL
+           strings.Contains(msg, "duplicate column name")
 }
 ```
 
@@ -104,10 +107,14 @@ Set explicit pool limits. Never use the driver's unlimited defaults in productio
 ```go
 db, err := sql.Open("sqlite3", dsn)
 // or sql.Open("postgres", dsn)
-db.SetMaxOpenConns(25)          // max simultaneous connections
-db.SetMaxIdleConns(5)           // idle connections kept alive
-db.SetConnMaxLifetime(5 * time.Minute)  // max connection age
-db.SetConnMaxIdleTime(1 * time.Minute)  // max idle time before close
+// max simultaneous connections
+db.SetMaxOpenConns(25)
+// idle connections kept alive
+db.SetMaxIdleConns(5)
+// max connection age
+db.SetConnMaxLifetime(5 * time.Minute)
+// max idle time before close
+db.SetConnMaxIdleTime(1 * time.Minute)
 ```
 
 | Setting | SQLite | PostgreSQL |
@@ -131,7 +138,8 @@ tx, err := db.BeginTx(ctx, nil)
 if err != nil {
     return err
 }
-defer tx.Rollback() // no-op after Commit
+// no-op after Commit
+defer tx.Rollback()
 
 // ... multiple operations ...
 

@@ -300,7 +300,8 @@ func resolveColor(flag string) bool {
         return true
     case "no":
         return false
-    default: // "auto"
+    // "auto"
+    default:
         if _, set := os.LookupEnv("NO_COLOR"); set {
             return false
         }
@@ -328,10 +329,14 @@ Any Go binary that is a TUI or acts as a TUI must use the alternate screen buffe
 
 ```go
 const (
-    AltBufEnter   = "\033[?1049h" // enter alternate screen buffer
-    AltBufLeave   = "\033[?1049l" // leave alternate screen buffer
-    CursorBlink   = "\033[5 q"    // blinking I-beam (preferred)
-    CursorRestore = "\033[0 q"    // restore terminal default cursor
+    // enter alternate screen buffer
+    AltBufEnter   = "\033[?1049h"
+    // leave alternate screen buffer
+    AltBufLeave   = "\033[?1049l"
+    // blinking I-beam (preferred)
+    CursorBlink   = "\033[5 q"
+    // restore terminal default cursor
+    CursorRestore = "\033[0 q"
     CursorHide    = "\033[?25l"
     CursorShow    = "\033[?25h"
     ClearScreen   = "\033[2J\033[H"

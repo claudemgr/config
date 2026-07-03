@@ -128,14 +128,22 @@ The negotiation priority for API routes: `.txt` extension → `Accept: applicati
 Apply middleware in this order (innermost = earliest to run):
 
 ```
-AllowlistMiddleware       // 4 — mark trusted IPs (bypasses blocklist/rate/geoip, not auth)
-BlocklistMiddleware       // 5 — reject known-bad IPs/domains
-RateLimitMiddleware       // 6 — rate limit by IP and endpoint
-GeoIPMiddleware           // 7 — country block/allow (signal, not sole gate)
-AuthMiddleware            // 8+ — authentication
-AuthorizationMiddleware   // 9+ — authorization / RBAC
-RequestIDMiddleware       // inject/echo X-Request-ID (runs before auth)
-LoggingMiddleware         // access log (runs after request ID is set)
+// 4 — mark trusted IPs (bypasses blocklist/rate/geoip, not auth)
+AllowlistMiddleware
+// 5 — reject known-bad IPs/domains
+BlocklistMiddleware
+// 6 — rate limit by IP and endpoint
+RateLimitMiddleware
+// 7 — country block/allow (signal, not sole gate)
+GeoIPMiddleware
+// 8+ — authentication
+AuthMiddleware
+// 9+ — authorization / RBAC
+AuthorizationMiddleware
+// inject/echo X-Request-ID (runs before auth)
+RequestIDMiddleware
+// access log (runs after request ID is set)
+LoggingMiddleware
 ```
 
 Notes:

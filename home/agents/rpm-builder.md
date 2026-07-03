@@ -71,7 +71,8 @@ Requires:      %{name}-data = %{version}-%{release}
 #### Provides — always declare virtual names
 ```spec
 Provides:  %{name}          = %{version}-%{release}
-Provides:  old-package-name = %{version}-%{release}   # paired with Obsoletes below
+# paired with Obsoletes below
+Provides:  old-package-name = %{version}-%{release}
 Provides:  virtual-cap      = %{version}-%{release}
 ```
 
@@ -82,7 +83,8 @@ path — `dnf` will not offer the new package as the replacement. Always pair th
 ```spec
 # Rename / replace — upgrades cleanly
 Provides:   old-name = %{version}-%{release}
-Obsoletes:  old-name < %{version}-%{release}   # version-bound: preferred
+# version-bound: preferred
+Obsoletes:  old-name < %{version}-%{release}
 
 # Bundle / permanently absorb — unversioned: only when you own the name forever
 Provides:   split-subpackage = %{version}-%{release}
@@ -127,7 +129,8 @@ Recommends: {dep}
 ### Required header order
 
 ```spec
-%global {const}  {value}      # constants at top with %global, not %define
+# constants at top with %global, not %define
+%global {const}  {value}
 
 Name:       {name}
 Version:    {version}
@@ -293,8 +296,10 @@ Inside the container — no setup step needed, all tools are pre-installed:
 
 ```sh
 # Verify macros
-rpm --eval '%dist'       # → .3.4.casjay.el9 (or .fcNN for Fedora)
-rpm --eval '%_gpg_name'  # → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
+# → .3.4.casjay.el9 (or .fcNN for Fedora)
+rpm --eval '%dist'
+# → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
+rpm --eval '%_gpg_name'
 
 # Download sources and build SRPM
 spectool -g -R ~/rpmbuild/{name}/{name}.spec

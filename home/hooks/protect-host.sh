@@ -228,9 +228,11 @@ fi
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
 if __match "${WORD_START}systemctl[[:space:]]"; then
   if __match "${WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
-    : # user-scoped — always OK
+    # user-scoped — always OK
+    :
   elif __match "${WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
-    : # read-only — always OK
+    # read-only — always OK
+    :
   elif __match "${WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|disable|enable|mask|unmask|isolate|kill|reset-failed)[[:space:]]"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
   fi

@@ -146,7 +146,8 @@ Always inside Docker. Never `cargo test` directly on host.
 
 ```toml
 [profile.release]
-opt-level     = "z"   # optimize for size
+# optimize for size
+opt-level     = "z"
 lto           = true
 codegen-units = 1
 strip         = true
@@ -257,7 +258,8 @@ fn resolve_color(flag: &str) -> bool {
     match flag {
         "yes" => true,
         "no"  => false,
-        _     => { // "auto"
+        // "auto"
+        _     => {
             if std::env::var_os("NO_COLOR").is_some() {
                 return false;
             }
@@ -403,8 +405,10 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 ```toml
 # Cargo.toml — standard error handling deps
 [dependencies]
-anyhow  = "1"      # application crates
-thiserror = "2"    # library crates (pick one, not both)
+# application crates
+anyhow  = "1"
+# library crates (pick one, not both)
+thiserror = "2"
 ```
 
 ---

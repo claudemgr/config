@@ -463,11 +463,14 @@ const (
 
 type APIToken struct {
     ID        int64  `db:"id"`
-    OwnerType string `db:"owner_type"` // "admin" | "user"
+    // "admin" | "user"
+    OwnerType string `db:"owner_type"`
     OwnerID   int64  `db:"owner_id"`
-    TokenHash string `db:"token_hash"` // SHA-256 hex — never the raw token
+    // SHA-256 hex — never the raw token
+    TokenHash string `db:"token_hash"`
     Name      string `db:"name"`
-    Scopes    string `db:"scopes"`     // JSON array e.g. ["read","write"]
+    // JSON array e.g. ["read","write"]
+    Scopes    string `db:"scopes"`
     CreatedAt int64  `db:"created_at"`
     ExpiresAt *int64 `db:"expires_at"`
     LastUsed  *int64 `db:"last_used"`
@@ -590,7 +593,8 @@ type Org struct {
 type OrgMember struct {
     OrgID    int64  `db:"org_id"`
     UserID   int64  `db:"user_id"`
-    Role     string `db:"role"` // "owner" | "admin" | "member"
+    // "owner" | "admin" | "member"
+    Role     string `db:"role"`
     JoinedAt int64  `db:"joined_at"`
 }
 
@@ -634,7 +638,8 @@ import (
 type CustomDomain struct {
     ID           int64  `db:"id"`
     Domain       string `db:"domain"`
-    OwnerType    string `db:"owner_type"` // "user" | "org"
+    // "user" | "org"
+    OwnerType    string `db:"owner_type"`
     OwnerID      int64  `db:"owner_id"`
     Verified     bool   `db:"verified"`
     VerifyToken  string `db:"verify_token"`
@@ -1445,22 +1450,32 @@ type AuthConfig struct {
 }
 
 type AdminAuthConfig struct {
-    SessionTimeout     int  `yaml:"session_timeout"`      // default: 86400 (24h)
-    SessionIdleTimeout int  `yaml:"session_idle_timeout"` // default: 3600 (1h idle)
-    RequireTOTP        bool `yaml:"require_totp"`         // default: false
-    MaxSessions        int  `yaml:"max_sessions"`         // default: 5
+    // default: 86400 (24h)
+    SessionTimeout     int  `yaml:"session_timeout"`
+    // default: 3600 (1h idle)
+    SessionIdleTimeout int  `yaml:"session_idle_timeout"`
+    // default: false
+    RequireTOTP        bool `yaml:"require_totp"`
+    // default: 5
+    MaxSessions        int  `yaml:"max_sessions"`
 }
 
 type UsersAuthConfig struct {
-    RegistrationEnabled      bool `yaml:"registration_enabled"`       // default: true
-    RequireEmailVerification bool `yaml:"require_email_verification"` // default: true
-    SessionTimeout           int  `yaml:"session_timeout"`            // default: 2592000 (30d)
-    SessionIdleTimeout       int  `yaml:"session_idle_timeout"`       // default: 86400 (24h)
-    MaxSessionsPerUser       int  `yaml:"max_sessions_per_user"`      // default: 10
+    // default: true
+    RegistrationEnabled      bool `yaml:"registration_enabled"`
+    // default: true
+    RequireEmailVerification bool `yaml:"require_email_verification"`
+    // default: 2592000 (30d)
+    SessionTimeout           int  `yaml:"session_timeout"`
+    // default: 86400 (24h)
+    SessionIdleTimeout       int  `yaml:"session_idle_timeout"`
+    // default: 10
+    MaxSessionsPerUser       int  `yaml:"max_sessions_per_user"`
 }
 
 type TokensAuthConfig struct {
-    DefaultExpiry int `yaml:"default_expiry"` // default: 0 (never); seconds
+    // default: 0 (never); seconds
+    DefaultExpiry int `yaml:"default_expiry"`
 }
 ```
 

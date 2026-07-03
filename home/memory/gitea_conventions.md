@@ -17,7 +17,8 @@ Gitea uses the same act runner as GitHub Actions. Workflow files live at:
 ```
 .gitea/workflows/ci.yml
 .gitea/workflows/release.yml
-.gitea/workflows/build-toolchain.yml  # only for non-Go/non-Rust projects
+# only for non-Go/non-Rust projects
+.gitea/workflows/build-toolchain.yml
 ```
 
 Syntax is GitHub Actions-compatible with minor differences noted below. All standard CI/CD gates apply identically.
@@ -98,7 +99,8 @@ Use the `trufflesecurity/trufflehog@{sha}` composite action — never inline `do
 secret-scan:
   runs-on: ubuntu-latest
   container:
-    image: casjaysdev/go:latest   # or casjaysdev/rust:latest
+    # or casjaysdev/rust:latest
+    image: casjaysdev/go:latest
   steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       with:

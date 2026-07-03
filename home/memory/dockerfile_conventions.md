@@ -55,7 +55,8 @@ Only create `docker/Dockerfile.build` when the decision tree above leads to "Cus
 name: Build Toolchain Image
 on:
   schedule:
-    - cron: '0 4 1 * *'  # 1st of each month at 04:00 UTC
+    # 1st of each month at 04:00 UTC
+    - cron: '0 4 1 * *'
   workflow_dispatch:
 
 permissions:
@@ -189,7 +190,8 @@ Split into static (names, URLs) and dynamic (version, date, revision) — pass b
 - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
   with:
     annotations: ${{ steps.meta.outputs.annotations }}
-    labels: ""   # no labels — annotations only
+    # no labels — annotations only
+    labels: ""
     tags: ${{ steps.meta.outputs.tags }}
 ```
 
@@ -346,7 +348,8 @@ x-logging: &default-logging
 
 services:
   {name}:
-    image: ghcr.io/{org}/{name}:latest   # replace with provider registry at deploy time
+    # replace with provider registry at deploy time
+    image: ghcr.io/{org}/{name}:latest
     pull_policy: always
     container_name: {name}-app
     restart: always
@@ -392,8 +395,10 @@ services:
     logging: *default-logging
     networks:
       - {project_name}
-      - proxy        # omit if no reverse proxy
-      - cloudflare   # omit if not using cloudflare tunnel
+      # omit if no reverse proxy
+      - proxy
+      # omit if not using cloudflare tunnel
+      - cloudflare
     ports:
       - "172.17.0.1:{port}:{internal_port}"
     environment:
@@ -416,7 +421,8 @@ services:
     restart: always
     logging: *default-logging
     networks:
-      - {project_name}          # DB on project network only — never proxy/cloudflare
+      # DB on project network only — never proxy/cloudflare
+      - {project_name}
     environment:
       TZ: ${TZ:-America/New_York}
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-{project_name}}
@@ -464,19 +470,22 @@ services:
     networks:
       - {name}-test
 
-  db-test:                             # include only when the project needs a DB
+  # include only when the project needs a DB
+  db-test:
     image: postgres:alpine
     environment:
       - POSTGRES_PASSWORD=test
     tmpfs:
-      - /var/lib/postgresql/data       # ephemeral — always clean state
+      # ephemeral — always clean state
+      - /var/lib/postgresql/data
     networks:
       - {name}-test
 
 networks:
   {name}-test:
     driver: bridge
-    name: {name}-test                  # explicit name for reliable cleanup
+    # explicit name for reliable cleanup
+    name: {name}-test
 ```
 
 Test Compose rules:
@@ -572,8 +581,10 @@ Never generate and commit a value in the sample — leave it blank with the gene
 Database, cache, queue, and other backend services that are **not** exposed to the host use their canonical port inside the container network (`5432`, `3306`, `6379`, etc.). No random port, no host binding. Their connection strings in `default.env` use the compose service name as hostname:
 
 ```sh
-export REDIS_URL="redis"          # connects to the 'redis' service on the compose network
-export POSTGRESQL_URL="postgres"  # connects to the 'postgres' service on the compose network
+# connects to the 'redis' service on the compose network
+export REDIS_URL="redis"
+# connects to the 'postgres' service on the compose network
+export POSTGRESQL_URL="postgres"
 ```
 
 ---

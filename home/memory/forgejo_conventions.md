@@ -74,7 +74,8 @@ jobs:
   build:
     runs-on: docker
     container:
-      image: casjaysdev/go:latest   # Go projects always use this directly — never golang:alpine
+      # Go projects always use this directly — never golang:alpine
+      image: casjaysdev/go:latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Build
@@ -102,7 +103,8 @@ Use the `trufflesecurity/trufflehog@{sha}` composite action — never `apk add` 
 secret-scan:
   runs-on: docker
   container:
-    image: casjaysdev/go:latest   # or casjaysdev/rust:latest
+    # or casjaysdev/rust:latest
+    image: casjaysdev/go:latest
   steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       with:

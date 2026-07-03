@@ -77,7 +77,8 @@ Test containers must run on an isolated network — never on the default bridge:
 ```bash
 docker network create --driver bridge {project_name}-test-net
 # ... run containers with --network {project_name}-test-net ...
-docker network rm {project_name}-test-net   # clean up immediately after
+# clean up immediately after
+docker network rm {project_name}-test-net
 ```
 
 Rules:

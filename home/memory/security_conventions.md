@@ -65,11 +65,13 @@ MMDB files are distributed via npm scoped packages with a `-mmdb` suffix (e.g. `
 # jsDelivr CDN (scoped package format)
 https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv4.mmdb
 https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv6.mmdb
-https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb            # IPv4+IPv6 combined
+# IPv4+IPv6 combined
+https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb
 
 https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv4.mmdb
 https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv6.mmdb
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country.mmdb  # combined
+# combined
+https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country.mmdb
 
 https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv4.mmdb
 https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv6.mmdb
@@ -131,7 +133,8 @@ type ASNRecord struct {
 
 // Country lookup
 type CountryRecord struct {
-    CountryCode string `maxminddb:"country_code"` // ISO 3166-1 alpha-2
+    // ISO 3166-1 alpha-2
+    CountryCode string `maxminddb:"country_code"`
 }
 
 // City lookup — all fields are present; empty string when not populated
@@ -141,8 +144,10 @@ type CityRecord struct {
     Latitude    float64 `maxminddb:"latitude"`
     Longitude   float64 `maxminddb:"longitude"`
     Postcode    string  `maxminddb:"postcode"`
-    State1      string  `maxminddb:"state1"` // region / province
-    State2      string  `maxminddb:"state2"` // sub-region
+    // region / province
+    State1      string  `maxminddb:"state1"`
+    // sub-region
+    State2      string  `maxminddb:"state2"`
     Timezone    string  `maxminddb:"timezone"`
 }
 ```

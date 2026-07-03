@@ -278,8 +278,10 @@ All failures are hard errors (exit 1) — EOL targets are no exception.
 
 ```sh
 # Inside the container
-rpm --eval '%dist'       # → .3.4.casjay.el9 (or .fcNN for Fedora)
-rpm --eval '%_gpg_name'  # → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
+# → .3.4.casjay.el9 (or .fcNN for Fedora)
+rpm --eval '%dist'
+# → CasjaysDev RPM Dev <rpm-devel@casjaysdev.pro>
+rpm --eval '%_gpg_name'
 ```
 
 ---
@@ -419,7 +421,8 @@ infrastructure to a package repo. The spec file is the source of truth.
 ### Required header fields (in order)
 
 ```spec
-%global some_ver  1.2.3     # use %global for constants, not %define
+# use %global for constants, not %define
+%global some_ver  1.2.3
 
 Name:       {name}
 Version:    {version}
@@ -458,7 +461,8 @@ package renames, replaces, or bundles something.
 BuildRequires: make
 BuildRequires: gcc
 Requires:      bash >= 4.0
-Requires:      %{name}-data = %{version}-%{release}   # sub-package pin
+# sub-package pin
+Requires:      %{name}-data = %{version}-%{release}
 ```
 
 - `BuildRequires` — only what is actually needed at build time
@@ -473,7 +477,8 @@ regardless of the real package name:
 ```spec
 Provides:  %{name}           = %{version}-%{release}
 Provides:  virtual-cap-name  = %{version}-%{release}
-Provides:  old-package-name  = %{version}-%{release}   # paired with Obsoletes
+# paired with Obsoletes
+Provides:  old-package-name  = %{version}-%{release}
 ```
 
 #### Obsoletes
@@ -500,7 +505,8 @@ Obsoletes:  split-subpackage
 #### Conflicts
 
 ```spec
-Conflicts:  other-provider >= 2.0   # cannot coexist with this version range
+# cannot coexist with this version range
+Conflicts:  other-provider >= 2.0
 ```
 
 Use `Conflicts:` when two packages provide the same service/file and cannot
@@ -510,10 +516,14 @@ both be installed. Rare — prefer `Obsoletes:` for true replacements.
 
 ```spec
 %if 0%{?rhel} >= 8 || 0%{?fedora}
-Recommends: {nice-to-have}   # installed automatically if available, not a hard dep
-Suggests:   {optional}       # shown to the user but not auto-installed
-Supplements: {other-pkg}     # pulled in when {other-pkg} is installed alongside this one
-Enhances:    {other-pkg}     # same direction as Supplements, complementary
+# installed automatically if available, not a hard dep
+Recommends: {nice-to-have}
+# shown to the user but not auto-installed
+Suggests:   {optional}
+# pulled in when {other-pkg} is installed alongside this one
+Supplements: {other-pkg}
+# same direction as Supplements, complementary
+Enhances:    {other-pkg}
 %endif
 ```
 
