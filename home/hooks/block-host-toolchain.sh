@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202607031800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,7 +10,7 @@
 # @@Created          :  Wednesday, May 14, 2026 00:00 EDT
 # @@File             :  block-host-toolchain.sh
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
-# @@Changelog        :  Per-sub-command exemptions; $PWD mounts; casjaysdev images + GOFLAGS; --name in suggestions; drop strip and bare v
+# @@Changelog        :  Shell-aware sub-command split — join line continuations, never split inside quotes or $(), skip heredoc bodies
 # @@TODO             :  None
 # @@Other            :  Commands already mediated by docker/incus/podman/kubectl are exempted.
 # @@Other            :  Pure POSIX / system tools (make, ninja, curl, wget, jq, grep, git, ssh, …) are never blocked.
@@ -24,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202607031800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -105,10 +105,87 @@ __require_cmd python3
 # on ; & && || | and newlines so container-runtime exemptions apply per
 # sub-command, never to the whole compound string (a leading "docker run ..."
 # must not exempt a trailing "; go build").
+#
+# The split is shell-aware: backslash-newline continuations are joined first,
+# operators inside single/double quotes or $(...) substitutions never split
+# (so `docker run ... sh -c "go vet && go build"` stays ONE sub-command and
+# keeps its container-runtime exemption), and heredoc bodies are dropped so
+# their content is never inspected as host commands.
 __split_subcommands() {
   python3 -c '
 import re, sys
-for sub in re.split(r"\|\||&&|[|;&\n]", sys.argv[1]):
+SQ = chr(39)
+DQ = chr(34)
+cmd = sys.argv[1]
+# join backslash-newline continuations into one logical line
+cmd = re.sub(r"\\\n\s*", " ", cmd)
+# drop heredoc bodies (<<EOF ... EOF) so their lines are not treated as sub-commands; (?<!<)(?!<) avoids matching here-strings <<<
+kept = []
+delim = None
+for line in cmd.split("\n"):
+    if delim is not None:
+        if line.strip() == delim:
+            delim = None
+        continue
+    m = re.search(r"(?<!<)<<(?!<)-?\s*[\x27\x22]?([A-Za-z_][A-Za-z0-9_]*)", line)
+    if m:
+        delim = m.group(1)
+    kept.append(line)
+cmd = "\n".join(kept)
+# quote- and $()-aware operator scan
+subs = []
+buf = []
+quote = None
+depth = 0
+i = 0
+n = len(cmd)
+while i < n:
+    c = cmd[i]
+    if quote is not None:
+        if quote == DQ and c == "\\" and i + 1 < n:
+            buf.append(cmd[i:i + 2])
+            i += 2
+            continue
+        if c == quote:
+            quote = None
+        buf.append(c)
+        i += 1
+        continue
+    if c == SQ or c == DQ:
+        quote = c
+        buf.append(c)
+        i += 1
+        continue
+    if c == "\\" and i + 1 < n:
+        buf.append(cmd[i:i + 2])
+        i += 2
+        continue
+    if cmd.startswith("$(", i):
+        depth += 1
+        buf.append("$(")
+        i += 2
+        continue
+    if depth > 0 and c == "(":
+        depth += 1
+        buf.append(c)
+        i += 1
+        continue
+    if depth > 0 and c == ")":
+        depth -= 1
+        buf.append(c)
+        i += 1
+        continue
+    if depth == 0 and c in ";&|\n":
+        subs.append("".join(buf))
+        buf = []
+        i += 1
+        while i < n and cmd[i] in ";&|":
+            i += 1
+        continue
+    buf.append(c)
+    i += 1
+subs.append("".join(buf))
+for sub in subs:
     sub = sub.strip()
     if sub:
         print(sub)
