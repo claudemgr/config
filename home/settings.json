@@ -1,8 +1,6 @@
 {
   "model": "claude-opus-4-5",
   "fallbackModel": ["sonnet", "haiku"],
-  "availableModels": ["sonnet", "haiku", "opus", "fable", "claude-sonnet-5", "claude-fable-5", "claude-opus-4-5", "claude-opus-4-8"],
-  "enforceAvailableModels": false,
   "agent": "general",
   "language": "english",
   "autoCompactWindow": 140000,
