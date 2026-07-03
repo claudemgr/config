@@ -235,7 +235,7 @@ case "$FIRST_BASE" in
   # ── Go ────────────────────────────────────────────────────────────────────
   go|gofmt|goimports|golangci-lint|gopls|godoc)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/build \\
     -v \"\${GOCACHE:-\${HOME}/.cache/go-build}\":/root/.cache/go-build \\
     -v \"\${GOMODCACHE:-\${GOPATH:-\${HOME}/go}/pkg/mod}\":/go/pkg/mod \\
@@ -250,7 +250,7 @@ case "$FIRST_BASE" in
   # ── Rust ──────────────────────────────────────────────────────────────────
   cargo|rustc|rustup|rustfmt|wasm-pack)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${CARGO_HOME:-\${HOME}/.cargo}/registry\":/usr/local/cargo/registry \\
     -v \"\${CARGO_HOME:-\${HOME}/.cargo}/git\":/usr/local/cargo/git \\
@@ -263,7 +263,7 @@ case "$FIRST_BASE" in
   # ── Node / JavaScript / TypeScript runtime & package managers ─────────────
   node|npm|npx|yarn|pnpm|corepack)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
@@ -277,7 +277,7 @@ case "$FIRST_BASE" in
   turbo|turborepo|eslint|prettier|biome|oxlint|jshint|standard|xo|\
   swc|tsup|unbuild|pkgroll)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
@@ -288,7 +288,7 @@ case "$FIRST_BASE" in
   # ── Alt JS runtimes ───────────────────────────────────────────────────────
   bun)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     oven/bun:alpine \\
@@ -298,7 +298,7 @@ case "$FIRST_BASE" in
 
   deno)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     denoland/deno:alpine \\
@@ -311,7 +311,7 @@ case "$FIRST_BASE" in
   # via npm; use node:alpine and install the toolchain inside the container.
   elm|spago|purs|rescript|coffee|asc)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
@@ -326,7 +326,7 @@ case "$FIRST_BASE" in
   pip|pip3|pip3.[0-9]*|uv|poetry|pipenv|hatch|pdm|tox|nox|flit|twine|\
   pyproject-build|setuptools|conda|mamba|micromamba)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     python:alpine \\
@@ -337,7 +337,7 @@ case "$FIRST_BASE" in
   # ── Ruby ──────────────────────────────────────────────────────────────────
   gem|bundle|bundler|rake|rspec|rubocop|standardrb|sorbet|srb)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     ruby:alpine \\
@@ -348,7 +348,7 @@ case "$FIRST_BASE" in
   # ── JVM build tools (Gradle / Maven / Ant) ───────────────────────────────
   gradle|gradlew|mvn|mvnw|ant)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.gradle\":/root/.gradle \\
     -v \"\${HOME}/.m2\":/root/.m2 \\
@@ -362,7 +362,7 @@ case "$FIRST_BASE" in
   java|javac|jar|javap|jshell|jlink|jpackage|javadoc|javaws|\
   jmap|jstack|jinfo|jcmd|jps|jstat|jfr|jdb)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     eclipse-temurin:alpine \\
@@ -373,7 +373,7 @@ case "$FIRST_BASE" in
   # ── GraalVM native-image ──────────────────────────────────────────────────
   native-image|gu)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ghcr.io/graalvm/native-image:latest \\
@@ -384,7 +384,7 @@ case "$FIRST_BASE" in
   # ── Kotlin ────────────────────────────────────────────────────────────────
   kotlin|kotlinc|kotlinc-jvm|kotlinc-js)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     eclipse-temurin:alpine \\
@@ -395,7 +395,7 @@ case "$FIRST_BASE" in
   # ── Scala / SBT ───────────────────────────────────────────────────────────
   scala|scalac|scala3|scalac3|sbt)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.ivy2\":/root/.ivy2 \\
     -v \"\${HOME}/.sbt\":/root/.sbt \\
@@ -408,7 +408,7 @@ case "$FIRST_BASE" in
   # ── Clojure / Leiningen ───────────────────────────────────────────────────
   lein|clojure|clj|clj-kondo)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.m2\":/root/.m2 \\
     -w /workspace \\
@@ -420,7 +420,7 @@ case "$FIRST_BASE" in
   # ── Groovy ────────────────────────────────────────────────────────────────
   groovy|groovyc|groovysh)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     groovy:alpine \\
@@ -431,7 +431,7 @@ case "$FIRST_BASE" in
   # ── PHP ───────────────────────────────────────────────────────────────────
   php|php[0-9]*|composer|phpunit|phpcs|phpmd|phpstan|psalm|phpbrew|phive)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     php:alpine \\
@@ -442,7 +442,7 @@ case "$FIRST_BASE" in
   # ── .NET / C# / F# / VB ──────────────────────────────────────────────────
   dotnet|msbuild|nuget|csc|fsc|vbc|dotnet-script|dotnet-ef)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     mcr.microsoft.com/dotnet/sdk:alpine \\
@@ -453,7 +453,7 @@ case "$FIRST_BASE" in
   # ── Elixir / Erlang ───────────────────────────────────────────────────────
   mix|elixir|elixirc|erl|erlc|escript|rebar3|dialyzer)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     elixir:alpine \\
@@ -464,7 +464,7 @@ case "$FIRST_BASE" in
   # ── Gleam (BEAM / Erlang VM language) ────────────────────────────────────
   gleam)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     ghcr.io/gleam-lang/gleam:latest \\
@@ -476,7 +476,7 @@ case "$FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   ghc|ghci|runghc|runhaskell|cabal|stack|haddock|hoogle)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     haskell:latest \\
@@ -488,7 +488,7 @@ case "$FIRST_BASE" in
   # No official Alpine image — uses Ubuntu-based :latest.
   swift|swiftc|swift-package|swift-build|swift-test|swift-run)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     swift:latest \\
@@ -500,7 +500,7 @@ case "$FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   dart|flutter|pub)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     dart:latest \\
@@ -512,7 +512,7 @@ case "$FIRST_BASE" in
   # Zig is in Alpine edge; no separate official Docker image.
   zig)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:edge \\
@@ -523,7 +523,7 @@ case "$FIRST_BASE" in
   # ── Crystal ───────────────────────────────────────────────────────────────
   crystal|shards)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     crystallang/crystal:latest-alpine \\
@@ -534,7 +534,7 @@ case "$FIRST_BASE" in
   # ── OCaml / OPAM / Dune ───────────────────────────────────────────────────
   ocaml|ocamlopt|ocamlfind|ocamlbuild|opam|dune)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ocaml/opam:alpine \\
@@ -545,7 +545,7 @@ case "$FIRST_BASE" in
   # ── D language ────────────────────────────────────────────────────────────
   dmd|dub|ldc|ldc2|gdc|rdmd)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     dlangcommunity/docker-dmd:latest \\
@@ -557,7 +557,7 @@ case "$FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   julia)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.julia\":/root/.julia \\
     -w /workspace \\
@@ -570,7 +570,7 @@ case "$FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   R|Rscript|renv)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     r-base:latest \\
@@ -581,7 +581,7 @@ case "$FIRST_BASE" in
   # ── Nim ───────────────────────────────────────────────────────────────────
   nim|nimble|nimgrep|nimpretty|testament)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     nimlang/nim:alpine \\
@@ -593,7 +593,7 @@ case "$FIRST_BASE" in
   # Bare "v" is not blocked — it collides with a common shell alias name.
   vpm)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     vlang/vlang:latest \\
@@ -605,7 +605,7 @@ case "$FIRST_BASE" in
   # No official Docker image — install from GitHub release inside Ubuntu.
   odin)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ubuntu:latest \\
@@ -617,7 +617,7 @@ case "$FIRST_BASE" in
   # lua itself is a common system scripting tool and is NOT blocked.
   luarocks|luac)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -628,7 +628,7 @@ case "$FIRST_BASE" in
   # ── Janet (small Lisp/C hybrid, in Alpine repos) ─────────────────────────
   janet|jpm)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:latest \\
@@ -639,7 +639,7 @@ case "$FIRST_BASE" in
   # ── Fennel (Lisp dialect for Lua, in Alpine repos) ───────────────────────
   fennel)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:latest \\
@@ -651,7 +651,7 @@ case "$FIRST_BASE" in
   # perl itself is a system scripting tool and is NOT blocked.
   cpan|cpanm|cpm|carton|prove|plackup|morbo)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     perl:alpine \\
@@ -662,7 +662,7 @@ case "$FIRST_BASE" in
   # ── Fortran ───────────────────────────────────────────────────────────────
   gfortran|flang|ifort|ifx|f77|f95|fort77)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -673,7 +673,7 @@ case "$FIRST_BASE" in
   # ── COBOL ─────────────────────────────────────────────────────────────────
   cobc|cobcrun|cob-config)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -684,7 +684,7 @@ case "$FIRST_BASE" in
   # ── Ada / GNAT ────────────────────────────────────────────────────────────
   gnat|gnatmake|gprbuild|gnatclean|gnatbind|gnatlink|gnatfind|gnatxref)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -695,7 +695,7 @@ case "$FIRST_BASE" in
   # ── Emscripten — C / C++ to WebAssembly ──────────────────────────────────
   emcc|em++|emcmake|emmake|emar|emranlib|emstrip|emrun|emdump|emsize)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     emscripten/emsdk:latest \\
@@ -707,7 +707,7 @@ case "$FIRST_BASE" in
   # No Alpine image; use Debian-based :latest.
   sbcl|clisp|ecl|abcl|gcl|ccl|acl)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     debian:latest \\
@@ -719,7 +719,7 @@ case "$FIRST_BASE" in
   # No Alpine image; official image is Debian-based.
   racket|raco)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     racket/racket:latest \\
@@ -733,7 +733,7 @@ case "$FIRST_BASE" in
   guile|chicken|chicken-install|chicken-status|csi|\
   mit-scheme|chibi-scheme|chezscheme|chez|petite-chez)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     debian:latest \\
@@ -745,7 +745,7 @@ case "$FIRST_BASE" in
   # No Alpine image; official SWI-Prolog image is Debian-based.
   swipl|swipl-ld|gprolog|yap|xsb|clingo|spass)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     swipl:latest \\
@@ -756,7 +756,7 @@ case "$FIRST_BASE" in
   # ── Bazel / Bazelisk ──────────────────────────────────────────────────────
   bazel|bazelisk|ibazel)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.cache/bazel\":/root/.cache/bazel \\
     -w /workspace \\
@@ -772,7 +772,7 @@ case "$FIRST_BASE" in
   arm-linux-gnueabihf-gcc|arm-linux-gnueabihf-g++|\
   riscv64-linux-gnu-gcc|riscv64-linux-gnu-g++)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -785,7 +785,7 @@ case "$FIRST_BASE" in
   # and make drives Docker-based builds in this project.
   cmake|meson|autoconf|automake|autoreconf|configure)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
@@ -797,7 +797,7 @@ case "$FIRST_BASE" in
   # strip is not blocked — settings.json allowlists it and it is used on non-C artifacts.
   as|ld|ar|ranlib|objcopy)
     DOCKER_CMD="  docker run --rm \\
-    --name \"hosttool-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
