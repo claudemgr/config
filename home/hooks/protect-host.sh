@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202607031805-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -8,7 +8,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Per-sub-command container exemption; catch \\rm, \$HOME, /* targets; fail-open redirect check
+# @@Changelog        :  Rule 11 — block unscoped container/instance sweeps (docker/podman ps, incus/lxc list feeding kill/stop/rm/delete; prune)
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202607031805-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -31,6 +31,7 @@ set -uo pipefail
 #   • Wipe filesystem root (/) or home directory itself (rm -rf ~)
 #   • Raw block-device writes (dd/mkfs to /dev/sd*, /dev/nvme*)
 #   • pkill/killall (name-based process kill — hits unrelated host processes)
+#   • Unscoped container/instance sweeps (unfiltered docker ps or incus list feeding kill/stop/rm/delete; docker prune)
 #   • systemctl host-service mutation (restart/stop/start/etc. without --user)
 #
 # ALLOWED (legitimate sysadmin — not blocked):
@@ -40,17 +41,17 @@ set -uo pipefail
 #   • tee, wg genkey, and similar pipe-based generators writing to system config paths
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Core OS binary dirs — arbitrary writes here = code execution risk.
-CORE_BINARY='(/bin|/sbin|/usr/bin|/usr/sbin)'
+PROTECT_HOST_CORE_BINARY='(/bin|/sbin|/usr/bin|/usr/sbin)'
 # Auth-critical files — deleting or overwriting breaks authentication/identity.
-AUTH_CRITICAL='(/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd))'
+PROTECT_HOST_AUTH_CRITICAL='(/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd))'
 # Home-directory root only — the home dir ITSELF, not subpaths.
 # e.g. /root and /home/jason are protected; /root/Projects is not.
 # $HOME (unexpanded) and ~ are equivalent spellings of the same target.
-HOME_LITERAL='(/root|/home/[^/[:space:]&|;()`<>]+|~|\$HOME)'
+PROTECT_HOST_HOME_LITERAL='(/root|/home/[^/[:space:]&|;()`<>]+|~|\$HOME)'
 # Truly destructive verbs: delete and wipe only. chmod/chown are NOT here — they configure, not destroy.
-DESTRUCTIVE_VERBS='rm|rmd|rmdir|shred|truncate|wipefs'
+PROTECT_HOST_DESTRUCTIVE_VERBS='rm|rmd|rmdir|shred|truncate|wipefs'
 # Write verbs that install/overwrite files.
-WRITE_VERBS='mv|cp|install|ln'
+PROTECT_HOST_WRITE_VERBS='mv|cp|install|ln'
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Helpers
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -89,8 +90,8 @@ prefixes = (
     "docker exec ", "docker run ",
     "docker compose exec ", "docker compose run ",
     "docker-compose exec ", "docker-compose run ",
-    "incus exec ", "incus shell ",
-    "lxc exec ",
+    "incus exec ", "incus shell ", "incus file push ", "incus file pull ",
+    "lxc exec ", "lxc file push ", "lxc file pull ",
     "podman exec ", "podman run ",
     "kubectl exec ",
     "nsenter ", "chroot ",
@@ -113,50 +114,53 @@ __block() {
   exit 2
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# __match <regex> - return 0 if "$CMD" matches the extended regex.
+# __match <regex> - return 0 if "$PROTECT_HOST_CMD" matches the extended regex.
 __match() {
-  printf '%s' "$CMD" | \grep -qE -- "$1"
+  printf '%s' "$PROTECT_HOST_CMD" | \grep -qE -- "$1"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __require_cmd python3
 __require_cmd grep
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-INPUT="$(cat)"
-CMD="$(printf '%s' "$INPUT" | __extract_command)"
+PROTECT_HOST_INPUT="$(</dev/stdin)"
+PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_INPUT" | __extract_command)"
+# Raw command kept for pipeline-shaped rules — sub-command splitting severs
+# pipes, so "docker ps -q | xargs docker kill" is only visible here.
+PROTECT_HOST_RAW_CMD="$PROTECT_HOST_CMD"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Empty / non-Bash payload - nothing to inspect.
-[ -z "$CMD" ] && exit 0
+[ -z "$PROTECT_HOST_CMD" ] && exit 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Container-mediated sub-commands are explicitly trusted at this layer;
 # everything else in a compound/multi-line command is still inspected.
-CMD="$(printf '%s' "$CMD" | __strip_container_subcmds)"
-[ -z "$CMD" ] && exit 0
+PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_CMD" | __strip_container_subcmds)"
+[ -z "$PROTECT_HOST_CMD" ] && exit 0
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Word-boundary fragment reused across rules.
 # Includes backslash so the house-style alias bypass "\rm" is still caught.
-WORD_START='(^|[[:space:];|&`(\])'
+PROTECT_HOST_WORD_START='(^|[[:space:];|&`(\])'
 # Up to 32 non-flag, non-operator tokens between a verb and its target path.
-TOKEN_GAP='([[:space:]]+[^[:space:]&|;()`<>]+){0,32}'
+PROTECT_HOST_TOKEN_GAP='([[:space:]]+[^[:space:]&|;()`<>]+){0,32}'
 # Path tails — match the root itself OR any subpath beneath it.
-CORE_BINARY_TAIL="${CORE_BINARY}([[:space:]/]|\$)"
-AUTH_CRITICAL_TAIL="${AUTH_CRITICAL}([[:space:]]|\$)"
+PROTECT_HOST_CORE_BINARY_TAIL="${PROTECT_HOST_CORE_BINARY}([[:space:]/]|\$)"
+PROTECT_HOST_AUTH_CRITICAL_TAIL="${PROTECT_HOST_AUTH_CRITICAL}([[:space:]]|\$)"
 # Trailing /* (wipe-the-contents form) is as destructive as the dir itself.
-HOME_TAIL="${HOME_LITERAL}(/\*?)?([[:space:]]|\$)"
+PROTECT_HOST_HOME_TAIL="${PROTECT_HOST_HOME_LITERAL}(/\*?)?([[:space:]]|\$)"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 1: destructive verb on auth-critical files.
-if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+${AUTH_CRITICAL_TAIL}"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_AUTH_CRITICAL_TAIL}"; then
   __block "destructive op on auth-critical file (/etc/passwd, /etc/shadow, /etc/group, etc.)"
 fi
 # Rule 2: destructive verb on core OS binary dirs.
-if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+${CORE_BINARY_TAIL}"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_CORE_BINARY_TAIL}"; then
   __block "destructive op on core OS binary path (/bin, /sbin, /usr/bin, /usr/sbin) — use a package manager"
 fi
 # Rule 3: destructive verb on the home directory root itself (not subpaths).
-if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+${HOME_TAIL}"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_HOME_TAIL}"; then
   __block "destructive command targeting the home directory itself"
 fi
 # Rule 4: destructive verb on the filesystem root / (including the /* contents form).
-if __match "${WORD_START}(${DESTRUCTIVE_VERBS})${TOKEN_GAP}[[:space:]]+/\*?([[:space:]]|\$)"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+/\*?([[:space:]]|\$)"; then
   __block "destructive op targeting the filesystem root /"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -188,54 +192,87 @@ for m in re.finditer(r"(?:^|[\s;|&`(])(?:\d+|&)?>>?\s*([^\s;|&`()<>]+)", cmd):
 sys.exit(0)
 PYSCRIPT
 }
-if BAD_REDIRECT="$(__check_redirects "$CMD")"; then
+if PROTECT_HOST_BAD_REDIRECT="$(__check_redirects "$PROTECT_HOST_CMD")"; then
   :
 else
-  __block "shell redirect to protected path: $BAD_REDIRECT"
+  __block "shell redirect to protected path: $PROTECT_HOST_BAD_REDIRECT"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 6: find -delete or -exec rm in core OS binary paths or on home dir root.
-if __match "${WORD_START}find[[:space:]]+${CORE_BINARY}([[:space:]/].*-delete|.*-exec[[:space:]]+rm)"; then
+if __match "${PROTECT_HOST_WORD_START}find[[:space:]]+${PROTECT_HOST_CORE_BINARY}([[:space:]/].*-delete|.*-exec[[:space:]]+rm)"; then
   __block "'find -delete' / '-exec rm' in core OS binary path"
 fi
-if __match "${WORD_START}find[[:space:]]+${HOME_LITERAL}/?[[:space:]]+([^&;|]*-delete|[^&;|]*-exec[[:space:]]+rm)"; then
+if __match "${PROTECT_HOST_WORD_START}find[[:space:]]+${PROTECT_HOST_HOME_LITERAL}/?[[:space:]]+([^&;|]*-delete|[^&;|]*-exec[[:space:]]+rm)"; then
   __block "'find -delete' / '-exec rm' targeting the home directory itself"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 7: write-verb (mv/cp/install/ln) to auth-critical files or core OS binary dirs.
 # Writes to /etc/*, /var/*, /opt/*, /run/*, /usr/local/*, etc. are allowed.
-if __match "${WORD_START}(${WRITE_VERBS})${TOKEN_GAP}[[:space:]]+${AUTH_CRITICAL_TAIL}"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_WRITE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_AUTH_CRITICAL_TAIL}"; then
   __block "mv/cp/install/ln to auth-critical file (/etc/passwd, /etc/shadow, /etc/group, etc.)"
 fi
-if __match "${WORD_START}(${WRITE_VERBS})${TOKEN_GAP}[[:space:]]+${CORE_BINARY_TAIL}"; then
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_WRITE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_CORE_BINARY_TAIL}"; then
   __block "mv/cp/install/ln to core OS binary path — install to /usr/local/bin instead"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 8: raw block-device writers targeting host disks.
-if __match "${WORD_START}(dd|mkfs[^[:space:]]*)[[:space:]].*((of|of=)/dev/|[[:space:]]/dev/[sh]d|[[:space:]]/dev/nvme)"; then
+if __match "${PROTECT_HOST_WORD_START}(dd|mkfs[^[:space:]]*)[[:space:]].*((of|of=)/dev/|[[:space:]]/dev/[sh]d|[[:space:]]/dev/nvme)"; then
   __block "raw disk writer targeting host device"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 9: pkill/killall/kill-by-pgrep — process termination must use tracked PIDs.
-if __match "${WORD_START}(pkill|killall)[[:space:]]"; then
+if __match "${PROTECT_HOST_WORD_START}(pkill|killall)[[:space:]]"; then
   __block "pkill/killall targets processes by name — use kill \$TRACKED_PID (a PID captured at launch) instead"
 fi
-if __match "${WORD_START}kill[[:space:]]+.*\$\(pgrep"; then
+if __match "${PROTECT_HOST_WORD_START}kill[[:space:]]+.*\$\(pgrep"; then
   __block "kill \$(pgrep ...) targets processes by pattern — use kill \$TRACKED_PID (a PID captured at launch) instead"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 10: systemctl host-service mutation requires user confirmation.
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
-if __match "${WORD_START}systemctl[[:space:]]"; then
-  if __match "${WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
+if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
+  if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
     # user-scoped — always OK
     :
-  elif __match "${WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
+  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
     # read-only — always OK
     :
-  elif __match "${WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|disable|enable|mask|unmask|isolate|kill|reset-failed)[[:space:]]"; then
+  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|disable|enable|mask|unmask|isolate|kill|reset-failed)[[:space:]]"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
   fi
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Rule 11: unscoped container sweeps — the container analog of pkill.
+# Feeding an unfiltered `docker ps` list into kill/stop/rm/restart hits EVERY
+# container on the host, not just this project's. A name=/label=/--filter scope
+# makes the sweep targeted and is allowed. Matched against PROTECT_HOST_RAW_CMD because the
+# sub-command split severs pipes.
+PROTECT_HOST_CONTAINER_SWEEP_VERBS='(kill|stop|rm|restart)'
+PROTECT_HOST_CONTAINER_LIST='(docker|podman)[[:space:]]+(container[[:space:]]+)?(ps|ls)'
+# __match_raw <regex> - return 0 if "$PROTECT_HOST_RAW_CMD" matches the extended regex.
+__match_raw() {
+  printf '%s' "$PROTECT_HOST_RAW_CMD" | \grep -qE -- "$1"
+}
+if __match_raw "${PROTECT_HOST_WORD_START}(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_CONTAINER_LIST}" ||
+  __match_raw "${PROTECT_HOST_CONTAINER_LIST}[^|]*\|.*(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}"; then
+  if ! __match_raw '(--filter|name=|label=)'; then
+    __block "unscoped container sweep — an unfiltered 'docker ps' feeding kill/stop/rm hits EVERY container on the host; target project containers by name or add --filter name={project_name}-"
+  fi
+fi
+# Incus/LXC analog: an unfiltered `incus list` feeding stop/delete/restart hits
+# EVERY instance on the host. A name= filter, positional name=… key filter, or
+# --project scope makes it targeted and is allowed.
+PROTECT_HOST_INCUS_SWEEP_VERBS='(stop|delete|rm|restart|pause)'
+PROTECT_HOST_INCUS_LIST='(incus|lxc)[[:space:]]+(list|ls)'
+if __match_raw "${PROTECT_HOST_WORD_START}(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_INCUS_LIST}" ||
+  __match_raw "${PROTECT_HOST_INCUS_LIST}[^|]*\|.*(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}"; then
+  if ! __match_raw '(--filter|name=|label=|--project)'; then
+    __block "unscoped instance sweep — an unfiltered 'incus list' feeding stop/delete hits EVERY instance on the host; target project instances by name or add a name={project_name}- filter"
+  fi
+fi
+# prune subcommands are always a broad sweep — cleanup must target project resources by name.
+if __match_raw "${PROTECT_HOST_WORD_START}(docker|podman)[[:space:]]+(system|builder|buildx|container|image|volume|network)[[:space:]]+prune"; then
+  __block "docker prune is a broad sweep — remove only project-scoped resources by name (docker stop/rm {project_name}-XXXX)"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 exit 0
