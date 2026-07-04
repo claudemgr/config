@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607041200-git
+##@Version           :   202607041800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -24,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607041200-git"
+VERSION="202607041800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -122,7 +122,7 @@ Convention: ${ref}"
 __require_cmd python3
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# __split_subcommands <cmd> — print each sub-command on its own line, splitting
+# __split_subcommands <cmd> — emit each sub-command NUL-terminated, splitting
 # on ; & && || | and newlines so container-runtime exemptions apply per
 # sub-command, never to the whole compound string (a leading "docker run ..."
 # must not exempt a trailing "; go build").
@@ -209,7 +209,7 @@ subs.append("".join(buf))
 for sub in subs:
     sub = sub.strip()
     if sub:
-        print(sub)
+        sys.stdout.write(sub + "\0")
 ' "$1"
 }
 
@@ -217,8 +217,10 @@ BLOCK_HOST_TOOLCHAIN_INPUT="$(cat)"
 BLOCK_HOST_TOOLCHAIN_FULL_CMD="$(printf '%s' "$BLOCK_HOST_TOOLCHAIN_INPUT" | __extract_command)"
 [[ -z "$BLOCK_HOST_TOOLCHAIN_FULL_CMD" ]] && exit 0
 
-# Inspect every sub-command independently; __block exits 2 on the first violation
-while IFS= read -r CMD; do
+# Inspect every sub-command independently; __block exits 2 on the first violation.
+# -d '' consumes NUL-delimited subs so a quoted multi-line payload (docker run ... sh -c with
+# literal newlines) arrives as ONE sub-command instead of being re-split line by line
+while IFS= read -r -d '' CMD; do
 
 # Sub-commands already mediated by a container runtime are exempt at this layer.
 case "$CMD" in
