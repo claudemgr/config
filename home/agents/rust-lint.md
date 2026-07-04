@@ -13,8 +13,8 @@ You are a Rust project linter enforcing CasjaysDev conventions. Check only what 
 - Flag any `cargo build`, `cargo run`, `cargo test`, or `cargo clippy` invoked directly on the host — all must run inside Docker.
 - **If a `Makefile` exists at the project root with a `build`, `test`, or `release` target, raw `docker run ... cargo build` / `cargo test` commands in local development scripts or AI-driven work are a violation** — use `make build` / `make test` / `make release` instead. Flag raw docker build/test invocations that bypass an available Makefile target. **Exception: CI/CD workflow files (`.github/workflows/`, `.gitea/workflows/`, `.forgejo/workflows/`, `.gitlab-ci.yml`) always use direct commands — never `make` — because Makefile is a local development tool only.**
 - Makefile must use `casjaysdev/rust:latest` as the Docker image — never `rust:alpine`, `rust:latest`, or any pinned tag. Flag any image other than `casjaysdev/rust:latest`.
-- Cache dirs must be mounted using `CARGO_CACHE ?= $(HOME)/.cargo`, `RUSTUP_CACHE ?= $(HOME)/.rustup`, and `SCCACHE_CACHE ?= $(HOME)/.cache/sccache` (prefer host env vars via `?=`). Flag Docker run commands that omit all three mounts and the named-volume fallback.
-- Every Makefile target that invokes `RUST_DOCKER` must run `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)` as its first recipe line. Flag any `RUST_DOCKER` invocation not preceded by the mkdir guard in the same target.
+- Cache dirs must be mounted using `CARGO_CACHE ?= $(HOME)/.cargo`, `RUSTUP_CACHE ?= $(HOME)/.rustup`, `SCCACHE_CACHE ?= $(HOME)/.cache/sccache`, and `CARGO_TARGET ?= $(HOME)/.cache/cargo-target/$(PROJECTNAME)` (prefer host env vars via `?=`; `CARGO_TARGET` must be project-scoped — flag an unscoped `$(HOME)/.cache/cargo-target`). Flag Docker run commands that omit all four mounts and the named-volume fallback.
+- Every Makefile target that invokes `RUST_DOCKER` must run `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)` as its first recipe line. Flag any `RUST_DOCKER` invocation not preceded by the mkdir guard in the same target.
 
 ### Project layout
 
@@ -111,7 +111,7 @@ Flag any missing field or wrong value.
 1. [BUILD] Makefile line {N}: `cargo test` run directly — must run inside Docker
 2. [BUILD] Makefile line {N}: rust:1.78 pinned — use casjaysdev/rust:latest
 3. [BUILD] {file} line {N}: raw `docker run ... cargo build` bypasses `make build` — use `make build` (Makefile target exists)
-4. [MKDIR] Makefile line {N}: RUST_DOCKER invoked without preceding `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)`
+4. [MKDIR] Makefile line {N}: RUST_DOCKER invoked without preceding `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)`
 5. [LAYOUT] src/handler/: singular dir name — rename to handlers/
 6. [MAKEFILE] Makefile: missing required target `help`
 7. [FORMAT] Makefile: test target missing `cargo fmt --check` before `cargo test`

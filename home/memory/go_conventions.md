@@ -97,7 +97,7 @@ Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS i
 
 ```makefile
 GO_CACHE  ?= $(HOME)/go/pkg/mod
-GO_BUILD  ?= $(HOME)/.cache/go-build
+GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
@@ -113,7 +113,7 @@ GO_DOCKER := docker run --rm \
 - Always `casjaysdev/go:latest` (rolling tag — never pinned)
 - `CGO_ENABLED=0` and `GOFLAGS=-buildvcs=false` are `casjaysdev/go:latest` image defaults (Docker `ENV`); set explicitly in `GO_DOCKER` for clarity and as a safety net if the image ever changes. `GOTELEMETRY=off`, `GOTOOLCHAIN=auto`, and `GOPROXY=https://proxy.golang.org,direct` are also image defaults — do not set them in templates.
 - `-e GOFLAGS=-buildvcs=false` — **required reason**: when `-v $PWD:/app` mounts `.git` into the container, Git 2.35.2+ rejects it as an "unsafe directory" because the host file owner (UID 1000) differs from the container user (root, UID 0). `go build` calls git internally to stamp VCS info and fails with "exit status 128". `GOFLAGS=-buildvcs=false` suppresses VCS stamping globally for all `go build` and `go test` calls inside the container. This is safe because version info is already embedded via `-X main.Version=...` LDFLAGS.
-- `GO_CACHE` and `GO_BUILD` use `?=` so host env vars (`GOMODCACHE`, `GOCACHE`) or custom XDG paths are honored; defaults are `~/go/pkg/mod` and `~/.cache/go-build`
+- `GO_CACHE` and `GO_BUILD` use `?=` so a host-set `GO_CACHE`/`GO_BUILD` (custom XDG or toolchain path) overrides the defaults; defaults are `~/go/pkg/mod` and `~/.cache/go-build/$(PROJECTNAME)` — the compile cache is project-scoped because it is not safe for concurrent writes across projects (see `execution_hierarchy.md`)
 - Every target that uses `GO_DOCKER` must `@mkdir -p $(GO_CACHE) $(GO_BUILD)` first so host dirs exist before Docker mounts them
 - Project source is mounted at `/app`; output dirs (`binaries/`) are subdirs of `/app` and land on the host automatically
 - See **Module Cache** section for the named-volume fallback (`go-state`) when bind-mounting is not desired
@@ -398,7 +398,7 @@ Suppress all ANSI output (colors, cursor sequences) when `NO_COLOR` is set or `-
 
 ```makefile
 GO_CACHE  ?= $(HOME)/go/pkg/mod
-GO_BUILD  ?= $(HOME)/.cache/go-build
+GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
@@ -411,7 +411,7 @@ GO_DOCKER := docker run --rm \
 	casjaysdev/go:latest
 ```
 
-Use `?=` so a host `GOMODCACHE` or `GOCACHE` env var (or custom XDG path) overrides the defaults. Run `@mkdir -p $(GO_CACHE) $(GO_BUILD)` at the top of every target that uses `GO_DOCKER` so the host dirs exist before Docker mounts them.
+Use `?=` so a host-set `GO_CACHE` or `GO_BUILD` env var (pointing at custom `GOMODCACHE`/`GOCACHE` paths) overrides the defaults. Run `@mkdir -p $(GO_CACHE) $(GO_BUILD)` at the top of every target that uses `GO_DOCKER` so the host dirs exist before Docker mounts them.
 
 **Fallback — named volume** — when no host cache dirs are defined and bind-mounting is not desired, use the `go-state` named volume. Docker creates named volumes automatically — no `mkdir -p` needed:
 

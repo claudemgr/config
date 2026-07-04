@@ -24,7 +24,7 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 - `COMMIT_ID` is the canonical name for the short git hash — never `VCS_REF`. Flag `VCS_REF` usage.
 - LDFLAGS must include `-s -w` and `-trimpath` for `build`, `release`, and `docker` targets. Flag if either is missing. The `dev` target may omit them.
 - Required targets: `build`, `release`, `docker`, `test`, `dev`, `clean`. Flag any that are absent.
-- Cache dirs must be mounted into Docker using `GO_CACHE ?= $(HOME)/go/pkg/mod` and `GO_BUILD ?= $(HOME)/.cache/go-build` (prefer host env vars via `?=`). Flag Docker run commands that omit both mounts and the `go-state` named volume fallback.
+- Cache dirs must be mounted into Docker using `GO_CACHE ?= $(HOME)/go/pkg/mod` and `GO_BUILD ?= $(HOME)/.cache/go-build/$(PROJECTNAME)` (prefer host env vars via `?=`; `GO_BUILD` must be project-scoped — flag an unscoped `$(HOME)/.cache/go-build`). Flag Docker run commands that omit both mounts and the `go-state` named volume fallback.
 - Every Makefile target that invokes `GO_DOCKER` must run `@mkdir -p $(GO_CACHE) $(GO_BUILD)` as its first recipe line. Flag any `GO_DOCKER` invocation not preceded by the mkdir guard in the same target.
 
 ### Binary naming

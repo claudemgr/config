@@ -38,6 +38,7 @@ RELEASES_DIR  := ./releases
 CARGO_CACHE   ?= $(HOME)/.cargo
 RUSTUP_CACHE  ?= $(HOME)/.rustup
 SCCACHE_CACHE ?= $(HOME)/.cache/sccache
+CARGO_TARGET  ?= $(HOME)/.cache/cargo-target/$(PROJECTNAME)
 
 DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
@@ -49,6 +50,7 @@ RUST_DOCKER := docker run --rm \
 	-v $(CARGO_CACHE):/usr/local/share/cargo \
 	-v $(RUSTUP_CACHE):/usr/local/share/rustup \
 	-v $(SCCACHE_CACHE):/root/.cache/sccache \
+	-v $(CARGO_TARGET):/app/target \
 	-w /app \
 	casjaysdev/rust:latest
 ```
@@ -56,7 +58,8 @@ RUST_DOCKER := docker run --rm \
 - `casjaysdev/rust:latest` rolling tag — never pinned; Alpine-based with stable + nightly toolchains, 30 cross-compile targets, and every common Cargo tool pre-installed
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
 - `CARGO_CACHE`, `RUSTUP_CACHE`, and `SCCACHE_CACHE` use `?=` so host env vars (`CARGO_HOME`, `RUSTUP_HOME`, custom XDG paths) are honored; defaults are `~/.cargo`, `~/.rustup`, and `~/.cache/sccache`
-- Every target that uses `RUST_DOCKER` must `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)` first so host dirs exist before Docker mounts them and downloaded crates persist across runs
+- `CARGO_TARGET ?= $(HOME)/.cache/cargo-target/$(PROJECTNAME)` mounts the Cargo target dir at `/app/target` — scoped per project because target artifacts are not safe to share across projects, and it keeps `target/` out of the source tree
+- Every target that uses `RUST_DOCKER` must `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)` first so host dirs exist before Docker mounts them and downloaded crates persist across runs
 - `CARGO_HOME` is `/usr/local/share/cargo` inside the image (not `/usr/local/cargo` as in the official `rust:alpine`)
 - `RUSTUP_HOME` is `/usr/local/share/rustup`; sccache cache is at `/root/.cache/sccache`
 - `RUSTC_WRAPPER=sccache` and `CARGO_INCREMENTAL=0` are `casjaysdev/rust:latest` image defaults — set in both the Docker `ENV` table (active for all `docker run` invocations) and `/etc/profile.d/rust.sh` (interactive login shells). Mount `SCCACHE_CACHE` to persist the cache; omit the mount and every build starts cold. To opt out: `-e RUSTC_WRAPPER=`
@@ -78,7 +81,7 @@ All cargo invocations run inside Docker — never directly on host. Every target
 
 ```makefile
 build:
-	@mkdir -p $(BINARIES_DIR) $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE)
+	@mkdir -p $(BINARIES_DIR) $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)
 	$(RUST_DOCKER) bash -c ' \
 	    cargo build --release && \
 	    strip target/release/$(PROJECT_NAME) 2>/dev/null || true && \

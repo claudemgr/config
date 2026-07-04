@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607032202-git
+##@Version           :   202607041200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -24,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607032202-git"
+VERSION="202607041200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -213,9 +213,9 @@ for sub in subs:
 ' "$1"
 }
 
-INPUT="$(cat)"
-FULL_CMD="$(printf '%s' "$INPUT" | __extract_command)"
-[[ -z "$FULL_CMD" ]] && exit 0
+BLOCK_HOST_TOOLCHAIN_INPUT="$(cat)"
+BLOCK_HOST_TOOLCHAIN_FULL_CMD="$(printf '%s' "$BLOCK_HOST_TOOLCHAIN_INPUT" | __extract_command)"
+[[ -z "$BLOCK_HOST_TOOLCHAIN_FULL_CMD" ]] && exit 0
 
 # Inspect every sub-command independently; __block exits 2 on the first violation
 while IFS= read -r CMD; do
@@ -231,11 +231,11 @@ case "$CMD" in
     ;;
 esac
 
-FIRST="$(__first_word "$CMD")"
-[[ -z "$FIRST" ]] && continue
+BLOCK_HOST_TOOLCHAIN_FIRST="$(__first_word "$CMD")"
+[[ -z "$BLOCK_HOST_TOOLCHAIN_FIRST" ]] && continue
 
 # Normalise: strip any leading path component so /usr/local/go/bin/go → go
-FIRST_BASE="${FIRST##*/}"
+BLOCK_HOST_TOOLCHAIN_FIRST_BASE="${BLOCK_HOST_TOOLCHAIN_FIRST##*/}"
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Toolchain dispatch
@@ -251,34 +251,36 @@ FIRST_BASE="${FIRST##*/}"
 #   systemctl, journalctl, ps, kill, df, du, tar, zip, unzip, …
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
-case "$FIRST_BASE" in
+case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
 
   # ── Go ────────────────────────────────────────────────────────────────────
   go|gofmt|goimports|golangci-lint|gopls|godoc)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
-    -v \"\$PWD\":/build \\
-    -v \"\${GOCACHE:-\${HOME}/.cache/go-build}\":/root/.cache/go-build \\
-    -v \"\${GOMODCACHE:-\${GOPATH:-\${HOME}/go}/pkg/mod}\":/go/pkg/mod \\
-    -w /build \\
+    -v \"\$PWD\":/app \\
+    -v \"\${GO_CACHE:-\${HOME}/go/pkg/mod}\":/usr/local/share/go/pkg/mod \\
+    -v \"\${GO_BUILD:-\${HOME}/.cache/go-build/\$(basename \"\$PWD\")}\":/usr/local/share/go/cache \\
+    -w /app \\
     -e CGO_ENABLED=0 \\
     -e GOFLAGS=-buildvcs=false \\
     casjaysdev/go:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/go_conventions.md"
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/go_conventions.md"
     ;;
 
   # ── Rust ──────────────────────────────────────────────────────────────────
   cargo|rustc|rustup|rustfmt|wasm-pack)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
-    -v \"\$PWD\":/workspace \\
-    -v \"\${CARGO_HOME:-\${HOME}/.cargo}/registry\":/usr/local/cargo/registry \\
-    -v \"\${CARGO_HOME:-\${HOME}/.cargo}/git\":/usr/local/cargo/git \\
-    -w /workspace \\
+    -v \"\$PWD\":/app \\
+    -v \"\${CARGO_CACHE:-\${HOME}/.cargo}\":/usr/local/share/cargo \\
+    -v \"\${RUSTUP_CACHE:-\${HOME}/.rustup}\":/usr/local/share/rustup \\
+    -v \"\${SCCACHE_CACHE:-\${HOME}/.cache/sccache}\":/root/.cache/sccache \\
+    -v \"\${CARGO_TARGET:-\${HOME}/.cache/cargo-target/\$(basename \"\$PWD\")}\":/app/target \\
+    -w /app \\
     casjaysdev/rust:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
     ;;
 
   # ── Node / JavaScript / TypeScript runtime & package managers ─────────────
@@ -289,7 +291,7 @@ case "$FIRST_BASE" in
     -w /app \\
     node:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── TypeScript compiler and JS build / lint tools ─────────────────────────
@@ -303,7 +305,7 @@ case "$FIRST_BASE" in
     -w /app \\
     node:alpine \\
     sh -c 'npm install --prefer-offline && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Alt JS runtimes ───────────────────────────────────────────────────────
@@ -337,7 +339,7 @@ case "$FIRST_BASE" in
     -w /app \\
     node:alpine \\
     sh -c 'npm install --prefer-offline && npx ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Python — build / packaging tools ─────────────────────────────────────
@@ -352,7 +354,7 @@ case "$FIRST_BASE" in
     -w /app \\
     python:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Ruby ──────────────────────────────────────────────────────────────────
@@ -363,7 +365,7 @@ case "$FIRST_BASE" in
     -w /app \\
     ruby:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── JVM build tools (Gradle / Maven / Ant) ───────────────────────────────
@@ -376,7 +378,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     gradle:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Java / JDK tools ──────────────────────────────────────────────────────
@@ -388,7 +390,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     eclipse-temurin:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── GraalVM native-image ──────────────────────────────────────────────────
@@ -399,7 +401,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     ghcr.io/graalvm/native-image:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Kotlin ────────────────────────────────────────────────────────────────
@@ -410,7 +412,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     eclipse-temurin:alpine \\
     sh -c 'apk add --no-cache kotlin && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Scala / SBT ───────────────────────────────────────────────────────────
@@ -423,7 +425,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     eclipse-temurin:alpine \\
     sh -c 'apk add --no-cache scala && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Clojure / Leiningen ───────────────────────────────────────────────────
@@ -435,7 +437,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     clojure:tools-alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Groovy ────────────────────────────────────────────────────────────────
@@ -446,7 +448,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     groovy:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── PHP ───────────────────────────────────────────────────────────────────
@@ -457,7 +459,7 @@ case "$FIRST_BASE" in
     -w /app \\
     php:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── .NET / C# / F# / VB ──────────────────────────────────────────────────
@@ -468,7 +470,7 @@ case "$FIRST_BASE" in
     -w /app \\
     mcr.microsoft.com/dotnet/sdk:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Elixir / Erlang ───────────────────────────────────────────────────────
@@ -479,7 +481,7 @@ case "$FIRST_BASE" in
     -w /app \\
     elixir:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Gleam (BEAM / Erlang VM language) ────────────────────────────────────
@@ -502,7 +504,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     haskell:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Swift ─────────────────────────────────────────────────────────────────
@@ -514,7 +516,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     swift:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Dart / Flutter ────────────────────────────────────────────────────────
@@ -526,7 +528,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     dart:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Zig ───────────────────────────────────────────────────────────────────
@@ -549,7 +551,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     crystallang/crystal:latest-alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── OCaml / OPAM / Dune ───────────────────────────────────────────────────
@@ -560,7 +562,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     ocaml/opam:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── D language ────────────────────────────────────────────────────────────
@@ -571,7 +573,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     dlangcommunity/docker-dmd:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Julia ─────────────────────────────────────────────────────────────────
@@ -596,7 +598,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     r-base:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Nim ───────────────────────────────────────────────────────────────────
@@ -607,7 +609,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     nimlang/nim:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── V language ────────────────────────────────────────────────────────────
@@ -619,7 +621,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     vlang/vlang:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Odin ──────────────────────────────────────────────────────────────────
@@ -643,7 +645,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Janet (small Lisp/C hybrid, in Alpine repos) ─────────────────────────
@@ -654,7 +656,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine:latest \\
     sh -c 'apk add --no-cache janet && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Fennel (Lisp dialect for Lua, in Alpine repos) ───────────────────────
@@ -677,7 +679,7 @@ case "$FIRST_BASE" in
     -w /app \\
     perl:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Fortran ───────────────────────────────────────────────────────────────
@@ -688,7 +690,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gfortran && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── COBOL ─────────────────────────────────────────────────────────────────
@@ -699,7 +701,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gnucobol && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Ada / GNAT ────────────────────────────────────────────────────────────
@@ -710,7 +712,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gcc-gnat gnat && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Emscripten — C / C++ to WebAssembly ──────────────────────────────────
@@ -721,7 +723,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     emscripten/emsdk:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Common Lisp ───────────────────────────────────────────────────────────
@@ -733,7 +735,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     debian:latest \\
     sh -c 'apt-get update && apt-get install -y sbcl && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Racket ────────────────────────────────────────────────────────────────
@@ -745,7 +747,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     racket/racket:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Scheme (Guile, Chicken, MIT, Chibi) ──────────────────────────────────
@@ -759,7 +761,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     debian:latest \\
     sh -c 'apt-get update && apt-get install -y guile-3.0 && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Prolog ────────────────────────────────────────────────────────────────
@@ -771,7 +773,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     swipl:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Bazel / Bazelisk ──────────────────────────────────────────────────────
@@ -783,7 +785,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     ubuntu:latest \\
     sh -c 'apt-get update && apt-get install -y bazel && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── C / C++ compilers ────────────────────────────────────────────────────
@@ -798,7 +800,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── C / C++ build generators and configuration tools ─────────────────────
@@ -811,7 +813,7 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base cmake && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Assembler / linker (part of C/C++ toolchain) ─────────────────────────
@@ -823,11 +825,11 @@ case "$FIRST_BASE" in
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base binutils && ${CMD}'"
-    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
 esac
 
-done < <(__split_subcommands "$FULL_CMD")
+done < <(__split_subcommands "$BLOCK_HOST_TOOLCHAIN_FULL_CMD")
 
 exit 0
