@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031823-git
+##@Version           :   202607032202-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
-# @@Changelog        :  Require explicit instance name on incus/lxc launch and init (project-scoped naming, same policy as docker --name)
+# @@Changelog        :  See through alias-bypass backslashes and shell wrapper prefixes (\docker, command docker, timeout 60 docker run)
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031823-git"
+VERSION="202607032202-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -79,6 +79,29 @@ for sub in sub_cmds:
     # Find "docker run" (possibly with env-var prefixes: KEY=VAL docker run)
     # Skip leading KEY=VALUE tokens
     clean = [t for t in tokens if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', t)]
+
+    if not clean:
+        continue
+
+    # See through house-style alias-safe backslashes and shell wrapper
+    # prefixes so \docker run, command docker run, and timeout 60 docker run
+    # are enforced identically to the bare form. shlex already unescapes
+    # \docker; the raw-split fallback does not.
+    wrappers = {"command", "builtin", "exec", "env", "nohup", "setsid",
+                "nice", "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
+    while clean:
+        head = clean[0].lstrip("\\")
+        if head != clean[0]:
+            clean[0] = head
+            continue
+        if head in wrappers:
+            clean.pop(0)
+            # skip the wrapper flags and duration/priority arguments (timeout 600)
+            while clean and (clean[0].startswith("-")
+                             or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", clean[0])):
+                clean.pop(0)
+            continue
+        break
 
     if not clean:
         continue

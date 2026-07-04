@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031800-git
+##@Version           :   202607032202-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,7 +10,7 @@
 # @@Created          :  Wednesday, May 14, 2026 00:00 EDT
 # @@File             :  block-host-toolchain.sh
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
-# @@Changelog        :  Shell-aware sub-command split — join line continuations, never split inside quotes or $(), skip heredoc bodies
+# @@Changelog        :  See through alias-bypass backslashes and shell wrapper prefixes (\go, command go, timeout 600 go) in first-word dispatch
 # @@TODO             :  None
 # @@Other            :  Commands already mediated by docker/incus/podman/kubectl are exempted.
 # @@Other            :  Pure POSIX / system tools (make, ninja, curl, wget, jq, grep, git, ssh, …) are never blocked.
@@ -24,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031800-git"
+VERSION="202607032202-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -50,16 +50,37 @@ except Exception:
 '
 }
 
-# __first_word <cmd> — strip leading KEY=VALUE env assignments and return the
-# first executable token. Handles patterns like: CGO_ENABLED=0 go build ./...
+# __first_word <cmd> — strip leading KEY=VALUE env assignments, house-style
+# alias-safe backslashes, and shell wrapper prefixes, then return the first
+# executable token. Handles: CGO_ENABLED=0 go build · \go build · command go
+# build · timeout 600 go build · env -i go build — \go and go are the SAME
+# command (backslash only skips aliases) so policy must apply identically.
 __first_word() {
   python3 -c '
 import re, sys
 cmd = sys.argv[1].strip()
 # strip leading VAR=value assignments (quoted or unquoted values)
 cmd = re.sub(r"^(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"]*\"|'"'"'[^'"'"']*'"'"'|[^\s]*)\s+)*", "", cmd)
-parts = cmd.split()
-print(parts[0] if parts else "")
+wrappers = {"command", "builtin", "exec", "env", "nohup", "setsid",
+            "nice", "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
+tokens = cmd.split()
+first = ""
+i = 0
+while i < len(tokens):
+    # leading backslash is the house-style alias-safe form: \go is still go
+    t = tokens[i].lstrip("\\")
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
+        i += 1
+        continue
+    if t in wrappers:
+        i += 1
+        # skip the wrapper flags and duration/priority arguments (timeout 600, nice -n 10)
+        while i < len(tokens) and (tokens[i].startswith("-") or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", tokens[i])):
+            i += 1
+        continue
+    first = t
+    break
+print(first)
 ' "$1"
 }
 
@@ -234,7 +255,7 @@ case "$FIRST_BASE" in
 
   # ── Go ────────────────────────────────────────────────────────────────────
   go|gofmt|goimports|golangci-lint|gopls|godoc)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/build \\
     -v \"\${GOCACHE:-\${HOME}/.cache/go-build}\":/root/.cache/go-build \\
@@ -244,12 +265,12 @@ case "$FIRST_BASE" in
     -e GOFLAGS=-buildvcs=false \\
     casjaysdev/go:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" "~/.claude/memory/go_conventions.md"
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/go_conventions.md"
     ;;
 
   # ── Rust ──────────────────────────────────────────────────────────────────
   cargo|rustc|rustup|rustfmt|wasm-pack)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${CARGO_HOME:-\${HOME}/.cargo}/registry\":/usr/local/cargo/registry \\
@@ -257,18 +278,18 @@ case "$FIRST_BASE" in
     -w /workspace \\
     casjaysdev/rust:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
     ;;
 
   # ── Node / JavaScript / TypeScript runtime & package managers ─────────────
   node|npm|npx|yarn|pnpm|corepack)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── TypeScript compiler and JS build / lint tools ─────────────────────────
@@ -276,47 +297,47 @@ case "$FIRST_BASE" in
   tsc|ts-node|tsx|ts-blank|babel|webpack|rollup|vite|parcel|esbuild|\
   turbo|turborepo|eslint|prettier|biome|oxlint|jshint|standard|xo|\
   swc|tsup|unbuild|pkgroll)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
     sh -c 'npm install --prefer-offline && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Alt JS runtimes ───────────────────────────────────────────────────────
   bun)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     oven/bun:alpine \\
     ${CMD}"
-    __block "bun" "$DOCKER_CMD" ""
+    __block "bun" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   deno)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     denoland/deno:alpine \\
     ${CMD}"
-    __block "deno" "$DOCKER_CMD" ""
+    __block "deno" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Compile-to-JS / JS-ecosystem languages ────────────────────────────────
   # Elm, PureScript, ReScript, CoffeeScript, AssemblyScript — all installed
   # via npm; use node:alpine and install the toolchain inside the container.
   elm|spago|purs|rescript|coffee|asc)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     node:alpine \\
     sh -c 'npm install --prefer-offline && npx ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Python — build / packaging tools ─────────────────────────────────────
@@ -325,29 +346,29 @@ case "$FIRST_BASE" in
   # frontends are blocked.
   pip|pip3|pip3.[0-9]*|uv|poetry|pipenv|hatch|pdm|tox|nox|flit|twine|\
   pyproject-build|setuptools|conda|mamba|micromamba)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     python:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Ruby ──────────────────────────────────────────────────────────────────
   gem|bundle|bundler|rake|rspec|rubocop|standardrb|sorbet|srb)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     ruby:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── JVM build tools (Gradle / Maven / Ant) ───────────────────────────────
   gradle|gradlew|mvn|mvnw|ant)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.gradle\":/root/.gradle \\
@@ -355,46 +376,46 @@ case "$FIRST_BASE" in
     -w /workspace \\
     gradle:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Java / JDK tools ──────────────────────────────────────────────────────
   java|javac|jar|javap|jshell|jlink|jpackage|javadoc|javaws|\
   jmap|jstack|jinfo|jcmd|jps|jstat|jfr|jdb)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     eclipse-temurin:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── GraalVM native-image ──────────────────────────────────────────────────
   native-image|gu)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ghcr.io/graalvm/native-image:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Kotlin ────────────────────────────────────────────────────────────────
   kotlin|kotlinc|kotlinc-jvm|kotlinc-js)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     eclipse-temurin:alpine \\
     sh -c 'apk add --no-cache kotlin && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Scala / SBT ───────────────────────────────────────────────────────────
   scala|scalac|scala3|scalac3|sbt)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.ivy2\":/root/.ivy2 \\
@@ -402,329 +423,329 @@ case "$FIRST_BASE" in
     -w /workspace \\
     eclipse-temurin:alpine \\
     sh -c 'apk add --no-cache scala && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Clojure / Leiningen ───────────────────────────────────────────────────
   lein|clojure|clj|clj-kondo)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.m2\":/root/.m2 \\
     -w /workspace \\
     clojure:tools-alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Groovy ────────────────────────────────────────────────────────────────
   groovy|groovyc|groovysh)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     groovy:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── PHP ───────────────────────────────────────────────────────────────────
   php|php[0-9]*|composer|phpunit|phpcs|phpmd|phpstan|psalm|phpbrew|phive)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     php:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── .NET / C# / F# / VB ──────────────────────────────────────────────────
   dotnet|msbuild|nuget|csc|fsc|vbc|dotnet-script|dotnet-ef)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     mcr.microsoft.com/dotnet/sdk:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Elixir / Erlang ───────────────────────────────────────────────────────
   mix|elixir|elixirc|erl|erlc|escript|rebar3|dialyzer)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     elixir:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Gleam (BEAM / Erlang VM language) ────────────────────────────────────
   gleam)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     ghcr.io/gleam-lang/gleam:latest \\
     ${CMD}"
-    __block "gleam" "$DOCKER_CMD" ""
+    __block "gleam" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Haskell ───────────────────────────────────────────────────────────────
   # No official Alpine image — uses Debian-based :latest.
   ghc|ghci|runghc|runhaskell|cabal|stack|haddock|hoogle)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     haskell:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Swift ─────────────────────────────────────────────────────────────────
   # No official Alpine image — uses Ubuntu-based :latest.
   swift|swiftc|swift-package|swift-build|swift-test|swift-run)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     swift:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Dart / Flutter ────────────────────────────────────────────────────────
   # No official Alpine image — uses Debian-based :latest.
   dart|flutter|pub)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     dart:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Zig ───────────────────────────────────────────────────────────────────
   # Zig is in Alpine edge; no separate official Docker image.
   zig)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:edge \\
     sh -c 'apk add --no-cache zig && ${CMD}'"
-    __block "zig" "$DOCKER_CMD" ""
+    __block "zig" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Crystal ───────────────────────────────────────────────────────────────
   crystal|shards)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     crystallang/crystal:latest-alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── OCaml / OPAM / Dune ───────────────────────────────────────────────────
   ocaml|ocamlopt|ocamlfind|ocamlbuild|opam|dune)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ocaml/opam:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── D language ────────────────────────────────────────────────────────────
   dmd|dub|ldc|ldc2|gdc|rdmd)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     dlangcommunity/docker-dmd:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Julia ─────────────────────────────────────────────────────────────────
   # No official Alpine image — uses Debian-based :latest.
   julia)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.julia\":/root/.julia \\
     -w /workspace \\
     julia:latest \\
     ${CMD}"
-    __block "julia" "$DOCKER_CMD" ""
+    __block "julia" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── R ─────────────────────────────────────────────────────────────────────
   # No official Alpine image — uses Debian-based :latest.
   R|Rscript|renv)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     r-base:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Nim ───────────────────────────────────────────────────────────────────
   nim|nimble|nimgrep|nimpretty|testament)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     nimlang/nim:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── V language ────────────────────────────────────────────────────────────
   # Bare "v" is not blocked — it collides with a common shell alias name.
   vpm)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     vlang/vlang:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Odin ──────────────────────────────────────────────────────────────────
   # No official Docker image — install from GitHub release inside Ubuntu.
   odin)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     ubuntu:latest \\
     sh -c 'apt-get update && apt-get install -y odin && ${CMD}'"
-    __block "odin" "$DOCKER_CMD" ""
+    __block "odin" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Lua — package manager / compiler only ────────────────────────────────
   # lua itself is a common system scripting tool and is NOT blocked.
   luarocks|luac)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Janet (small Lisp/C hybrid, in Alpine repos) ─────────────────────────
   janet|jpm)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:latest \\
     sh -c 'apk add --no-cache janet && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Fennel (Lisp dialect for Lua, in Alpine repos) ───────────────────────
   fennel)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine:latest \\
     sh -c 'apk add --no-cache lua5.4 fennel && ${CMD}'"
-    __block "fennel" "$DOCKER_CMD" ""
+    __block "fennel" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Perl — package managers / build tools only ───────────────────────────
   # perl itself is a system scripting tool and is NOT blocked.
   cpan|cpanm|cpm|carton|prove|plackup|morbo)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
     perl:alpine \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Fortran ───────────────────────────────────────────────────────────────
   gfortran|flang|ifort|ifx|f77|f95|fort77)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gfortran && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── COBOL ─────────────────────────────────────────────────────────────────
   cobc|cobcrun|cob-config)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gnucobol && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Ada / GNAT ────────────────────────────────────────────────────────────
   gnat|gnatmake|gprbuild|gnatclean|gnatbind|gnatlink|gnatfind|gnatxref)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache gcc-gnat gnat && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Emscripten — C / C++ to WebAssembly ──────────────────────────────────
   emcc|em++|emcmake|emmake|emar|emranlib|emstrip|emrun|emdump|emsize)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     emscripten/emsdk:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Common Lisp ───────────────────────────────────────────────────────────
   # No Alpine image; use Debian-based :latest.
   sbcl|clisp|ecl|abcl|gcl|ccl|acl)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     debian:latest \\
     sh -c 'apt-get update && apt-get install -y sbcl && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Racket ────────────────────────────────────────────────────────────────
   # No Alpine image; official image is Debian-based.
   racket|raco)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     racket/racket:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Scheme (Guile, Chicken, MIT, Chibi) ──────────────────────────────────
@@ -732,37 +753,37 @@ case "$FIRST_BASE" in
   # Note: csi = Chicken Scheme Interpreter (csc conflicts with C# compiler).
   guile|chicken|chicken-install|chicken-status|csi|\
   mit-scheme|chibi-scheme|chezscheme|chez|petite-chez)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     debian:latest \\
     sh -c 'apt-get update && apt-get install -y guile-3.0 && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Prolog ────────────────────────────────────────────────────────────────
   # No Alpine image; official SWI-Prolog image is Debian-based.
   swipl|swipl-ld|gprolog|yap|xsb|clingo|spass)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     swipl:latest \\
     ${CMD}"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Bazel / Bazelisk ──────────────────────────────────────────────────────
   bazel|bazelisk|ibazel)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.cache/bazel\":/root/.cache/bazel \\
     -w /workspace \\
     ubuntu:latest \\
     sh -c 'apt-get update && apt-get install -y bazel && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── C / C++ compilers ────────────────────────────────────────────────────
@@ -771,38 +792,38 @@ case "$FIRST_BASE" in
   aarch64-linux-gnu-gcc|aarch64-linux-gnu-g++|\
   arm-linux-gnueabihf-gcc|arm-linux-gnueabihf-g++|\
   riscv64-linux-gnu-gcc|riscv64-linux-gnu-g++)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── C / C++ build generators and configuration tools ─────────────────────
   # make and ninja are NOT blocked — they act as build runners, not compilers,
   # and make drives Docker-based builds in this project.
   cmake|meson|autoconf|automake|autoreconf|configure)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base cmake && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Assembler / linker (part of C/C++ toolchain) ─────────────────────────
   # strip is not blocked — settings.json allowlists it and it is used on non-C artifacts.
   as|ld|ar|ranlib|objcopy)
-    DOCKER_CMD="  docker run --rm \\
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
     --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
     alpine \\
     sh -c 'apk add --no-cache build-base binutils && ${CMD}'"
-    __block "$FIRST_BASE" "$DOCKER_CMD" ""
+    __block "$FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
 esac

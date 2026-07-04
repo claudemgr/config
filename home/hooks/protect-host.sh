@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031823-git
+##@Version           :   202607032202-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -8,7 +8,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Rule 11 — block unscoped container/instance sweeps (docker/podman ps, incus/lxc list feeding kill/stop/rm/delete; prune)
+# @@Changelog        :  Container-exemption check sees through alias-bypass backslashes and command/env wrappers
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031823-git"
+VERSION="202607032202-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -101,7 +101,11 @@ for part in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub = part.strip()
     if not sub:
         continue
-    if sub.startswith(prefixes):
+    # normalize house-style alias-safe backslashes and command/env wrappers
+    # for the exemption check only — \docker exec and command docker exec are
+    # still container-mediated; the original sub is what gets kept and scanned
+    probe = re.sub(r"^(?:\\|(?:command|builtin|env|exec)\s+)+", "", sub)
+    if probe.startswith(prefixes):
         continue
     kept.append(sub)
 print("\n".join(kept))
@@ -257,7 +261,8 @@ __match_raw() {
 if __match_raw "${PROTECT_HOST_WORD_START}(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_CONTAINER_LIST}" ||
   __match_raw "${PROTECT_HOST_CONTAINER_LIST}[^|]*\|.*(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}"; then
   if ! __match_raw '(--filter|name=|label=)'; then
-    __block "unscoped container sweep — an unfiltered 'docker ps' feeding kill/stop/rm hits EVERY container on the host; target project containers by name or add --filter name={project_name}-"
+    __block "unscoped container sweep — an unfiltered 'docker ps' feeding kill/stop/rm hits EVERY container on the host; \
+target project containers by name or add --filter name={project_name}-"
   fi
 fi
 # Incus/LXC analog: an unfiltered `incus list` feeding stop/delete/restart hits
@@ -268,7 +273,8 @@ PROTECT_HOST_INCUS_LIST='(incus|lxc)[[:space:]]+(list|ls)'
 if __match_raw "${PROTECT_HOST_WORD_START}(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_INCUS_LIST}" ||
   __match_raw "${PROTECT_HOST_INCUS_LIST}[^|]*\|.*(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}"; then
   if ! __match_raw '(--filter|name=|label=|--project)'; then
-    __block "unscoped instance sweep — an unfiltered 'incus list' feeding stop/delete hits EVERY instance on the host; target project instances by name or add a name={project_name}- filter"
+    __block "unscoped instance sweep — an unfiltered 'incus list' feeding stop/delete hits EVERY instance on the host; \
+target project instances by name or add a name={project_name}- filter"
   fi
 fi
 # prune subcommands are always a broad sweep — cleanup must target project resources by name.
