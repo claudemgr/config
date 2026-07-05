@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607032202-git
+##@Version           :   202607051330-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607032202-git"
+VERSION="202607051330-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -29,6 +29,7 @@ set -uo pipefail
 #     /etc/gshadow, /etc/sudoers, /etc/master.passwd
 #   • Write arbitrary files into core OS binary dirs: /bin/, /sbin/, /usr/bin/, /usr/sbin/
 #   • Wipe filesystem root (/) or home directory itself (rm -rf ~)
+#   • Wipe a top-level system dir itself or its contents (rm -rf /etc, rm -rf /etc/*)
 #   • Raw block-device writes (dd/mkfs to /dev/sd*, /dev/nvme*)
 #   • pkill/killall (name-based process kill — hits unrelated host processes)
 #   • Unscoped container/instance sweeps (unfiltered docker ps or incus list feeding kill/stop/rm/delete; docker prune)
@@ -45,13 +46,57 @@ PROTECT_HOST_CORE_BINARY='(/bin|/sbin|/usr/bin|/usr/sbin)'
 # Auth-critical files — deleting or overwriting breaks authentication/identity.
 PROTECT_HOST_AUTH_CRITICAL='(/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd))'
 # Home-directory root only — the home dir ITSELF, not subpaths.
-# e.g. /root and /home/jason are protected; /root/Projects is not.
-# $HOME (unexpanded) and ~ are equivalent spellings of the same target.
-PROTECT_HOST_HOME_LITERAL='(/root|/home/[^/[:space:]&|;()`<>]+|~|\$HOME)'
+# Derived from $HOME at runtime — never hardcode /home/<user> paths.
+# The expanded path, the unexpanded $HOME spelling, and ~ are equivalent targets.
+PROTECT_HOST_HOME_PATH="$(printf '%s' "${HOME:-/root}" | \sed 's/[].^$*+?(){}|\\[]/\\&/g')"
+PROTECT_HOST_HOME_LITERAL="(${PROTECT_HOST_HOME_PATH}|~|\\\$HOME)"
 # Truly destructive verbs: delete and wipe only. chmod/chown are NOT here — they configure, not destroy.
 PROTECT_HOST_DESTRUCTIVE_VERBS='rm|rmd|rmdir|shred|truncate|wipefs'
 # Write verbs that install/overwrite files.
 PROTECT_HOST_WRITE_VERBS='mv|cp|install|ln'
+# Container/VM-mediated command prefixes — anything running INSIDE a container or
+# test VM is exempt from every rule (the blast radius is the disposable guest, not
+# the host). Newline-separated; consumed by both python helpers via the environment
+# so the two lists can never drift apart. Entries ending in "-" match as-is
+# (qemu-system-x86_64 etc.); all others get a trailing space for word-boundary safety.
+PROTECT_HOST_CONTAINER_PREFIXES="docker exec
+docker run
+docker container exec
+docker container run
+docker compose exec
+docker compose run
+docker-compose exec
+docker-compose run
+podman exec
+podman run
+podman container exec
+podman container run
+podman compose exec
+podman compose run
+podman-compose exec
+podman-compose run
+incus exec
+incus shell
+incus file push
+incus file pull
+lxc exec
+lxc shell
+lxc file push
+lxc file pull
+kubectl exec
+kubectl debug
+machinectl shell
+systemd-nspawn
+vagrant ssh
+multipass exec
+multipass shell
+distrobox enter
+toolbox run
+virsh
+qemu-system-
+nsenter
+chroot"
+export PROTECT_HOST_CONTAINER_PREFIXES
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Helpers
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -76,6 +121,55 @@ except Exception:
 '
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# __strip_heredoc_bodies - remove heredoc BODY lines before scanning, but only when
+# the heredoc feeds a non-shell command (python3, cat, tee, jq, ...). Body text fed
+# to bash/sh/zsh/dash/ksh/ash IS executable shell and stays fully scanned - no bypass
+# through the shell itself - UNLESS the shell is container/VM-mediated (docker exec,
+# incus exec, ...): those bodies execute inside the disposable guest and are exempt. Rationale: a python/cat heredoc that merely MENTIONS
+# "rm -rf /" is data, not a command, and blocking it is a false positive. A deliberate
+# evasion via python (os.system etc.) never matched these shell-shaped regexes anyway;
+# this hook is an accident guardrail, not a security boundary. On any parse error the
+# original text is emitted unchanged so scanning never silently weakens.
+__strip_heredoc_bodies() {
+  python3 -c '
+import os, re, sys
+text = sys.stdin.read()
+try:
+    shells = {"bash", "sh", "zsh", "dash", "ksh", "ash"}
+    prefixes = tuple(
+        p if p.endswith("-") else p + " "
+        for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
+        if p.strip()
+    )
+    out = []
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        delims = []
+        for m in re.finditer(r"(?<!<)<<(?!<)-?\s*([\x27\"]?)(\w+)\1", line):
+            head = line[: m.start()]
+            tokens = {t.lstrip("\\\\") for t in head.split()}
+            # container/VM-mediated heredocs are exempt even when fed to a shell:
+            # "docker exec -i c bash <<EOF" runs the body inside the guest
+            probe = re.sub(r"^\s*(?:\\\\|(?:command|builtin|env|exec)\s+)+", "", head.strip())
+            if probe.startswith(prefixes) or not (tokens & shells):
+                delims.append(m.group(2))
+        i += 1
+        for delim in delims:
+            while i < len(lines):
+                if lines[i].strip() == delim:
+                    out.append(lines[i])
+                    i += 1
+                    break
+                i += 1
+    print("\n".join(out))
+except Exception:
+    print(text)
+'
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # __strip_container_subcmds - split the command on newlines and shell separators,
 # drop sub-commands that run inside a container/sandbox, print the rest one per line.
 # Splitting is intentionally naive (quoted separators over-split) — over-splitting
@@ -84,17 +178,12 @@ except Exception:
 # gets a free pass just because the string STARTS with "docker run ".
 __strip_container_subcmds() {
   python3 -c '
-import re, sys
+import os, re, sys
 cmd = sys.stdin.read()
-prefixes = (
-    "docker exec ", "docker run ",
-    "docker compose exec ", "docker compose run ",
-    "docker-compose exec ", "docker-compose run ",
-    "incus exec ", "incus shell ", "incus file push ", "incus file pull ",
-    "lxc exec ", "lxc file push ", "lxc file pull ",
-    "podman exec ", "podman run ",
-    "kubectl exec ",
-    "nsenter ", "chroot ",
+prefixes = tuple(
+    p if p.endswith("-") else p + " "
+    for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
+    if p.strip()
 )
 kept = []
 for part in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
@@ -129,6 +218,9 @@ __require_cmd grep
 # $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
 PROTECT_HOST_INPUT="$(cat)"
 PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_INPUT" | __extract_command)"
+# Non-shell heredoc bodies are data, not commands — drop them before any rule sees
+# the text so a python/cat heredoc mentioning "rm -rf /" is not a false positive.
+PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_CMD" | __strip_heredoc_bodies)"
 # Raw command kept for pipeline-shaped rules — sub-command splitting severs
 # pipes, so "docker ps -q | xargs docker kill" is only visible here.
 PROTECT_HOST_RAW_CMD="$PROTECT_HOST_CMD"
@@ -167,6 +259,12 @@ fi
 # Rule 4: destructive verb on the filesystem root / (including the /* contents form).
 if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+/\*?([[:space:]]|\$)"; then
   __block "destructive op targeting the filesystem root /"
+fi
+# Rule 4b: destructive verb on a top-level system dir ITSELF or its /* contents glob.
+# Scoped deletes beneath them (rm -rf /etc/wireguard, rm -rf /var/tmp/build) stay allowed.
+PROTECT_HOST_SYSTEM_DIRS='(/bin|/boot|/dev|/etc|/lib|/lib32|/lib64|/opt|/proc|/run|/sbin|/srv|/sys|/usr|/var)'
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_SYSTEM_DIRS}(/\*?)?([[:space:]]|\$)"; then
+  __block "destructive op targeting a top-level system directory (/etc, /usr, /var, ...) itself"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 5: shell redirect (> or >>) to auth-critical files or core binary paths.
