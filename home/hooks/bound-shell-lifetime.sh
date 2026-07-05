@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031900-git
+##@Version           :  202607051350-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -21,7 +21,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031900-git"
+VERSION="202607051350-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -62,6 +62,47 @@ SHELLS = ("sh", "bash", "zsh", "dash", "ksh", "mksh")
 CONTAINER_TOOLS = ("docker", "docker-compose", "podman", "kubectl", "incus", "lxc")
 # maximum single sleep in seconds before we call it open-ended
 MAX_SLEEP = 600
+
+HEREDOC_SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "mksh", "ash"}
+HEREDOC_CONTAINER_TOOLS = {"docker", "docker-compose", "podman", "podman-compose",
+                           "kubectl", "incus", "lxc", "machinectl", "systemd-nspawn",
+                           "vagrant", "multipass", "distrobox", "toolbox", "virsh",
+                           "nsenter", "chroot"}
+
+
+def strip_heredoc_bodies(text):
+    # Non-shell heredoc bodies are data, not commands - drop them before scanning
+    # so a cat/tee/python3 heredoc that merely MENTIONS "while true; do sleep" is
+    # not a false positive. Bodies fed to a host shell (bash <<EOF) stay fully
+    # scanned; container/VM-mediated shells (docker exec -i c bash <<EOF) are
+    # exempt - the body runs inside the disposable guest. Fails open to the
+    # original text on any parse error so scanning never silently weakens.
+    try:
+        out = []
+        lines = text.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            out.append(line)
+            delims = []
+            for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
+                if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
+                    delims.append(m.group(2))
+            i += 1
+            for delim in delims:
+                while i < len(lines):
+                    if lines[i].strip() == delim:
+                        out.append(lines[i])
+                        i += 1
+                        break
+                    i += 1
+        return "\n".join(out)
+    except Exception:
+        return text
+
+
+cmd = strip_heredoc_bodies(cmd)
 
 
 def mask_quotes(text):

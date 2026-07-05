@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607041800-git
+##@Version           :   202607051350-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -24,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607041800-git"
+VERSION="202607051350-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -140,7 +140,14 @@ DQ = chr(34)
 cmd = sys.argv[1]
 # join backslash-newline continuations into one logical line
 cmd = re.sub(r"\\\n\s*", " ", cmd)
-# drop heredoc bodies (<<EOF ... EOF) so their lines are not treated as sub-commands; (?<!<)(?!<) avoids matching here-strings <<<
+# drop heredoc BODY lines so data is not treated as sub-commands; (?<!<)(?!<) avoids matching here-strings <<<
+# bodies fed to a HOST shell (bash <<EOF) stay scanned - they execute on the host;
+# container/VM-mediated shells (docker exec -i c bash <<EOF) run in the guest and are exempt
+heredoc_shells = {"bash", "sh", "zsh", "dash", "ksh", "mksh", "ash"}
+heredoc_container_tools = {"docker", "docker-compose", "podman", "podman-compose",
+                           "kubectl", "incus", "lxc", "machinectl", "systemd-nspawn",
+                           "vagrant", "multipass", "distrobox", "toolbox", "virsh",
+                           "nsenter", "chroot"}
 kept = []
 delim = None
 for line in cmd.split("\n"):
@@ -150,7 +157,9 @@ for line in cmd.split("\n"):
         continue
     m = re.search(r"(?<!<)<<(?!<)-?\s*[\x27\x22]?([A-Za-z_][A-Za-z0-9_]*)", line)
     if m:
-        delim = m.group(1)
+        head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
+        if head & heredoc_container_tools or not (head & heredoc_shells):
+            delim = m.group(1)
     kept.append(line)
 cmd = "\n".join(kept)
 # quote- and $()-aware operator scan
