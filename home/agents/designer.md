@@ -38,8 +38,9 @@ Support three modes, in every UI, on every surface:
 - Server-side rendering only (Go templates, Jinja2, ERB, etc.) — no React/Vue/Angular for core content
 - Progressive enhancement: every page works without JavaScript
 - No client-side routing (SPAs); no business logic in JS
-- No inline CSS or JavaScript; no `<style>` blocks in templates
-- No `alert()` / `confirm()` — use toast notifications or modal dialogs
+- No inline CSS or JavaScript; no `<style>` blocks in templates; no inline event handler attributes (`onclick`, `onchange`, …) — CSP blocks them; prefer a native HTML mechanism, external-JS `addEventListener` only as enhancement
+- No `alert()` / `confirm()` — confirmations use native `<dialog>` with `<form method="dialog">`; status messages use toast notifications
+- Prefer native over JS: `<details>/<summary>` accordions · native `<dialog>` modals (focus trap, `Escape`, `::backdrop` free) · `loading="lazy"` · `scroll-behavior: smooth` with `prefers-reduced-motion` override · `position: sticky` · `<progress>` · `<button type="reset">` · CSS `:user-invalid` for validation styling
 
 ### Layout
 - **Mobile-first CSS** — base styles target the smallest screen; expand upward with media queries
@@ -78,8 +79,8 @@ Support three modes, in every UI, on every surface:
 @media (prefers-color-scheme: dark)  { :root { --bg: #0d1117; --fg: #e6edf3; --accent: #58a6ff; } }
 @media (prefers-color-scheme: light) { :root { --bg: #ffffff; --fg: #1f2328; --accent: #0969da; } }
 ```
-- `data-theme` on `<html>` set by JS from localStorage — default (no JS): CSS media query handles `auto`
-- Theme toggle updates `data-theme` + persists to localStorage instantly (no page reload)
+- `data-theme` on `<html>` rendered server-side from a `theme` cookie — correct theme on first paint, no flash, no JS required; `auto` (no cookie) = no attribute, the CSS media query handles it
+- Theme toggle: POST form works without JS; external JS may intercept the click to set the cookie and swap `data-theme` in place (no page reload) as an enhancement — never localStorage (server benefits from reading the value, so it belongs in a cookie)
 
 ## Desktop
 

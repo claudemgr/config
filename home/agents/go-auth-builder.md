@@ -1305,12 +1305,21 @@ All templates use Go's `html/template` package. All user-supplied values are `{{
           <td>{{.CreatedAt | formatDate}}</td>
           <td>{{if .LastUsed}}{{.LastUsed | formatDate}}{{else}}Never{{end}}</td>
           <td>
-            <form method="POST" action="/api/{{$.APIVersion}}/auth/tokens/{{.ID}}">
+            <form method="POST" action="/api/{{$.APIVersion}}/auth/tokens/{{.ID}}"
+                  data-confirm="revoke-token-{{.ID}}">
               <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
               <input type="hidden" name="_method" value="DELETE">
-              <button type="submit" class="btn btn-danger btn-sm"
-                      onclick="return confirm('Revoke this token?')">Revoke</button>
+              <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
             </form>
+            <!-- Native dialog: focus trap, Escape, and ::backdrop are built in; Cancel closes with zero JS via form method="dialog". -->
+            <!-- External JS (addEventListener on [data-confirm]) intercepts submit and calls showModal(); without JS the form submits directly — never inline onclick/confirm() (blocked by CSP). -->
+            <dialog id="revoke-token-{{.ID}}" aria-labelledby="revoke-token-title-{{.ID}}">
+              <p id="revoke-token-title-{{.ID}}">Revoke this token? Applications using it will stop working immediately.</p>
+              <form method="dialog">
+                <button value="cancel" class="btn btn-secondary btn-sm">Cancel</button>
+                <button value="confirm" class="btn btn-danger btn-sm">Revoke</button>
+              </form>
+            </dialog>
           </td>
         </tr>
         {{end}}

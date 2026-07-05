@@ -69,7 +69,9 @@ See `~/.claude/memory/ui_ux_conventions.md` for the full design system. Key rule
 - **Theme via CSS custom properties** — never hardcode colors inline; use `--bg`, `--fg`, `--accent` variables.
 - **WCAG 2.1 AA** — 4.5:1 contrast for normal text, 3:1 for large text; semantic HTML; keyboard navigable.
 - **Touch targets minimum 44×44 px**.
-- **No JavaScript `alert()` / `confirm()`** — use toast notifications or modal dialogs.
+- **No JavaScript `alert()` / `confirm()`** — confirmations use native `<dialog>` with `<form method="dialog">`; status messages use toast notifications.
+- **No inline event handler attributes** (`onclick`, `onchange`, …) — CSP blocks them; use a native HTML mechanism first, external-JS `addEventListener` only as enhancement.
+- **Native HTML/CSS over JS re-implementations** — `<details>/<summary>` accordions, native `<dialog>` modals, `loading="lazy"`, `scroll-behavior: smooth`, `position: sticky`, `<progress>`, `<button type="reset">`, CSS `:user-invalid` validation styling.
 - **No inline CSS or `<style>` blocks** in templates.
 - **Long strings** (IPs, tokens, hashes, UUIDs) — always apply `word-break: break-all; font-family: monospace`.
 - **Every state handled** — loading, empty, error, success each have a distinct, informative UI.

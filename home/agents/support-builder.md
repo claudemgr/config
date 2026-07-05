@@ -521,7 +521,7 @@ Auto-suggest based on current chat/ticket content (match keywords to canned resp
 - Color contrast meets AA minimum (4.5:1 normal text, 3:1 large text)
 - Keyboard navigation complete — no mouse-only interactions
 - Screen reader compatible: heading hierarchy, landmark regions, live regions for real-time updates
-- Focus management: modal focus trapping; focus returns to trigger on close
+- Focus management: modals use native `<dialog>` opened with `showModal()` — focus trap, `Escape`, and `::backdrop` are native; focus returns to trigger on close
 
 ### Mobile responsiveness
 

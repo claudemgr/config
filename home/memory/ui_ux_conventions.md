@@ -29,8 +29,8 @@ Every UI must support three modes:
 
 **Rules:**
 - Ship dark mode first; light mode is not an afterthought
-- `auto` must react to live OS preference changes without reload (web: `prefers-color-scheme` media query or `matchMedia` listener; desktop: `dark-light` crate or equivalent; mobile: system API)
-- User override is always respected and persisted (localStorage for web; config file or OS keystore for desktop/mobile)
+- `auto` must react to live OS preference changes without reload (web: pure CSS `@media (prefers-color-scheme: …)` — no JS listener needed; desktop: `dark-light` crate or equivalent; mobile: system API)
+- User override is always respected and persisted (theme cookie for web — the server reads it and renders the theme class on `<html>`, so the correct theme paints on first byte with no flash and no JS; config file or OS keystore for desktop/mobile)
 - Never hardcode colors inline — use CSS custom properties (web), a shared theme struct (desktop/TUI), or a design token system
 
 ---
@@ -329,8 +329,10 @@ Use semantic system colors where available — they automatically adapt to dark/
 - Server-side rendering only (Go templates, Jinja2, ERB, etc.) — never React/Vue/Angular for core content
 - Progressive enhancement: every page works without JavaScript
 - No client-side routing (SPAs); no business logic in JS
-- No inline CSS or JavaScript; no `<style>` blocks in templates
-- No JavaScript `alert()` / `confirm()` — use toast notifications or modal dialogs
+- No inline CSS or JavaScript; no `<style>` blocks in templates; no inline event handler attributes (`onclick`, `onchange`, `onsubmit`, …) — CSP blocks them; use a native HTML mechanism first, external-JS `addEventListener` only as enhancement
+- No JavaScript `alert()` / `confirm()` — confirmations use native `<dialog>` with `<form method="dialog">` (close/cancel buttons need no JS); status messages use toast notifications
+- Prefer native elements over JS re-implementations: `<details>/<summary>` for accordions; `:hover`/`:focus-within`, `popover`, or `title` for dropdowns and tooltips; `loading="lazy"` for image lazy loading; CSS `scroll-behavior: smooth` (with a `prefers-reduced-motion` override) for smooth scroll and back-to-top `<a href="#top">` links; `position: sticky` for sticky headers; `<progress>` for progress bars; `<button type="reset">` for form reset
+- Form validation: HTML5 `required`/`pattern`/`type=` first; style invalid state with CSS `:user-invalid`; JS only mirrors `validationMessage` text as an enhancement — never blur-handler styling
 
 ### Layout — mobile-first
 - Write CSS for mobile first; expand with media queries
@@ -387,9 +389,10 @@ footer p {
 ### Theme implementation (web)
 Use the full CSS variable block from the **Design Token System** section above — copy it verbatim into your project's root stylesheet. Do not use the old three-token stub.
 
-- `data-theme` attribute on `<html>` set by JS from user preference (localStorage)
-- Default (no JS): the `@media (prefers-color-scheme: …)` blocks in the token CSS handle `auto` automatically
-- Theme toggle button updates `data-theme` and persists to localStorage instantly (no page reload)
+- Theme preference lives in a `theme` cookie; the server reads it and renders `data-theme` on `<html>` — correct theme on first paint, no flash, works with JS disabled
+- `auto` (no cookie or `theme=auto`): no `data-theme` attribute — the `@media (prefers-color-scheme: …)` blocks in the token CSS handle it in pure CSS, including live OS preference changes
+- Theme toggle: a POST form works without JS; external JS may intercept the click to set the cookie and swap `data-theme` in place (no page reload) as an enhancement
+- Never use localStorage for theme — the server benefits from reading the value, so it belongs in a cookie; localStorage is only for values the server must never auto-receive (e.g. bearer API tokens) or pure client-only state
 
 ### Server vs client responsibility
 | Task | Where |
@@ -397,7 +400,8 @@ Use the full CSS variable block from the **Design Token System** section above �
 | Validation | Server — server is authoritative |
 | HTML rendering | Server — works without JS |
 | Business logic | Server — security and consistency |
-| Theme toggle | Client JS — instant feedback |
+| Theme persistence | Server — `theme` cookie rendered as `data-theme` on `<html>` |
+| Theme toggle click | Client JS enhancement — swap `data-theme` without reload |
 | Copy to clipboard | Client JS — browser API |
 | Form feedback | Client JS — UX enhancement only |
 
@@ -589,7 +593,7 @@ Use the full CSS variable block from the **Design Token System** section above �
 
 ### Focus Management
 
-- Every modal, dialog, drawer, and sheet must trap focus — keyboard/tab navigation must not escape to content behind the overlay while it is open
+- Every modal, dialog, drawer, and sheet must trap focus — keyboard/tab navigation must not escape to content behind the overlay while it is open (web: use native `<dialog>` via `showModal()` — focus trap, `Escape`, and `::backdrop` come free; never hand-roll a JS focus trap or a `:target` modal)
 - On open: move focus to the first interactive element inside the overlay, or the close button if no other primary action exists
 - On close: return focus to the element that triggered the open
 - Tab order must follow visual reading order (top-left → bottom-right for LTR; mirrored for RTL); never rely on render/DOM order alone
