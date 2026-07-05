@@ -67,7 +67,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
-- **External commands always use `\command`** (or `command cmd` in fish) — bypass aliases, call the real binary
+- **`\command` prefix only for alias-prone external binaries** (`ls`, `grep`, `rm`, `cp`, `mv`, `cat`, `sed`, `diff`, `curl`, …; `command cmd` in fish) — never on shell keywords (`time`, `if`, `while`, `[[` — breaks semantics), never on builtins (no-op), and never on the first word of an allowlisted/pre-authorized command (`gitcommit`, `git`, `make` — breaks permission prefix-matching)
 - Read current file state before any edit
 - **Working-set discipline** — scope is set when the user names files/dirs; never expand on your own initiative. Exception: spelling/grammar fixes in files already being edited
 - **Fix completeness** — when a pattern changes, find and fix ALL instances across the working set with `grep -rn` before committing
