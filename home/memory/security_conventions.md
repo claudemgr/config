@@ -53,28 +53,39 @@ GeoIP is a **risk signal** — a hint that helps layer defense. It is never the 
 
 | Field | Value |
 |-------|-------|
-| Source | [ip-location-db](https://github.com/sapics/ip-location-db) — npm `-mmdb` packages (MIT licensed) |
-| Formats | ASN (`.mmdb`), country (`.mmdb`), city (`.mmdb`) |
+| Source | [ip-location-db](https://github.com/sapics/ip-location-db) — GitHub Releases (mixed licenses: PDDL, CC BY 4.0, CC BY-SA 4.0) |
+| Formats | ASN (`.mmdb`), country (`.mmdb`), city (`.mmdb` — IPv4/IPv6 split only) |
 | Storage path | `{data_dir}/security/geoip/` |
-| Update cadence | Daily — use a built-in scheduler, not host cron |
-| On first run | Download database before serving any GeoIP-dependent request |
+| Update cadence | Daily (PDDL), monthly (CC BY 4.0), twice weekly (GeoLite2/CC BY-SA 4.0) |
+| On first run | Download databases before serving any GeoIP-dependent request |
 
-MMDB files are distributed via npm scoped packages with a `-mmdb` suffix (e.g. `@ip-location-db/asn-mmdb`). Packages without the suffix are CSV-only. Download via jsDelivr CDN or npm tarball:
+MMDB files are downloaded from GitHub Releases. The npm/jsDelivr distribution was deprecated June 18, 2026. Base URL:
 
 ```
-# jsDelivr CDN (scoped package format)
-https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv4.mmdb
-https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn-ipv6.mmdb
-# IPv4+IPv6 combined
-https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb
+https://github.com/sapics/ip-location-db/releases/download/latest/{filename}
+```
 
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv4.mmdb
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country-ipv6.mmdb
-# combined
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-country-mmdb/geolite2-country.mmdb
+Representative files (all tiers, all enabled by default):
 
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv4.mmdb
-https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv6.mmdb
+```
+# Country — PDDL (daily, no attribution)
+user-country.mmdb        server-country.mmdb        iptoasn-country.mmdb
+# Country — CC BY 4.0 (monthly, credit: DB-IP.com)
+dbip-country.mmdb
+# Country — GeoLite2/CC BY-SA 4.0 (twice weekly; free redistribution, no MaxMind account)
+geolite2-country.mmdb
+
+# City — CC BY 4.0 (monthly; IPv4 and IPv6 separate — no combined MMDB available)
+dbip-city-ipv4.mmdb      dbip-city-ipv6.mmdb
+# City — GeoLite2/CC BY-SA 4.0 (twice weekly)
+geolite2-city-ipv4.mmdb  geolite2-city-ipv6.mmdb
+
+# ASN — PDDL (daily, no attribution)
+origin-asn.mmdb          iptoasn-asn.mmdb
+# ASN — CC BY 4.0 (monthly, credit: DB-IP.com)
+dbip-asn.mmdb
+# ASN — GeoLite2/CC BY-SA 4.0 (twice weekly)
+geolite2-asn.mmdb
 ```
 
 ### Middleware order
@@ -111,9 +122,9 @@ IP-derived location is **PII under GDPR** and similar regulations in most jurisd
 
 | File pattern | `database_type` |
 |---|---|
-| `asn-ipv4.mmdb` | `asn ipv4` |
-| `asn-ipv6.mmdb` | `asn ipv6` |
-| `asn.mmdb` (combined) | `asn ipvAll` |
+| `*-asn-ipv4.mmdb` | `asn ipv4` |
+| `*-asn-ipv6.mmdb` | `asn ipv6` |
+| `*-asn.mmdb` (combined) | `asn ipvAll` |
 | `*-country-ipv4.mmdb` | `country ipv4` |
 | `*-country-ipv6.mmdb` | `country ipv6` |
 | `*-country.mmdb` (combined) | `country ipvAll` |
