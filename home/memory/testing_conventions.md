@@ -14,14 +14,27 @@ Tests are written in the same work pass as the code they cover — never deferre
 
 All projects have exactly two test phases. They are distinct in purpose, command, and when they are required.
 
-| Phase | Command | What It Tests | Runs in |
-|-------|---------|--------------|---------|
-| **Phase 1 — Toolchain Gate** | `make test` | Source-code logic via the language toolchain (`go test`, `cargo test`, etc.) — unit coverage, validation, error paths | Docker — `casjaysdev/go:latest` or `casjaysdev/rust:latest` |
-| **Phase 2 — Binary Validation** | `./tests/run_tests.sh` | Compiled binary behavior — routes, auth flows, CLI/server interaction, service installs, container/Incus scenarios | Docker (`alpine:latest`) or Incus (`debian:latest`) |
+| Phase | Command | What It Tests | Runs in | Invocation |
+|-------|---------|--------------|---------|------------|
+| **Phase 1 — Toolchain Gate** | `make test` | Source-code logic via the language toolchain (`go test`, `cargo test`, etc.) — unit coverage, validation, error paths | Docker — `casjaysdev/go:latest` or `casjaysdev/rust:latest` | Automatic — required before every commit |
+| **Phase 2 — Binary Validation** | `./tests/run_tests.sh` | Compiled binary behavior — routes, auth flows, CLI/server interaction, service installs, container/Incus scenarios | Docker (`alpine:latest`) or Incus (`debian:latest`) | **Manual only** — developer-initiated |
 
 - **Phase 1 is the commit gate** — `make test` must pass before every `gitcommit`. No exceptions.
-- **Phase 2 is for binary testing and debugging** — run after a binary is built (`make dev` / `make local`). Used during development, debugging, and before releases.
+- **Phase 2 is manual** — never run automatically; always developer-initiated after a binary is built (`make dev` / `make local`).
 - **Both phases run in containers.** Neither runs directly on the host.
+
+### Phase 2 Trigger Phrases
+
+When the user says any of the following, run Phase 2:
+
+| Phrase | Action |
+|--------|--------|
+| "debug binary" / "binary debug" / "binary debug*" | `./tests/run_tests.sh` (auto-detects Incus/Docker) |
+| "test binary" / "binary test" / "binary test*" | `./tests/run_tests.sh` (auto-detects Incus/Docker) |
+| "run binary tests" | `./tests/run_tests.sh` |
+| "binary validation" / "run phase 2" | `./tests/run_tests.sh` |
+
+Prefer `./tests/incus.sh` when Incus is available (full OS, systemd). Fall back to `./tests/docker.sh` for Docker-only environments. `./tests/run_tests.sh` auto-detects.
 
 ---
 
