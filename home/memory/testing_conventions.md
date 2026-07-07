@@ -23,6 +23,18 @@ All projects have exactly two test phases. They are distinct in purpose, command
 - **Phase 2 is manual** — never run automatically; always developer-initiated after a binary is built (`make dev` / `make local`).
 - **Both phases run in containers.** Neither runs directly on the host.
 
+### Binary Execution Rule
+
+**Never execute a built binary directly on the host.** This applies to AI and to human-readable instructions alike.
+
+| NEVER | ALWAYS |
+|-------|--------|
+| `/path/to/binary --flag` on the host | `docker run --rm -v "$BUILD_DIR:/app" alpine:latest /app/{project_name} --flag` |
+| `./binaries/{project_name}` on the host | Phase 2: `./tests/docker.sh` or `./tests/incus.sh` |
+| `{project_name} serve` on the host | `make dev` → binary in temp dir → run inside Docker |
+
+Run the binary in Docker (`alpine:latest`) for quick checks or in Incus (`debian:latest`) for full systemd/service testing. The Phase 2 scripts (`./tests/run_tests.sh`, `./tests/docker.sh`, `./tests/incus.sh`) handle this correctly — prefer them over ad-hoc `docker run` invocations.
+
 ### Phase 2 Trigger Phrases
 
 When the user says any of the following, run Phase 2:
