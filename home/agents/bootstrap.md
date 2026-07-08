@@ -31,7 +31,7 @@ The user supplies a file path as the argument (e.g. `bootstrap ./myspec.md` or `
    - Does not exist → fall back to the generic base template:
      1. Check for `~/.claude/TEMPLATES/BASE.md`. If missing: stop: `"No spec file given, no AI.md found, and no fallback template found at ~/.claude/TEMPLATES/BASE.md. Provide a spec file or run the spec-migrator agent to create one."`
      2. Copy `~/.claude/TEMPLATES/BASE.md` to `{project_dir}/AI.md`.
-     3. Warn the user: **"No AI.md found — bootstrapping from the generic BASE.md template. Replace AI.md with a language-specific template (e.g. ~/.claude/TEMPLATES/go/SERVER.md) once the project's language and shape are known."**
+     3. Warn the user: **"No AI.md found — bootstrapping from the generic BASE.md template. Replace AI.md with a language-specific template from the claudemgr template repos (e.g. ~/Projects/github/claudemgr/go/SERVER.md) once the project's language and shape are known."**
      4. Proceed to Phase 2.
 
 ---

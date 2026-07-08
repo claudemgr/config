@@ -283,8 +283,7 @@ addopts = "--cov=src --cov-report=term-missing --cov-fail-under=60"
 
 | Project type | Minimum coverage | Source |
 |-------------|-----------------|--------|
-| SERVER template projects | 100% Go code coverage | `go test -cover` |
-| Other Go projects | 60% (override in `IDEA.md` under `## Business logic`) | CI gate |
+| Go projects | 60% (override in `IDEA.md` under `## Business logic`) | CI gate |
 | Rust projects | 60% (override in `IDEA.md`) | `cargo tarpaulin` or `cargo llvm-cov` |
 | Node/TypeScript projects | 60% lines/functions/branches (override in `IDEA.md`) | `vitest --coverage` (v8 provider) |
 | Python projects | 60% (override in `IDEA.md`) | `pytest --cov` + `--cov-fail-under` in `pyproject.toml` |

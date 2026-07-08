@@ -156,7 +156,7 @@ packages = ["{package_name}"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src --cov-report=term-missing"
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=60"
 ```
 
 ## Isolation

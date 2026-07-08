@@ -60,7 +60,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **CWD is `$PWD`** — all relative paths resolve from there
 - **`{project_dir}`** = `git rev-parse --show-toplevel` if inside a git repo; otherwise = `$PWD` at session start
 - **`{project_name}`** = `basename {project_dir}` · **`{project_org}`** = `basename $(dirname {project_dir})` · **`{provider_name}`** = `basename $(dirname $(dirname {project_dir}))`
-- Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers: `github` (use `gh`) · `gitlab` (use `glab`) · `gitbucket` / `private` (use `tea`) · `local` (no remote)
+- Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers: `github` (use `gh`) · `gitlab` (use `glab`) · `gitea` / `private` (use `tea`) · `local` (no remote)
 - **Git gate** — if `{project_dir}/.git` does not exist, never run any git operation. Check for `.git` first.
 - **Project files override global** — if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it supersedes this file
 - **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path

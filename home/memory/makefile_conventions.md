@@ -135,7 +135,8 @@ LANG_DOCKER := docker run --rm \
 
 | Language | Cache mechanism | Variable | Container path |
 |----------|----------------|----------|----------------|
-| Go | Named volume | `GO_VOL := go-state` | `/usr/local/share/go` (GOPATH + GOCACHE + GOMODCACHE combined) |
+| Go (primary) | Host bind-mount | `GO_CACHE ?= $(HOME)/go/pkg/mod` + `GO_BUILD ?= $(HOME)/.cache/go-build/$(PROJECTNAME)` | `/usr/local/share/go/pkg/mod` + `/usr/local/share/go/cache` |
+| Go (fallback) | Named volume | `GO_VOL := go-state` | `/usr/local/share/go` (GOPATH + GOCACHE + GOMODCACHE combined) |
 | Rust (cargo) | Named volume | `RUST_CARGO_VOL := rust-cargo` | `/usr/local/share/cargo` |
 | Rust (rustup) | Named volume | `RUST_RUSTUP_VOL := rust-rustup` | `/usr/local/share/rustup` |
 | Rust (sccache) | Named volume | `RUST_SCCACHE_VOL := rust-sccache` | `/root/.cache/sccache` |
@@ -143,7 +144,7 @@ LANG_DOCKER := docker run --rm \
 | Python (pip) | Host dir | `PIP_CACHE ?= $(HOME)/.cache/pip` | `/root/.cache/pip` |
 | Python (uv) | Host dir | `UV_CACHE ?= $(HOME)/.cache/uv` | `/root/.cache/uv` |
 
-Go and Rust use **named volumes** — Docker creates them automatically; no `mkdir -p` needed. Node and Python use **host dir mounts** — always `@mkdir -p` the host dir before the docker run.
+Go **primary** uses **host bind-mounts** (`GO_CACHE`, `GO_BUILD`) — always `@mkdir -p $(GO_CACHE) $(GO_BUILD)` before the docker run; **fallback** uses the `go-state` named volume (Docker creates it automatically). Rust uses **named volumes** — Docker creates them automatically; no `mkdir -p` needed. Node and Python use **host dir mounts** — always `@mkdir -p` the host dir before the docker run.
 
 - Always `--rm --name $(PROJECTNAME)-XXXX` — never leave build containers running; the name enables targeted cleanup (`docker stop $(PROJECTNAME)-XXXX`); `XXXX` is a random suffix: `$$(tr -dc 'a-z0-9' </dev/urandom | head -c8)`. Never add `-it` to batch build/test targets (breaks CI — no TTY); `-it` only on explicit interactive-shell targets (e.g. `make shell`)
 - Always `-w /app` — explicit working directory

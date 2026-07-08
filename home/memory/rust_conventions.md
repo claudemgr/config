@@ -89,7 +89,7 @@ build:
 	    chmod 755 /app/$(BINARIES_DIR)/$(PROJECT_NAME)-{os}-{arch}'
 ```
 
-Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-x86_64`).
+Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-amd64`).
 
 **Rule — any `docker run` with a Rust/Cargo image** must include all three cache mounts. Never omit them — every invocation that fetches or compiles crates must persist results across runs.
 
@@ -115,23 +115,21 @@ RUST_DOCKER := docker run --rm \
 
 ## Platform Targets and Binary Naming
 
-Uses simplified OS name + GNU arch (not the full Rust target triple) for the output filename:
+Uses unified Go OS/arch terms (not the full Rust target triple) for the output filename:
 
 | Rust target triple | Output binary | Notes |
 |-------------------|--------------|-------|
-| `x86_64-unknown-linux-gnu` | `{name}-linux-x86_64` | Docker Linux/amd64 |
-| `aarch64-unknown-linux-gnu` | `{name}-linux-aarch64` | Requires native ARM64 or QEMU |
-| `x86_64-pc-windows-gnu` | `{name}-windows-x86_64.exe` | MinGW cross (GTK4 not supported via MinGW) |
-| `x86_64-apple-darwin` | `{name}-macos-x86_64` | macOS host required |
-| `aarch64-apple-darwin` | `{name}-macos-aarch64` | macOS host required |
-| `x86_64-unknown-freebsd` | `{name}-freebsd-x86_64` | FreeBSD host required |
+| `x86_64-unknown-linux-gnu` | `{name}-linux-amd64` | Docker Linux/amd64 |
+| `aarch64-unknown-linux-gnu` | `{name}-linux-arm64` | Requires native ARM64 or QEMU |
+| `x86_64-pc-windows-gnu` | `{name}-windows-amd64.exe` | MinGW cross (GTK4 not supported via MinGW) |
+| `x86_64-apple-darwin` | `{name}-darwin-amd64` | macOS host required |
+| `aarch64-apple-darwin` | `{name}-darwin-arm64` | macOS host required |
+| `x86_64-unknown-freebsd` | `{name}-freebsd-amd64` | FreeBSD host required |
 
 Schema: **`{project_name}-{os}-{arch}`** where:
-- OS: `linux` / `macos` / `windows` / `freebsd` (simplified — never the full triple)
-- Arch: `x86_64` / `aarch64` (GNU arch terms — not Go's `amd64`/`arm64`)
+- OS: `linux` / `darwin` / `windows` / `freebsd` (Go terms — macOS is `darwin`, never `macos`)
+- Arch: `amd64` / `arm64` (Go terms — never `x86_64` or `aarch64` in artifact names)
 - Windows appends `.exe`
-
-**Rust uses `macos`, Go uses `darwin`** — they differ deliberately; each follows its own ecosystem's convention.
 
 macOS and FreeBSD cross-compilation from Linux is generally not supported — document as skipped with a note in the Makefile output.
 
@@ -424,7 +422,7 @@ thiserror = "2"
 
 - **No bare `cargo` on host** — all cargo invocations run inside Docker
 - **Strip release binaries** — `strip = true` in `[profile.release]` (handled by Cargo) plus an explicit `strip {binary} 2>/dev/null || true` in the Makefile after copy, for toolchains that ignore the profile flag. Debug/dev builds (`cargo build` without `--release`) are never stripped — debug symbols are preserved intentionally
-- **No `-musl` suffix** — never include `-musl` in the output binary name; schema is `{name}-{os}-{arch}` regardless of target triple (e.g. `x86_64-unknown-linux-musl` still outputs `{name}-linux-x86_64`)
+- **No `-musl` suffix** — never include `-musl` in the output binary name; schema is `{name}-{os}-{arch}` regardless of target triple (e.g. `x86_64-unknown-linux-musl` still outputs `{name}-linux-amd64`)
 - **Rust-only source** — no C/C++ in the binary (ring is the pre-approved exception)
 - **Embed assets at build time** — use `include_bytes!`, `include_str!`, or the `built` crate; never load from filesystem at runtime
 - **No hardcoded temp paths** — use `std::env::temp_dir()` and always prefix with `{project_org}/{internal_name}-XXXXXX` (`{internal_name}` is the frozen on-disk identifier; never `{project_name}` which may change). See `tempdir_conventions.md`.

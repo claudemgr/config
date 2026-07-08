@@ -15,6 +15,8 @@
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md)
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
+VERSION="202607031500-git"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
 
@@ -24,22 +26,24 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-INPUT="$(cat)"
+DRIFT_GUARD_READ_INPUT="$(cat)"
 
 # Extract file_path from the Read tool input
-file_path=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')
-[ -z "$file_path" ] && exit 0
+DRIFT_GUARD_READ_FILE_PATH=$(printf '%s' "$DRIFT_GUARD_READ_INPUT" | jq -r '.tool_input.file_path // ""')
+[ -z "$DRIFT_GUARD_READ_FILE_PATH" ] && exit 0
 
 # Resolve leading ~ to $HOME
-file_path="${file_path/#\~/$HOME}"
+DRIFT_GUARD_READ_FILE_PATH="${DRIFT_GUARD_READ_FILE_PATH/#\~/$HOME}"
 
 # Only check paths under ~/.claude/ that have a home/ source equivalent
-case "$file_path" in
+case "$DRIFT_GUARD_READ_FILE_PATH" in
   "$HOME/.claude/CLAUDE.md" \
   | "$HOME/.claude/settings.json" \
   | "$HOME/.claude/memory/"* \
   | "$HOME/.claude/agents/"* \
-  | "$HOME/.claude/hooks/"*)
+  | "$HOME/.claude/hooks/"* \
+  | "$HOME/.claude/skills/"* \
+  | "$HOME/.claude/TEMPLATES/"*)
     ;;
   *)
     exit 0
@@ -47,16 +51,16 @@ case "$file_path" in
 esac
 
 # Only enforce when inside a project that has home/CLAUDE.md (claudemgr/config signature)
-project=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -f "$project/home/CLAUDE.md" ] || exit 0
+DRIFT_GUARD_READ_PROJECT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$DRIFT_GUARD_READ_PROJECT/home/CLAUDE.md" ] || exit 0
 
 # Compute the home/-relative path for the redirect message
-relative="${file_path#"$HOME/.claude/"}"
+DRIFT_GUARD_READ_RELATIVE="${DRIFT_GUARD_READ_FILE_PATH#"$HOME/.claude/"}"
 
-MSG="BLOCKED: Drift guard — read home/${relative} (source) not ~/.claude/${relative} (deployed copy).
-Source files live in ${project}/home/ and are deployed to ~/.claude/ by the deploy script.
+DRIFT_GUARD_READ_MSG="BLOCKED: Drift guard — read home/${DRIFT_GUARD_READ_RELATIVE} (source) not ~/.claude/${DRIFT_GUARD_READ_RELATIVE} (deployed copy).
+Source files live in ${DRIFT_GUARD_READ_PROJECT}/home/ and are deployed to ~/.claude/ by the deploy script.
 Never read deployed copies from within this project."
 
-printf '%s\n' "$MSG"
-printf '%s\n' "$MSG" >&2
+printf '%s\n' "$DRIFT_GUARD_READ_MSG"
+printf '%s\n' "$DRIFT_GUARD_READ_MSG" >&2
 exit 2

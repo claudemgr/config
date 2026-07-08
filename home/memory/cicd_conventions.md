@@ -226,7 +226,7 @@ pipeline {
             parallel {
                 stage('Secret Scan') {
                     steps {
-                        sh 'docker run --rm --name "trufflehog-$(tr -dc \'a-z0-9\' </dev/urandom | head -c8)" -v $(pwd):/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
+                        sh 'docker run --rm --name "trufflehog-$(tr -dc \'a-z0-9\' </dev/urandom | head -c8)" -v $PWD:/repo trufflesecurity/trufflehog:latest git file:///repo --since-commit HEAD~1 --fail'
                     }
                 }
                 stage('Vuln Scan') {
@@ -691,23 +691,23 @@ See `~/.claude/memory/security_conventions.md` for CVE database paths, pre-commi
 
 ## Common Action Reference SHAs
 
-Verified node24 SHAs as of 2026-05-15. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Renovate opens a PR — always re-verify the runtime after updating.
+Verified node24 SHAs as of 2026-07-08. All common `actions/*` and `docker/*` actions have migrated directly to node24 (skipping node22). Update these when Renovate opens a PR — always re-verify the runtime after updating.
 
 | Action | Tag | SHA |
 |--------|-----|-----|
 | `trufflesecurity/trufflehog` | v3.95.3 | `37b77001d0174ebec2fcca2bd83ff83a6d45a3ab` |
-| `actions/checkout` | v6.0.2 | `de0fac2e4500dabe0009e67214ff5f5447ce83dd` |
+| `actions/checkout` | v7.0.0 | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` |
 | `actions/upload-artifact` | v7.0.1 | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
 | `actions/download-artifact` | v8.0.1 | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
 | `actions/cache` | v5.0.5 | `27d5ce7f107fe9357f9df03efb73ab90386fccae` |
 | `actions/setup-go` | v6.4.0 | `4a3601121dd01d1626a1e23e37211e3254c1c06c` |
 | `actions/setup-node` | v6.4.0 | `48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e` |
-| `docker/login-action` | v4.1.0 | `4907a6ddec9925e35a0a9e82d7399ccc52663121` |
-| `docker/build-push-action` | v7.1.0 | `bcafcacb16a39f128d818304e6c9c0c18556b85f` |
+| `docker/login-action` | v4.2.0 | `650006c6eb7dba73a995cc03b0b2d7f5ca915bee` |
+| `docker/build-push-action` | v7.2.0 | `f9f3042f7e2789586610d6e8b85c8f03e5195baf` |
 | `docker/metadata-action` | v6.0.0 | `030e881283bb7a6894de51c315a6bfe6a94e05cf` |
-| `docker/setup-buildx-action` | v4.0.0 | `4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd` |
-| `docker/setup-qemu-action` | v4.0.0 | `ce360397dd3f832beb865e1373c09c0e9f86d70a` |
-| `softprops/action-gh-release` | v3.0.0 | `b4309332981a82ec1c5618f44dd2e27cc8bfbfda` |
+| `docker/setup-buildx-action` | v4.1.0 | `d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5` |
+| `docker/setup-qemu-action` | v4.1.0 | `06116385d9baf250c9f4dcb4858b16962ea869c3` |
+| `softprops/action-gh-release` | v3.0.1 | `718ea10b132b3b2eba29c1007bb80653f286566b` |
 
 ## Branch Protection (Public Repos)
 

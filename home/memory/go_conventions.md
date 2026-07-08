@@ -60,6 +60,8 @@ GO_DOCKER := docker run --rm \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
 	-w /app \
+	-e CGO_ENABLED=0 \
+	-e GOFLAGS=-buildvcs=false \
 	casjaysdev/go:latest
 ```
 
@@ -101,6 +103,7 @@ GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
@@ -402,6 +405,7 @@ GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
 GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
