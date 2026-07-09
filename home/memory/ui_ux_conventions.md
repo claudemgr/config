@@ -392,7 +392,7 @@ Use the full CSS variable block from the **Design Token System** section above �
 - Theme preference lives in a `theme` cookie; the server reads it and renders `data-theme` on `<html>` — correct theme on first paint, no flash, works with JS disabled
 - `auto` (no cookie or `theme=auto`): no `data-theme` attribute — the `@media (prefers-color-scheme: …)` blocks in the token CSS handle it in pure CSS, including live OS preference changes
 - Theme toggle: a POST form works without JS; external JS may intercept the click to set the cookie and swap `data-theme` in place (no page reload) as an enhancement
-- Never use localStorage for theme — the server benefits from reading the value, so it belongs in a cookie; localStorage is only for values the server must never auto-receive (e.g. bearer API tokens) or pure client-only state
+- Never use localStorage for theme — the server benefits from reading the value, so it belongs in a cookie; localStorage is only for optional JS convenience copies (e.g. a resource-owner token whose load-bearing copy is an HttpOnly cookie) or pure client-only state — never load-bearing
 
 ### Server vs client responsibility
 | Task | Where |
