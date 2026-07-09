@@ -8,8 +8,10 @@ Every shell command must be bounded to its operation — enforced by `bound-shel
 
 ## Timeout Tiers
 
-- Lookups/status ≤30s · network/package ops ≤120s · builds/tests ≤600s; pass an explicit `timeout` on every Bash call sized to the tier
-- **The Bash tool `timeout` parameter is in MILLISECONDS** — 30s = `30000`, 120s = `120000`, 600s = `600000`. Passing a seconds value (e.g. `30`) means 30 ms and kills the command instantly with exit 143 "timed out after 0s". Never pass a raw seconds number
+- Lookups/status ≤60s · network/package ops ≤300s · builds/tests ≤600s; pass an explicit `timeout` on every Bash call sized to the tier
+- **The Bash tool `timeout` parameter is in MILLISECONDS** — 60s = `60000`, 300s = `300000`, 600s = `600000`. Passing a seconds value (e.g. `30`) means 30 ms and kills the command instantly with exit 143 "timed out after 0s". Never pass a raw seconds number
+- **600s (`600000`) is the Bash tool's hard maximum** — a command expected to exceed it must use run_in_background from the start (tracked, unbounded, notifies on exit)
+- **After a timeout kill, never retry with the same value** — jump to the next tier or switch to run_in_background; repeated same-timeout retries waste tokens
 
 ## Polling and Waiting
 

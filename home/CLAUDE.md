@@ -103,8 +103,9 @@ Key rules always in effect:
 
 ## Shell Lifetime & Timeouts
 Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. Full rules: `~/.claude/memory/shell_lifetime_conventions.md`
-- **The Bash tool `timeout` parameter is in MILLISECONDS** — 30s = `30000`, 120s = `120000`, 600s = `600000`; a raw seconds value (e.g. `30`) means 30 ms and kills the command instantly
-- **Timeout tiers** — lookups/status ≤30s · network/package ops ≤120s · builds/tests ≤600s; explicit `timeout` on every Bash call
+- **The Bash tool `timeout` parameter is in MILLISECONDS** — 60s = `60000`, 300s = `300000`, 600s = `600000`; a raw seconds value (e.g. `30`) means 30 ms and kills the command instantly
+- **Timeout tiers** — lookups/status ≤60s · network/package ops ≤300s · builds/tests ≤600s (tool hard max); explicit `timeout` on every Bash call
+- **Expected to exceed 600s → run_in_background** from the start; **after a timeout kill, never retry with the same value** — jump a tier or go background
 - Never poll harness-tracked work (task-notifications resume it) · bounded polling only · no open-ended sleeps · no `nohup`/`setsid`/`disown` (use run_in_background) · `&` requires `PID=$!` ownership · `tail -f`/`watch` only inside `timeout {n}`
 
 ## Verification & Safety
