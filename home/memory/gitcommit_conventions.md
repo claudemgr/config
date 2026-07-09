@@ -1,6 +1,6 @@
 ---
 name: gitcommit conventions
-description: Do not hardcode the gitcommit binary path; resolve from PATH
+description: gitcommit invocation rules, COMMIT_MESS message format, emoji map, cadence, and push behavior
 type: user
 ---
 
@@ -21,3 +21,21 @@ Never hardcode the path to `gitcommit` (e.g., `/usr/local/bin/gitcommit`).
 ---
 
 **Never use bare `@` in a commit message body.** Any `@username` in a commit message body creates a GitHub contributor notification and links the handle — even if the intent is just to reference a name. Only use `@username` when intentionally crediting a real contributor. Otherwise write the name without `@`, or wrap it in backticks to prevent GitHub from parsing it as a mention.
+
+---
+
+## Message Format
+
+`{emoji} Title (≤64 chars) {emoji}` + blank line + body + `- path: change` bullets per file.
+
+Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
+
+Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat` output — every changed file described; never write from memory. Re-read `COMMIT_MESS` and compare against the diff before committing — rewrite if anything is missing or wrong.
+
+## Cadence
+
+One logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
+
+## Push Behavior
+
+Push is immediate and irreversible. To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.

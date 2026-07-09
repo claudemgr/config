@@ -794,3 +794,15 @@ The `release` job needs `contents: write` to push the tag — it already has thi
 - Releases MUST include build provenance/attestation via `actions/attest-build-provenance` (stored in GitHub's attestation store, not embedded in the image manifest). All `docker/build-push-action` steps MUST set `provenance: false` — without it, Docker BuildKit injects an OCI attestation manifest that registries render as a spurious `unknown/unknown` platform entry
 - AI MUST NOT fake signatures, fake attestations, or claim a release is signed/verified when the required keys/platform support do not exist
 - If signing or attestation is required but the necessary keys/permissions are unavailable: stop and ask, do not bypass
+
+## Pre-Commit Workflow Gate
+
+If `.github/workflows/` files are staged, `act --list -W {file}` must pass on each before `gitcommit`. Third-party Actions must be pinned to a full commit SHA — never a tag (see Third-Party Action Pinning above for the 3-point verification on every SHA update).
+
+## Workflow Creation Order
+
+Not all workflow files carry the same risk — create them in this order:
+
+1. **Security-only workflows** (secret scan, SHA/digest policy, dependency audit) — no build dependency; safe to add anytime
+2. **`build-toolchain.yml`** (`:build` image) — **only if the project has a `docker/Dockerfile.build`**. Add once it builds successfully locally. Skip for projects that use a standard maintained image and have no `docker/Dockerfile.build`
+3. **`ci.yml` and `release.yml`** — add **last**, only after all code is complete, `make test` passes, and the lint gate is clean; these trigger a full build on push and will fail immediately if the code is not ready

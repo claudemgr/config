@@ -76,9 +76,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - Targeted edits only; full rewrites only when asked; required deps just add them; real choice between alternatives: ask first
 - **No partially implemented code** — every committed line must work as written; no stubs, no `TODO` placeholders inside logic
 - **No TODO/FIXME/HACK in committed code** · **No commented-out code**
-- **Comments always ABOVE, never inline** — every comment goes on its own line above the code it describes; never append a comment to the end of a code line. Single line, ≤180 characters. Applies to all languages. Exception: tool-required directives that the linter/type-checker must see on the same line (`# noqa`, `# type: ignore`, `// nolint`) are allowed inline, but an explanatory comment on the line above is still required when the reason is not obvious. Exception: CI workflow SHA-pin version annotations stay inline — `uses: owner/action@{40-char-sha}  # vX.Y.Z` — Renovate reads and rewrites the same-line comment when bumping pins; never move it above the `uses:` line.
-- **Comments are never valid in:** JSON (`.json`, `package.json`, `tsconfig.json`, etc.) · `.env` / `app.env` / `default.env` KEY=VALUE files · CSV/TSV and other pure data formats · any binary or compiled artifact. JSON has no comment syntax — they break parsers and validators; use a separate doc file instead. `.env` files use KEY=VALUE only — comment lines (`# ...`) are tolerated by some parsers but must never appear in files read by strict parsers (Docker, some CI tools).
-- **JavaScript and CSS must always parse valid** — comments are allowed (comments-above rule applies) but only in valid syntax: JS uses `//` or `/* */`; CSS uses `/* */` only — `//` and `#` are invalid in CSS and break the stylesheet. Never place a comment where it breaks parsers or minifiers (inside a CSS value, mid-selector, inside a template literal placeholder).
+- **Comments always ABOVE, never inline** (single line, ≤180 chars) · **never in JSON / `.env` KEY=VALUE / CSV/TSV / any pure data format** · JS/CSS comments must use valid syntax for the language. Full rules (inline-directive and SHA-pin exceptions, per-format details): `~/.claude/memory/comment_conventions.md`
 - **Directory naming is language-specific** — Go: singular (`handler/`, `model/`, `middleware/`) to match package names; all other languages: plural (`handlers/`, `models/`, `routes/`). Tooling dirs are always plural regardless of language (`scripts/`, `tests/`, `completions/`)
 - **Search before write** — search all candidate locations before adding a value; replace in place if found, only create/append if not
 - **Create parent directories before writing** — `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll` (Go) · `fs::create_dir_all` (Rust) · `path.parent.mkdir(parents=True)` (Python) · `fs.mkdirSync(path.dirname(f), {recursive:true})` (Node)
@@ -104,16 +102,10 @@ Key rules always in effect:
 - Full rules: `~/.claude/memory/execution_hierarchy.md`
 
 ## Shell Lifetime & Timeouts
-Every shell command must be bounded to its operation — enforced by `bound-shell-lifetime.sh`.
-- **Timeout tiers** — lookups/status ≤30s · network/package ops ≤120s · builds/tests ≤600s; pass an explicit `timeout` on every Bash call sized to the tier
-- **The Bash tool `timeout` parameter is in MILLISECONDS** — 30s = `30000`, 120s = `120000`, 600s = `600000`. Passing a seconds value (e.g. `30`) means 30 ms and kills the command instantly with exit 143 "timed out after 0s". Never pass a raw seconds number
-- **Never poll for harness-tracked work** — subagents and background tasks deliver a task-notification on completion; a sentinel-file poll loop (`until [ -f *.done ]; do sleep N; done`) is forbidden — end the turn and let the notification resume it
-- **Polling external state must be bounded** — wrap the loop in `timeout {n}` or add an iteration cap; `while true`/`until` + `sleep` with no bound is forbidden
-- **No open-ended sleeps** — `sleep infinity` and any single sleep >600s are forbidden; for longer waits, end the turn or use a scheduler
-- **No detachment** — `nohup`, `setsid`, `disown` escape both timeouts and task tracking; use run_in_background (tracked, notifies on exit, stoppable)
-- **Follow modes are bounded** — `tail -f` / `watch` only inside `timeout {n}`; otherwise read the file once
-- **`&` requires ownership** — capture `PID=$!` at launch or close with `wait`; stop every background shell as soon as its output is consumed
-- **Exemptions** — anything already under `timeout {n}`; container-mediated payloads (container lifetime is governed by the Cleanup rules and `enforce-docker-rm.sh`)
+Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. Full rules: `~/.claude/memory/shell_lifetime_conventions.md`
+- **The Bash tool `timeout` parameter is in MILLISECONDS** — 30s = `30000`, 120s = `120000`, 600s = `600000`; a raw seconds value (e.g. `30`) means 30 ms and kills the command instantly
+- **Timeout tiers** — lookups/status ≤30s · network/package ops ≤120s · builds/tests ≤600s; explicit `timeout` on every Bash call
+- Never poll harness-tracked work (task-notifications resume it) · bounded polling only · no open-ended sleeps · no `nohup`/`setsid`/`disown` (use run_in_background) · `&` requires `PID=$!` ownership · `tail -f`/`watch` only inside `timeout {n}`
 
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
@@ -125,26 +117,22 @@ Every shell command must be bounded to its operation — enforced by `bound-shel
 - Memory safety and security-by-design rules: `~/.claude/memory/security_conventions.md`
 
 ## Self-Validation
-- **Verify against ground truth** — UI: compare to design. Logic: compare to expected output. Data: spot-check a sample
-- **Iterate until passing** — don't stop at "compiles"; keep going until success criteria are met
-- **Define success up front** — before non-trivial work, state what "done" looks like
-- **Add tests for new behavior** — add a test that fails before and passes after, then run it
+- **Define success up front**, then **verify against ground truth** (UI → design; logic → expected output; data → spot-check a sample) and **iterate until passing** — don't stop at "compiles"
+- **Add tests for new behavior** — a test that fails before and passes after, then run it
 - **One run, then fix** — don't loop on flaky failures without a hypothesis
 
 ## Build & Execution
-- Full rules: `~/.claude/memory/execution_hierarchy.md`
-- Execution hierarchy: QEMU/KVM > Incus > Docker > host
-- **Never build on the host** — always use Docker. Image selection order (first match wins): **(1)** if `docker/Dockerfile.build` exists in the project, use that image — always, regardless of language; **(2)** if no project image exists, use the standard maintained image for the project's language: Go → `casjaysdev/go:latest`; Rust → `casjaysdev/rust:latest`; Node → `node:alpine`; Python → `python:alpine` (fall back to `python:slim-bookworm` for musl-incompatible native deps); other languages → official language image. Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language. See `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
-- **Go and Rust projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/go:latest` and `casjaysdev/rust:latest` are fully comprehensive maintained images; no custom toolchain image is ever needed for these languages. This rule is absolute.
-- **`$PWD` not `$(pwd)` in shell docker `-v` flags** — `$(pwd)` is a command substitution; Claude Code's static analyzer cannot resolve it and triggers a permission prompt. `$PWD` is identical but statically analyzable. In Makefiles `$(PWD)` is correct (Makefile variable, not shell substitution).
-- **Go Docker builds require `-e GOFLAGS=-buildvcs=false`** — when `-v $PWD:/app` mounts `.git` into a container, Git 2.35.2+ rejects it as an "unsafe directory" (host file owner UID ≠ container user UID). `go build` calls git internally and fails with "exit status 128". Set `GOFLAGS=-buildvcs=false` in `GO_DOCKER` and on all `go build`/`go test` CI invocations inside `container:` jobs. Dockerfile `RUN go build` is exempt (no UID mismatch when files are COPY'd). Also add `-buildvcs=false` inline to `go build` commands in CI YAML. Full pattern: `go_conventions.md § Docker Build Pattern`.
-- **Coverage and test output never go to the project tree** — always use the full `{project_org}/{internal_name}-XXXXXX/` structure even inside containers: Makefile `sh -c` → `mkdir -p "/tmp/$(PROJECTORG)"` then `COVDIR=$(mktemp -d "/tmp/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX")`; CI `container:` job → same with `${{ github.repository_owner }}` and write `COVDIR` to `$GITHUB_ENV`; multi-step `docker run` → workspace-mounted path (separate containers can't share `/tmp`); host → `${TMPDIR:-/tmp}/{project_org}/{internal_name}-XXXXXX/coverage.out`. The project directory is source code only.
+- Full rules: `~/.claude/memory/execution_hierarchy.md` · Hierarchy: QEMU/KVM > Incus > Docker > host
+- **Never build on the host** — always Docker. Image selection (first match): **(1)** project `docker/Dockerfile.build` if it exists; **(2)** standard maintained image for the language: Go → `casjaysdev/go:latest` · Rust → `casjaysdev/rust:latest` · Node → `node:alpine` · Python → `python:alpine` · other → official image. Full decision tree: `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
+- **Go and Rust projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — the casjaysdev images are fully comprehensive; this rule is absolute
+- **`$PWD` not `$(pwd)` in shell docker `-v` flags** — `$(pwd)` triggers a permission prompt; in Makefiles `$(PWD)` is correct
+- **Go Docker builds require `-e GOFLAGS=-buildvcs=false`** — mounted `.git` UID mismatch fails `go build` with "exit status 128"; full pattern: `~/.claude/memory/go_conventions.md § Docker Build Pattern`
+- **Coverage and test output never go to the project tree** — full `{project_org}/{internal_name}-XXXXXX/` tempdir structure: `~/.claude/memory/tempdir_conventions.md`
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
 
 ## UI/UX
-- Any UI work must be approached with designer-level intent — aim for clarity, consistency, and delight
-- Dark mode is the default; support dark / light / auto. Never hardcode colors — CSS custom properties (web) or shared theme struct (desktop/TUI)
-- For non-trivial UI tasks, invoke the `designer` agent. See `~/.claude/memory/ui_ux_conventions.md`
+- Designer-level intent · dark mode default (support dark/light/auto) · never hardcode colors — CSS custom properties (web) or shared theme struct (desktop/TUI)
+- Non-trivial UI tasks → `designer` agent. Full rules: `~/.claude/memory/ui_ux_conventions.md`
 
 ## Security & Project Defaults
 - Security-by-design rules and memory safety: `~/.claude/memory/security_conventions.md`
@@ -165,6 +153,7 @@ Load the matching file on demand — only when actively working in that language
 - **Tight output budget** — status updates: 1–3 sentences max; no headers/bullets unless the task requires structured output
 - Show diffs, not prose retellings of changes
 - No emojis in code or inline tool output unless asked; emojis are appropriate in READMEs, docs, and commit messages
+- **Assume a narrow terminal (~70 columns)** — short lines, no wide tables, compact bullets; prefer stacked prose over side-by-side layouts
 - **No AI attribution** — no `Co-Authored-By:`, AI-tool trailers, or "Generated with X" footers anywhere
 - Next step is clear → do it; pause only for genuine blockers or destructive-op confirmation
 
@@ -196,10 +185,8 @@ Key rules always in effect:
 - Write/Edit allowlists are in `{project_dir}/.claude/settings.json` — pre-approved paths: `.git/COMMIT_MESS`, `CLAUDE.md`, `AI.md`, `SPEC.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, `.env`/`app.env`/`default.env`, `.no_push`
 
 ## Task Dependency Ordering
-Dependency graph takes priority over label order. Numbered/lettered sequence is a tiebreaker only.
-- Scan any task list for stated dependencies before starting; topological-sort the graph
-- A task is only "ready" when all its prerequisites are complete
-- For non-trivial graphs (3+ dependencies), document the resolved order at the top of TODO.AI.md or PLAN.AI.md
+- Dependency graph beats label order (numbered sequence is a tiebreaker only); topological-sort stated dependencies before starting; a task is "ready" only when all prerequisites are complete
+- 3+ dependencies → document the resolved order at the top of TODO.AI.md or PLAN.AI.md
 
 ## Commit Workflow
 `git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted.
@@ -216,23 +203,12 @@ Dependency graph takes priority over label order. Numbered/lettered sequence is 
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
 6. Run `gitcommit --dir {dir} all`
 
-**Message format:** `{emoji} Title (≤64 chars) {emoji}` + blank line + body + `- path: change` bullets per file
+**Message format, emoji map, no-bare-`@` rule, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets; one logical change per commit.
 
-**No bare `@` in commit bodies** — any `@name` in a commit message body creates a GitHub contributor notification and links the handle. Never use `@username` in a commit message unless intentionally crediting a real contributor; write names without `@` or wrap in backticks to prevent parsing.
+**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`) must pass before every commit — no exceptions; never skip tests to "save time".
 
-Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
+**Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) — never commit with violations.
 
-**Cadence:** one logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
-
-**Test gate:** `make test` must pass before every commit — no exceptions. A failed push wastes CI minutes and blocks teammates. If `make test` is absent, run the language equivalent (`go test ./...`, `cargo test`, `pytest`, `npm test`). Never skip tests to "save time".
-
-**Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) — run before committing; never commit with violations.
-
-**Workflow gate:** if `.github/workflows/` files are staged, `act --list -W {file}` must pass on each before `gitcommit`. Third-party Actions must be pinned to a full commit SHA — never a tag.
-
-**Workflow creation order:** Not all workflow files carry the same risk — create them in this order:
-1. **Security-only workflows** (secret scan, SHA/digest policy, dependency audit) — no build dependency; safe to add anytime
-2. **`build-toolchain.yml`** (`:build` image) — **only if the project has a `docker/Dockerfile.build`**. Add once it builds successfully locally. Skip for projects that use a standard maintained image and have no `docker/Dockerfile.build`
-3. **`ci.yml` and `release.yml`** — add **last**, only after all code is complete, `make test` passes, and the lint gate is clean; these trigger a full build on push and will fail immediately if the code is not ready
+**Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
 
 **Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
