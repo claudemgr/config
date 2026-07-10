@@ -17,11 +17,12 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202607101200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
-INPUT="$(< /dev/stdin)"
+# Read stdin via the read builtin — $(< /dev/stdin) fails when stdin is a closed/odd fd in the hook runner
+IFS= read -r -d '' INPUT || true
 
 # Fail-open if python3 is missing — a broken hook exits 0 (no-op) so we never silently block every Write/Edit call.
 if ! command -v python3 >/dev/null 2>&1; then
