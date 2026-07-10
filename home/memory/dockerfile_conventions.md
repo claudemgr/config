@@ -452,7 +452,7 @@ Rules:
 - **Network name is always `{project_name}`** — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match.
 - **DB services join only the project network** — never `proxy` or `cloudflare`
 - **Healthcheck cadence** — `interval: 30s`, `timeout: 10s`, `retries: 3` for all DB services
-- **Port comment** at top of file: `# nginx proxy address - http://172.17.0.1:{port}`
+- **Port comment** is the FIRST line of the file: `# nginx proxy address - http://172.17.0.1:{port}` — nothing above it, not even a description comment
 - **`pull_policy: always`** on every service — ensures latest image on each `docker compose up`
 - **`restart: always`** on every service
 - **`x-logging` anchor** — apply to all services via `logging: *default-logging`
