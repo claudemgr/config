@@ -21,7 +21,7 @@ VERSION="202607031500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
-INPUT="$(cat)"
+INPUT="$(< /dev/stdin)"
 
 # Fail-open if python3 is missing — a broken hook exits 0 (no-op) so we never silently block every Write/Edit call.
 if ! command -v python3 >/dev/null 2>&1; then
@@ -311,8 +311,10 @@ if matched_name is None and is_allowed(norm_path, basename):
     sys.exit(0)
 
 # Location-restricted docs under allowlisted paths were rescued above; anywhere else they need confirmation.
+# Exception: paths under docs/ are MkDocs content pages (e.g. docs/security.md), not GitHub community-health files.
 if matched_name is None and basename.lower() in LOCATION_RESTRICTED_BASENAMES:
-    matched_name, reason = basename, "doc file only auto-allowed under .github/"
+    if not re.search(r"(^|/)docs/", norm_path):
+        matched_name, reason = basename, "doc file only auto-allowed under .github/"
 
 if matched_name is None:
     sys.exit(0)
