@@ -93,6 +93,11 @@ Binary naming: `{project_name}-{os}-{arch}` (e.g. `cascolor-linux-amd64`).
 
 **Rule — any `docker run` with a Rust/Cargo image** must include all three cache mounts. Never omit them — every invocation that fetches or compiles crates must persist results across runs.
 
+**Timeout sizing for dockerized builds/tests** (full rules: `shell_lifetime_conventions.md`):
+- First `make test`/`make build` of a session = cold cache (image pull + crate download + full compile) — size at 600s (`600000` ms) or run_in_background from the start
+- If a timeout kills it anyway, the ONLY retry is run_in_background — never foreground again, never a lower timeout
+- Warm-cache repeat runs may drop a tier; after a partial pass re-run only the failing crate/test (`cargo test -p {crate}`), never the full suite; never re-run a suite that already passed
+
 ### Named Volume Fallback
 
 When bind-mounting host cache dirs is not desired, use named volumes instead. Docker creates named volumes automatically — no `mkdir -p` needed:

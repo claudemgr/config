@@ -12,6 +12,9 @@ Every shell command must be bounded to its operation — enforced by `bound-shel
 - **The Bash tool `timeout` parameter is in MILLISECONDS** — 60s = `60000`, 300s = `300000`, 600s = `600000`. Passing a seconds value (e.g. `30`) means 30 ms and kills the command instantly with exit 143 "timed out after 0s". Never pass a raw seconds number
 - **600s (`600000`) is the Bash tool's hard maximum** — a command expected to exceed it must use run_in_background from the start (tracked, unbounded, notifies on exit)
 - **After a timeout kill, never retry with the same value** — jump to the next tier or switch to run_in_background; repeated same-timeout retries waste tokens
+- **After ANY timeout kill of a build or test, the ONLY allowed retry is run_in_background** — builds/tests already start at the top tier (600s), so there is no higher tier to jump to; never retry in the foreground, and never retry with a lower timeout (a command that outlived 600s will never finish in 300s)
+- **First containerized build/test of a session is a cold cache** — image pull + dependency download + full compile; size it at 600s or run_in_background from the start, never a lower tier
+- **Repeat runs scope to the failure** — after a partial pass, re-run only the failing package/module (`go test ./pkg/...`, `cargo test -p {crate}`), never the whole suite; never re-run a suite that already passed just to "check again"
 
 ## Polling and Waiting
 

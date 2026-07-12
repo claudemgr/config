@@ -121,6 +121,11 @@ GO_DOCKER := docker run --rm \
 - Project source is mounted at `/app`; output dirs (`binaries/`) are subdirs of `/app` and land on the host automatically
 - See **Module Cache** section for the named-volume fallback (`go-state`) when bind-mounting is not desired
 
+**Timeout sizing for dockerized builds/tests** (full rules: `shell_lifetime_conventions.md`):
+- First `make test`/`make build` of a session = cold cache (image pull + module download + full compile) — size at 600s (`600000` ms) or run_in_background from the start
+- If a timeout kills it anyway, the ONLY retry is run_in_background — never foreground again, never a lower timeout
+- Warm-cache repeat runs may drop a tier; after a partial pass re-run only the failing package (`go test ./pkg/...`), never the full suite; never re-run a suite that already passed
+
 ## Target Patterns
 
 Every target that uses `GO_DOCKER` must create the cache dirs as its first step:
