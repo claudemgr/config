@@ -80,6 +80,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **Directory naming is language-specific** — Go: singular (`handler/`, `model/`, `middleware/`) to match package names; all other languages: plural (`handlers/`, `models/`, `routes/`). Tooling dirs are always plural regardless of language (`scripts/`, `tests/`, `completions/`)
 - **Search before write** — search all candidate locations before adding a value; replace in place if found, only create/append if not
 - **Create parent directories before writing** — `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll` (Go) · `fs::create_dir_all` (Rust) · `path.parent.mkdir(parents=True)` (Python) · `fs.mkdirSync(path.dirname(f), {recursive:true})` (Node)
+- **Every text file ends with a single trailing newline** — exceptions (raw-value secret/token files, verbatim-interpolated files, mid-line fragments, binary/generated artifacts): `~/.claude/memory/file_ending_conventions.md`
 
 ## Sensitive Data
 See `~/.claude/memory/sensitive_data.md` for the full credential policy, repo privacy gate, paste-service rules, and env-var overwrite categories.
