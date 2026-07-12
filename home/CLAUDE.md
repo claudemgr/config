@@ -97,7 +97,7 @@ Key rules always in effect:
 - See `~/.claude/memory/project_conventions.md` for AI.md / IDEA.md / CLAUDE.md roles, placeholder system, and directory layout
 - See `~/.claude/memory/project_files.md` for README.md requirements, LICENSE.md naming, allowed root files, and what must never be created
 - **`TODO.AI.md` hygiene** — complete each item fully before removing; never clear while in progress. **`PLAN.AI.md` hygiene** — delete once work is fully committed
-- **`TODO.AI.md` PART loading** — `grep -n "^# PART N" AI.md` to find the slice; read only that slice; never load the full spec file
+- **`TODO.AI.md` PART loading** — `grep -n "^# PART N" AI.md` to find the slice; read only that slice; never load the full spec file; cross-refs inside the slice: finish the slice first, then follow
 
 ## Cleanup
 - Stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed
