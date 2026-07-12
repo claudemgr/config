@@ -81,6 +81,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **Search before write** — search all candidate locations before adding a value; replace in place if found, only create/append if not
 - **Create parent directories before writing** — `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll` (Go) · `fs::create_dir_all` (Rust) · `path.parent.mkdir(parents=True)` (Python) · `fs.mkdirSync(path.dirname(f), {recursive:true})` (Node)
 - **Every text file ends with a single trailing newline** — exceptions (raw-value secret/token files, verbatim-interpolated files, mid-line fragments, binary/generated artifacts): `~/.claude/memory/file_ending_conventions.md`
+- **Indentation: spaces over tabs (2 default, 4 where the ecosystem standard — Python, Rust)** — tabs ONLY where the filetype requires them (Makefile recipes, Go via `gofmt`); the filetype requirement always wins over preference — never let indentation choice break a file
 
 ## Sensitive Data
 See `~/.claude/memory/sensitive_data.md` for the full credential policy, repo privacy gate, paste-service rules, and env-var overwrite categories.
