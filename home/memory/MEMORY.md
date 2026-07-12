@@ -2,6 +2,8 @@
 
 **Session start:** verify `{project_dir}` = `git rev-parse --show-toplevel`; confirm you are reading memory from within `{project_dir}`, not from `~/.claude/` deployed copies. A `SessionStart` system message names the correct `project_dir` — use it.
 
+**Read this index to the end before following any link.** A reference never replaces the remainder of the file that contains it — read the referenced file, then return to the next line and continue.
+
 
 - [Project conventions](project_conventions.md) — AI.md=HOW (impl spec, readonly template copy, never modified after initial copy), SPEC.md=thin project rule overrides (optional, may be empty, only when contradicting template/global; SPEC.md>AI.md>global), IDEA.md=WHAT (intent/goal/compatibility/feature requirements only — never HOW), CLAUDE.md=short loader only; WHAT/HOW boundary is strict; template system in claudemgr
 - [Execution hierarchy](execution_hierarchy.md) — QEMU/KVM>Incus>Docker>host; tier purpose, image selection (Docker=alpine, Incus=systemd, QEMU/KVM=full OS), cleanup rules

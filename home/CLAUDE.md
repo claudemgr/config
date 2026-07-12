@@ -14,6 +14,8 @@ If the pull fails (no remote, offline, branch diverged): report it and wait — 
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
 
+**Follow refs after, not during:** when a file references another file ("see `x.md`", "See PART X"), finish the portion you set out to read (whole file, section, or PART slice) first; queue referenced files and load them afterward. A reference never interrupts or replaces the remainder of what you were reading — after reading the referenced content, return to the next line and continue.
+
 Provider-specific convention files (`github_conventions.md`, `gitlab_conventions.md`, `gitea_conventions.md`, `forgejo_conventions.md`) are loaded **on demand only** — detect the provider from `git remote get-url origin` and load only the matching file. Never pre-load all provider files.
 
 ## Compaction
