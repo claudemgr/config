@@ -15,7 +15,7 @@ Never run anything directly on the host unless no lower option works. Always use
 
 | Tier | Image to use | When |
 |------|-------------|------|
-| Docker | Maintained toolchain image: `casjaysdev/go:latest`, `casjaysdev/rust:latest`, `node:alpine`, `python:alpine`, etc. | Build, test, debug — never debian/ubuntu based |
+| Docker | Maintained toolchain image: `casjaysdev/go:latest`, `casjaysdev/rust:latest`, `casjaysdev/android:latest`, `node:alpine`, `python:alpine`, etc. | Build, test, debug — never debian/ubuntu based |
 | Incus | Distro image matching the target OS | systemd, service installs, OS config, distro compatibility |
 | QEMU/KVM | Full OS image matching the target OS | Kernel-level, firmware, hardware emulation, full install testing |
 
@@ -111,13 +111,13 @@ If a container must remain running after the session (e.g. a dev environment sta
 
 ## Project Toolchain Image
 
-> **Go and Rust projects default to no `docker/Dockerfile.build`.** For Go use `casjaysdev/go:latest` directly; for Rust use `casjaysdev/rust:latest` directly. Exceptions: an image declared in IDEA.md/SPEC.md/AI.md wins; if `docker/Dockerfile.build` exists (genuine custom need, `FROM` the casjaysdev image), use its `:build` image like any other language.
+> **Go, Rust, and Android projects default to no `docker/Dockerfile.build`.** For Go use `casjaysdev/go:latest` directly; for Rust use `casjaysdev/rust:latest` directly; for Android use `casjaysdev/android:latest` directly. Exceptions: an image declared in IDEA.md/SPEC.md/AI.md wins; if `docker/Dockerfile.build` exists (genuine custom need, `FROM` the casjaysdev image), use its `:build` image like any other language.
 
 For all other languages: before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `node:alpine` / `python:alpine` container. Generic alpine variants are only a fallback for projects without `docker/Dockerfile.build`.
 
 If the image is not in the registry, do not build it inline — stop and tell the user to trigger `build-toolchain.yml` via `workflow_dispatch`.
 
-**Bootstrap order** — when adding `docker/Dockerfile.build` to a non-Go/non-Rust project: commit it alone first, trigger `build-toolchain.yml` via `workflow_dispatch`, verify the image is in the registry, then commit `ci.yml`/`release.yml`. Never commit a CI workflow that uses the build image before the image exists.
+**Bootstrap order** — when adding `docker/Dockerfile.build` to a non-Go/Rust/Android project: commit it alone first, trigger `build-toolchain.yml` via `workflow_dispatch`, verify the image is in the registry, then commit `ci.yml`/`release.yml`. Never commit a CI workflow that uses the build image before the image exists.
 
 ## Docker Run Conventions
 

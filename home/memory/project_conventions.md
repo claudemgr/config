@@ -102,7 +102,7 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 
 ## Template system
 
-- There are Go and Rust project templates. When starting a new project, copy the appropriate template as `AI.md`
+- There are Go, Rust, and Android project templates. When starting a new project, copy the appropriate template as `AI.md`
 - The copied `AI.md` is immediately read-only; project-specific values go in `IDEA.md`
 - Also create an empty `SPEC.md` at project setup — it stays empty until a rule must contradict the template or global
 - Template updates: re-copy the template over `AI.md` directly (no merge needed — `AI.md` was never modified)

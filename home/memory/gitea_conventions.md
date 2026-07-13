@@ -17,7 +17,7 @@ Gitea uses the same act runner as GitHub Actions. Workflow files live at:
 ```
 .gitea/workflows/ci.yml
 .gitea/workflows/release.yml
-# only for non-Go/non-Rust projects
+# only for non-Go/Rust/Android projects
 .gitea/workflows/build-toolchain.yml
 ```
 
@@ -48,7 +48,7 @@ Use `${{ gitea.* }}` instead of `${{ github.* }}` — they are structurally iden
 
 ## Build Image Gate (`ensure-build-image`)
 
-> **Go and Rust projects default to no `ensure-build-image` and no `build-toolchain.yml`.** Go CI jobs use `container: image: casjaysdev/go:latest` directly; Rust CI jobs use `container: image: casjaysdev/rust:latest` directly. Exception: a project-declared build image or a genuine custom need (`docker/Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
+> **Go, Rust, and Android projects default to no `ensure-build-image` and no `build-toolchain.yml`.** Go CI jobs use `container: image: casjaysdev/go:latest` directly; Rust CI jobs use `container: image: casjaysdev/rust:latest` directly; Android CI jobs use `container: image: casjaysdev/android:latest` directly. Exception: a project-declared build image or a genuine custom need (`docker/Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
 
 For all other languages: every workflow in `.gitea/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Gitea package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
 
@@ -56,7 +56,7 @@ A separate scheduled workflow at `.gitea/workflows/build-toolchain.yml` rebuilds
 
 OCI annotations on every image pushed by these workflows: `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.created`, `org.opencontainers.image.licenses` — populate from `${{ gitea.repository }}`, `${{ gitea.sha }}`, build timestamp, and the project license.
 
-**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image (or the maintained language image for Go/Rust).
+**Never install tooling inline** — no `apk add`, `go install`, `cargo install`, or `npm install -g` in a workflow step. All tools live in the `:build` image (or the maintained language image for Go/Rust/Android).
 
 ---
 
@@ -92,10 +92,10 @@ Never use a tag reference (`@v4`) — tags are mutable. Always pin to the commit
 
 ## Secret Scanning (truffleHog)
 
-Use the `trufflesecurity/trufflehog@{sha}` composite action — never inline `docker run`. For Go/Rust projects use the maintained image directly; for other languages use the `:build` toolchain image via `ensure-build-image`.
+Use the `trufflesecurity/trufflehog@{sha}` composite action — never inline `docker run`. For Go/Rust/Android projects use the maintained image directly; for other languages use the `:build` toolchain image via `ensure-build-image`.
 
 ```yaml
-# Go/Rust: use maintained image directly — no ensure-build-image
+# Go/Rust/Android: use maintained image directly — no ensure-build-image
 secret-scan:
   runs-on: ubuntu-latest
   container:

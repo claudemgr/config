@@ -24,18 +24,18 @@ stages:
 variables:
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
-  # Go/Rust projects: BUILD_IMAGE is casjaysdev/go:latest or casjaysdev/rust:latest (no Dockerfile.build)
+  # Go/Rust/Android projects: BUILD_IMAGE is casjaysdev/go:latest, casjaysdev/rust:latest, or casjaysdev/android:latest (no Dockerfile.build)
   # Other languages: BUILD_IMAGE is $CI_REGISTRY_IMAGE:build (from docker/Dockerfile.build)
   BUILD_IMAGE: "$CI_REGISTRY_IMAGE:build"
 
 default:
-  # Go/Rust: use casjaysdev/go:latest or casjaysdev/rust:latest directly; others: toolchain image baked from docker/Dockerfile.build
+  # Go/Rust/Android: use the matching casjaysdev image directly; others: toolchain image baked from docker/Dockerfile.build
   image: $BUILD_IMAGE
 ```
 
-> **Go and Rust projects default to no `docker/Dockerfile.build` or `build-toolchain` pipeline.** For Go set `BUILD_IMAGE: casjaysdev/go:latest`; for Rust set `BUILD_IMAGE: casjaysdev/rust:latest`. No `ensure-build-image` gate. Exception: a project-declared build image or a genuine custom need (`Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
+> **Go, Rust, and Android projects default to no `docker/Dockerfile.build` or `build-toolchain` pipeline.** For Go set `BUILD_IMAGE: casjaysdev/go:latest`; for Rust set `BUILD_IMAGE: casjaysdev/rust:latest`; for Android set `BUILD_IMAGE: casjaysdev/android:latest`. No `ensure-build-image` gate. Exception: a project-declared build image or a genuine custom need (`Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
 
-**Toolchain image gate (`ensure-build-image`):** for all non-Go/non-Rust projects, every pipeline must begin with a job that confirms `$BUILD_IMAGE` exists in the registry and builds + pushes it from `docker/Dockerfile.build` if missing — analogous to the GitHub Actions `ensure-build-image` job in `cicd_conventions.md`. Subsequent jobs `needs: [ensure-build-image]` and run inside `$BUILD_IMAGE`. **Never `apk add` / `go install` / `cargo install` inline** — all tooling lives in the build image, rebuilt monthly via the equivalent `build-toolchain` scheduled pipeline.
+**Toolchain image gate (`ensure-build-image`):** for all non-Go/Rust/Android projects, every pipeline must begin with a job that confirms `$BUILD_IMAGE` exists in the registry and builds + pushes it from `docker/Dockerfile.build` if missing — analogous to the GitHub Actions `ensure-build-image` job in `cicd_conventions.md`. Subsequent jobs `needs: [ensure-build-image]` and run inside `$BUILD_IMAGE`. **Never `apk add` / `go install` / `cargo install` inline** — all tooling lives in the build image, rebuilt monthly via the equivalent `build-toolchain` scheduled pipeline.
 
 **Trigger rules:**
 - Branch pushes: `rules: - if: $CI_COMMIT_BRANCH`
