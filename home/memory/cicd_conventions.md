@@ -246,7 +246,7 @@ pipeline {
 }
 ```
 
-Language-specific: `casjaysdev/rust:latest` pre-installs `cargo-audit`, `cargo-deny`, etc. — swap `go build`/`go test`/`govulncheck` for `cargo build`/`cargo test`/`cargo audit`. Rust projects never get a `docker/Dockerfile.build`. The agent image resolves dynamically from the git remote — no hardcoded org or project name.
+Language-specific: `casjaysdev/rust:latest` pre-installs `cargo-audit`, `cargo-deny`, etc. — swap `go build`/`go test`/`govulncheck` for `cargo build`/`cargo test`/`cargo audit`. Rust projects default to no `docker/Dockerfile.build` (see Toolchain Image section for the escape hatch). The agent image resolves dynamically from the git remote — no hardcoded org or project name.
 
 ---
 
@@ -301,7 +301,7 @@ act -P ubuntu-latest=catthehacker/ubuntu:act-latest
 
 ## Toolchain Image (build-toolchain.yml)
 
-> **Go and Rust projects NEVER have a `docker/Dockerfile.build` or `build-toolchain.yml`.** `casjaysdev/go:latest` and `casjaysdev/rust:latest` are fully comprehensive maintained images — no custom toolchain image is ever needed. All Go and Rust CI jobs use `container: image: casjaysdev/go:latest` (or `casjaysdev/rust:latest`) directly, with no `ensure-build-image` gate and no `build-toolchain.yml`. This rule is absolute.
+> **Go and Rust projects default to NO `docker/Dockerfile.build` or `build-toolchain.yml`.** `casjaysdev/go:latest` and `casjaysdev/rust:latest` are comprehensive maintained images — by default all Go and Rust CI jobs use `container: image: casjaysdev/go:latest` (or `casjaysdev/rust:latest`) directly, with no `ensure-build-image` gate and no `build-toolchain.yml`. Exceptions: (1) the project declares its own build image in IDEA.md/SPEC.md/AI.md — the declaration wins; (2) a genuine custom need the casjaysdev image cannot satisfy (proprietary SDK, vendor toolchain, exotic system libraries) — then `Dockerfile.build` MUST be `FROM casjaysdev/go:latest` / `FROM casjaysdev/rust:latest` (extend, never replace) and the project follows the standard `build-toolchain.yml` + `ensure-build-image` pattern like any other language.
 
 For all other languages (Node, Python, and any project with a custom toolchain need), every project maintains a `docker/Dockerfile.build` image tagged `{project_org}/{project_name}:build`. This image is built and pushed monthly so the toolchain stays current. It is the only image workflows use for build, test, lint, and security scan steps — no inline tool installation.
 

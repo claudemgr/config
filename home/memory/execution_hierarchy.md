@@ -111,7 +111,7 @@ If a container must remain running after the session (e.g. a dev environment sta
 
 ## Project Toolchain Image
 
-> **Go and Rust projects NEVER have a `docker/Dockerfile.build`.** For Go use `casjaysdev/go:latest` directly; for Rust use `casjaysdev/rust:latest` directly. Never check for `docker/Dockerfile.build` on a Go or Rust project — it will not exist and must never be created.
+> **Go and Rust projects default to no `docker/Dockerfile.build`.** For Go use `casjaysdev/go:latest` directly; for Rust use `casjaysdev/rust:latest` directly. Exceptions: an image declared in IDEA.md/SPEC.md/AI.md wins; if `docker/Dockerfile.build` exists (genuine custom need, `FROM` the casjaysdev image), use its `:build` image like any other language.
 
 For all other languages: before running any build, test, lint, or tool command, check whether the project has a `docker/Dockerfile.build`. If it does, the project ships a toolchain image tagged `{project_org}/{project_name}:build` (typically `ghcr.io/{org}/{name}:build`). Pull and run inside that image — never on the host, never in a generic `node:alpine` / `python:alpine` container. Generic alpine variants are only a fallback for projects without `docker/Dockerfile.build`.
 

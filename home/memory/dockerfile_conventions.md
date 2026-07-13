@@ -19,20 +19,30 @@ All Docker assets live under `docker/`. Never in the repo root — that is a for
 
 ## Toolchain Image — Decision Tree
 
-**Runtime image selection (always check this first):** if `docker/Dockerfile.build` exists in the project, use that image — it takes priority over everything in the table below. The table below is guidance for *creating* a toolchain image, not for choosing one at runtime.
+**Two different images — do not conflate them:**
 
-**Go and Rust projects NEVER get a `docker/Dockerfile.build`.** The maintained images are comprehensive enough that no custom toolchain image is ever needed for those languages — this is an absolute rule, not a suggestion.
+| Image | Where it lives | What picks it |
+|-------|----------------|---------------|
+| Toolchain (CI jobs, `make` container builds, `:build` tag) | `docker/Dockerfile.build` or a maintained image | This decision tree |
+| Runtime (what ships) | Final stage of `docker/Dockerfile` | The project — alpine, scratch, distroless, or whatever the project declares; this tree does NOT apply |
+
+**Toolchain image precedence (first match wins):**
+1. **Image declared by the project** (IDEA.md, SPEC.md, or AI.md names a build image) — project files override global rules; use it as declared
+2. **`docker/Dockerfile.build` exists** → use `{project_org}/{project_name}:build`
+3. **Language table default** below
+
+**Go and Rust default to NO `docker/Dockerfile.build`.** The maintained casjaysdev images cover virtually every need. A `Dockerfile.build` is allowed ONLY when the casjaysdev image genuinely cannot satisfy the need — proprietary SDK, vendor toolchain, exotic system libraries — and then it MUST be `FROM casjaysdev/go:latest` / `FROM casjaysdev/rust:latest`: extend the maintained image, never replace it. Document the reason in a comment at the top of `Dockerfile.build`.
 
 **All other languages:** use the maintained per-language image unless the project has a specific need that the standard image cannot meet.
 
 | Language | Use this image | Notes |
 |----------|---------------|-------|
-| Go | `casjaysdev/go:latest` | Alpine; latest stable Go; goreleaser, golangci-lint, staticcheck, gofumpt, gotestsum, ko, air, buf, goose, goimports, stringer, gopls, govulncheck, go-licenses, cyclonedx-gomod, dlv, gops, benchstat, wire, mockgen, protoc-gen-go, protoc-gen-go-grpc pre-installed; `CGO_ENABLED=0`; `GOFLAGS=-buildvcs=false`; `GOTOOLCHAIN=auto`; `GOTELEMETRY=off`. **Never create `docker/Dockerfile.build` for a Go project.** |
-| Rust | `casjaysdev/rust:latest` | Alpine; stable + nightly; rustfmt, clippy, rust-src, rust-analyzer, llvm-tools-preview, miri; C/C++ toolchain (clang, lld, cmake, gdb); mingw-w64-gcc; zig; binaryen; 30+ cross-compile targets (musl/glibc Linux, Windows GNU, macOS, FreeBSD, WASM, embedded ARM/RISC-V, Android); cargo-binstall; 40+ cargo tools (cargo-audit, cargo-deny, cargo-tarpaulin, cargo-llvm-cov, sccache, cargo-zigbuild, wasm-pack, cargo-nextest, cargo-release, cargo-dist, cargo-deb, and more). **Never create `docker/Dockerfile.build` for a Rust project.** |
+| Go | `casjaysdev/go:latest` | Alpine; latest stable Go; goreleaser, golangci-lint, staticcheck, gofumpt, gotestsum, ko, air, buf, goose, goimports, stringer, gopls, govulncheck, go-licenses, cyclonedx-gomod, dlv, gops, benchstat, wire, mockgen, protoc-gen-go, protoc-gen-go-grpc pre-installed; `CGO_ENABLED=0`; `GOFLAGS=-buildvcs=false`; `GOTOOLCHAIN=auto`; `GOTELEMETRY=off`. **Default: no `docker/Dockerfile.build`** — genuine custom need only, and then `FROM casjaysdev/go:latest`. |
+| Rust | `casjaysdev/rust:latest` | Alpine; stable + nightly; rustfmt, clippy, rust-src, rust-analyzer, llvm-tools-preview, miri; C/C++ toolchain (clang, lld, cmake, gdb); mingw-w64-gcc; zig; binaryen; 30+ cross-compile targets (musl/glibc Linux, Windows GNU, macOS, FreeBSD, WASM, embedded ARM/RISC-V, Android); cargo-binstall; 40+ cargo tools (cargo-audit, cargo-deny, cargo-tarpaulin, cargo-llvm-cov, sccache, cargo-zigbuild, wasm-pack, cargo-nextest, cargo-release, cargo-dist, cargo-deb, and more). **Default: no `docker/Dockerfile.build`** — genuine custom need only, and then `FROM casjaysdev/rust:latest`. |
 | Node / TypeScript | `node:alpine` | Official Alpine image — add project tools via `npm ci` inside the container |
 | Python | `python:alpine` | Official Alpine image; use `python:slim-bookworm` (Debian slim) when a native-dep package fails to build on musl |
 | Other | Official Alpine image where one exists, then official Debian slim | Never use a `:latest` Ubuntu or full Debian image |
-| Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain. **Never for Go or Rust.** |
+| Custom need | `docker/Dockerfile.build` | Only when the above options are genuinely insufficient — e.g. a proprietary SDK, a tool with no Alpine/official image, or a multi-language toolchain. **Go/Rust: genuine custom need only, and always `FROM` the casjaysdev image.** |
 
 Never use a language-specific image (`casjaysdev/go`, `casjaysdev/rust`, etc.) for a project that is not written in that language.
 

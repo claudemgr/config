@@ -33,7 +33,7 @@ default:
   image: $BUILD_IMAGE
 ```
 
-> **Go and Rust projects NEVER have a `docker/Dockerfile.build` or `build-toolchain` pipeline.** For Go set `BUILD_IMAGE: casjaysdev/go:latest`; for Rust set `BUILD_IMAGE: casjaysdev/rust:latest`. No `ensure-build-image` gate. This rule is absolute.
+> **Go and Rust projects default to no `docker/Dockerfile.build` or `build-toolchain` pipeline.** For Go set `BUILD_IMAGE: casjaysdev/go:latest`; for Rust set `BUILD_IMAGE: casjaysdev/rust:latest`. No `ensure-build-image` gate. Exception: a project-declared build image or a genuine custom need (`Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
 
 **Toolchain image gate (`ensure-build-image`):** for all non-Go/non-Rust projects, every pipeline must begin with a job that confirms `$BUILD_IMAGE` exists in the registry and builds + pushes it from `docker/Dockerfile.build` if missing — analogous to the GitHub Actions `ensure-build-image` job in `cicd_conventions.md`. Subsequent jobs `needs: [ensure-build-image]` and run inside `$BUILD_IMAGE`. **Never `apk add` / `go install` / `cargo install` inline** — all tooling lives in the build image, rebuilt monthly via the equivalent `build-toolchain` scheduled pipeline.
 

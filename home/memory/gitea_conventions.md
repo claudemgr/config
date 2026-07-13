@@ -48,7 +48,7 @@ Use `${{ gitea.* }}` instead of `${{ github.* }}` — they are structurally iden
 
 ## Build Image Gate (`ensure-build-image`)
 
-> **Go and Rust projects NEVER use `ensure-build-image` and NEVER have `build-toolchain.yml`.** Go CI jobs use `container: image: casjaysdev/go:latest` directly; Rust CI jobs use `container: image: casjaysdev/rust:latest` directly. No `ensure-build-image` gate, no custom toolchain image — this rule is absolute for Go and Rust.
+> **Go and Rust projects default to no `ensure-build-image` and no `build-toolchain.yml`.** Go CI jobs use `container: image: casjaysdev/go:latest` directly; Rust CI jobs use `container: image: casjaysdev/rust:latest` directly. Exception: a project-declared build image or a genuine custom need (`docker/Dockerfile.build` `FROM` the casjaysdev image) follows the standard toolchain pattern like any other language.
 
 For all other languages: every workflow in `.gitea/workflows/` must start with an `ensure-build-image` job that confirms `{project_org}/{project_name}:build` exists in the Gitea package registry and builds + pushes it from `docker/Dockerfile.build` if missing. All other jobs `needs: ensure-build-image` and run inside `${{ needs.ensure-build-image.outputs.image }}`.
 

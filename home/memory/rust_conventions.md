@@ -22,7 +22,7 @@ type: user
 
 ## Docker Build Pattern
 
-**Rust projects NEVER get `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/rust:latest` is a fully comprehensive maintained image; no custom toolchain image is ever needed. This rule is absolute.
+**Rust projects default to NO `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/rust:latest` is a comprehensive maintained image. Exceptions: an image declared in IDEA.md/SPEC.md/AI.md wins; a genuine custom need (proprietary SDK, vendor toolchain, exotic system libraries) allows a `Dockerfile.build`, and then it MUST be `FROM casjaysdev/rust:latest` — extend, never replace.
 
 ## Makefile — Standard Variables
 
