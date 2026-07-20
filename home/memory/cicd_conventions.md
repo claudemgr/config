@@ -799,6 +799,24 @@ The `release` job needs `contents: write` to push the tag — it already has thi
 
 If `.github/workflows/` files are staged, `act --list -W {file}` must pass on each before `gitcommit`. Third-party Actions must be pinned to a full commit SHA — never a tag (see Third-Party Action Pinning above for the 3-point verification on every SHA update).
 
+`act --list` and a local `make test` pass only prove the workflow's syntax/job graph is valid and the code works in the local environment — they are not the real CI build. The real build runs on the provider's infrastructure with real secrets, real matrix jobs, and the real `:build` toolchain image; any of those can fail even when every local check passed.
+
+## Post-Push CI Verification
+
+Every push — a normal feature-branch push or an emergency direct push to the default branch (see Branch Protection above) — triggers a real CI run if the project has workflows. That run is ground truth and MUST be checked; treating "local checks passed" as equivalent to "the build is green" is itself a bug.
+
+**After every `gitcommit --dir {dir} all` push**, if the project has CI config (`.github/workflows/`, `.gitlab-ci.yml`, `.gitea/workflows/`, `.forgejo/workflows/`, `Jenkinsfile`):
+
+1. Resolve the provider (see Provider Detection above) and the pushed commit SHA
+2. Check the triggered run's status:
+   - **GitHub**: `gh run list --branch {branch} --commit {sha} --limit 1` then `gh run watch {run-id}` (or `gh run view {run-id} --json status,conclusion`)
+   - **GitLab**: `curl -qsSf -H "PRIVATE-TOKEN: $GITLAB_TOKEN" ".../repository/commits/{sha}/statuses"`
+   - **Gitea / Forgejo**: `curl -qsSf -H "Authorization: token $TOKEN" ".../commits/{sha}/status"`
+   - **Jenkins**: poll the job's `lastBuild/api/json` for `result`
+3. **Build failed** → this is a bug, not a note for later. Diagnose the root cause (missing env var, toolchain drift, flaky test, secret unavailable in CI, platform-specific failure) and fix it with a normal follow-up `gitcommit` — never leave the default branch red
+4. **Build pending/running** → the task is not done yet; wait and re-check rather than reporting success
+5. **No CI config in the project** → this step is a no-op
+
 ## Workflow Creation Order
 
 Not all workflow files carry the same risk — create them in this order:

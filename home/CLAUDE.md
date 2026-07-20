@@ -217,3 +217,5 @@ Key rules always in effect:
 **Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
 
 **Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
+
+**Post-push CI check:** if the project has CI config, check the triggered run's status after every push (`~/.claude/memory/cicd_conventions.md` § Post-Push CI Verification) — a failing build is a bug to fix immediately, not a note for later; never report the task done while the pushed build is red or still running.
