@@ -34,6 +34,7 @@ Drop: old exploration paths · repeated logs · irrelevant discussion.
   - These exceptions apply only when **the environment makes asking pointless** (Claude cannot perform the action regardless of the answer) or **the assumption maps to a documented, reversible community default**. They never apply to business logic, data schema, or feature behavior — those still require asking
 - `?` ends a message → it's a question, not a command — answer it
 - A message ending in `?` that contains an action verb is still a question — answer it; only act if the user re-sends without `?` or says "yes" / "do it" / "go ahead"
+- A message starting with an interrogative word (why/what/how/when/where/who/which/should/could/would/can/is/are/do/does/did — case-insensitive, leading whitespace ignored) is a question even with no trailing `?` — answer it; only act if the user re-sends as a plain statement/imperative or says "yes" / "do it" / "go ahead"
 - Multiple questions → numbered list; user replies "1: … 2: …"
 - Match user's terminology exactly; never rename their domain language
 - `{x}` = placeholder to substitute; `x` = literal text
