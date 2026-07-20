@@ -264,32 +264,44 @@ Controls Claude Code permissions and hook wiring. Structure:
 
 ---
 
-## Part 9: Template Repositories (../{lang}/{type}.md)
+## Part 9: Template Repositories (../{lang|type}/{TYPE}.md)
 
-"Templates" refers to the sibling repos next to this one — `~/Projects/github/claudemgr/{lang}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`.
+"Templates" refers to the sibling repos next to this one — `~/Projects/github/claudemgr/{lang|type}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`. The repo-name segment is not always a programming language — `go`/`rust` are languages, `android` is a device/platform target — so read `{lang|type}` as "whatever the repo is named," never assume it parses as a language.
+
+**Filename convention per app category** (fixed, applies across every `{lang|type}` repo):
+
+| Category | Filename |
+|----------|----------|
+| Full server (server-rendered HTML + optional REST) | `SERVER.md` |
+| API-only (REST/JSON, no frontend) | `API.md` |
+| Desktop/GUI/TUI/CLI app, no server component | `APPLICATION.md` (singular — not `APPLICATIONS.md`) |
+
+Not every repo ships every category — `android` is app-only (`APPLICATION.md` only, no `API.md`/`SERVER.md`), since there's no server-side Android target.
 
 ```
 ~/Projects/github/claudemgr/
 ├── config/                      # this repo — source of ~/.claude/
-├── go/                           # github.com/claudemgr/go
+├── go/                           # github.com/claudemgr/go — language
 │   ├── API.md                    # REST/JSON API server template
 │   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template
 │   └── SERVER.md                 # full-stack web server template
-├── rust/                         # github.com/claudemgr/rust
+├── rust/                         # github.com/claudemgr/rust — language
 │   ├── API.md
 │   ├── APPLICATION.md
 │   └── SERVER.md
-└── android/                      # github.com/claudemgr/android
+└── android/                      # github.com/claudemgr/android — device/platform, app-only
     └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
 ```
+
+More `{lang|type}` repos will be added over time (languages and device/platform targets alike) using this same three-filename convention — do not invent new filenames per repo.
 
 **If a template dir doesn't exist locally**, clone it before reading/editing — never treat a missing dir as "no templates to update":
 
 ```bash
-git clone https://github.com/claudemgr/{lang}.git ~/Projects/github/claudemgr/{lang}
+git clone https://github.com/claudemgr/{lang|type}.git ~/Projects/github/claudemgr/{lang|type}
 ```
 
-**Alignment rule:** template repos are separate git repos, each with its own remote, its own `gitcommit --dir {repo} all`, and no dependency on this repo's git history — but their CI/CD, security, and build content MUST stay aligned with `home/**` (especially `home/memory/cicd_conventions.md`, `go_conventions.md`, `rust_conventions.md`). When a rule in `home/**` changes in a way that affects generated projects (e.g. a new CI gate, a new verification step), check the matching template file(s) for the same gap and fix them in the same session, as separate commits in their own repos.
+**Alignment rule:** template repos are separate git repos, each with its own remote, its own `gitcommit --dir {repo} all`, and no dependency on this repo's git history — but their CI/CD, security, and build content MUST stay aligned with `home/**` (especially `home/memory/cicd_conventions.md`, `go_conventions.md`, `rust_conventions.md`). When a rule in `home/**` changes in a way that affects generated projects (e.g. a new CI gate, a new verification step), check the matching template file(s) in every existing `{lang|type}` repo for the same gap and fix them in the same session, as separate commits in their own repos.
 
 Templates are licensed WTFPL (the templates themselves); generated projects ship MIT.
 
