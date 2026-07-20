@@ -319,8 +319,18 @@ Rules:
 
 All compose files live in `docker/`:
 - `docker/docker-compose.yml` — production/human runtime
-- `docker/docker-compose.dev.yml` — human development
-- `docker/docker-compose.test.yml` — automated testing (the only one AI may use directly)
+- `docker/docker-compose.dev.yml` — human development only (debug/devel; never used by AI)
+- `docker/docker-compose.test.yml` — automated testing; AI's preferred interface is the `tests/` scripts, not invoking this file directly (see "AI Docker Compose rules" below)
+
+All three follow the same layout: `name:` → `x-logging` anchor → `services:` → env map → `volumes:` → `ports:` → `healthcheck:` → `depends_on:` → `networks:` → top-level `networks:` block.
+
+**Environment variables always use map style (`KEY: value`), never list style (`- KEY=value`).**
+
+**`172.17.0.1:` bind** is reserved for the http/https port publish and appears only in `docker-compose.test.yml` and `docker-compose.yml` (production-shaped). `docker-compose.dev.yml` never uses it.
+
+**`PORT: 80`** — the container's internal port is always `80`; only the published host-side port varies.
+
+**valkey (cache)** — `docker-compose.test.yml` and `docker-compose.yml` include a valkey cache service; `docker-compose.dev.yml` never does.
 
 ### Volumes — path resolution
 
@@ -330,27 +340,59 @@ Both `volumes/` and `docker/volumes/` are gitignored — runtime data is never c
 
 ### Dev Compose (`docker-compose.dev.yml`)
 
-Uses the `:devel` image (built from `docker/Dockerfile.dev`) — the binary runs in debug mode with verbose output.
+Human debug/devel only. Uses the `:devel` image (built from `docker/Dockerfile.dev`). `DEBUG` on, `MODE: dev`, no `172.17.0.1:` bind, no valkey.
 
 ```yaml
+name: {name}-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
 services:
   {name}:
     image: ghcr.io/{org}/{name}:devel
+    container_name: {name}-dev
+    hostname: {name}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
     environment:
-      - DEBUG=1
+      DEBUG: 1
+      MODE: dev
+      PORT: 80
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ./volumes/config:/config:z
+      - ./volumes/data:/data:z
     ports:
-      - "172.17.0.1:{port}:80"
+      - "{port}:80"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/{name}", "--status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     networks:
       - {name}-dev
 
 networks:
   {name}-dev:
-    driver: bridge
+    name: {name}-dev
+    external: false
 ```
 
 ### Production Compose (`docker-compose.yml`)
 
+No `DEBUG`/`MODE` vars. Uses `172.17.0.1:` bind and valkey.
+
 ```yaml
+# nginx proxy address - http://172.17.0.1:{port}
+
+name: {project_name}
+
 x-logging: &default-logging
   driver: json-file
   options:
@@ -361,19 +403,48 @@ services:
   {name}:
     # replace with provider registry at deploy time
     image: ghcr.io/{org}/{name}:latest
-    pull_policy: always
     container_name: {name}-app
+    hostname: {name}
     restart: always
+    pull_policy: always
     logging: *default-logging
     environment:
+      PORT: 80
       TZ: ${TZ:-America/New_York}
       CONTAINER_NAME: {name}-app
       HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      CACHE_URL: valkey://{name}-cache:6379
     volumes:
-      - ./volumes/data:/data
-      - ./volumes/config:/config
+      - ./volumes/config:/config:z
+      - ./volumes/data:/data:z
     ports:
       - "172.17.0.1:{port}:80"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/{name}", "--status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      {name}-cache:
+        condition: service_healthy
+    networks:
+      - {project_name}
+
+  {name}-cache:
+    image: valkey/valkey:alpine
+    container_name: {name}-cache
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    volumes:
+      - ./volumes/data/db/valkey:/data:z
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - {project_name}
 
@@ -470,25 +541,63 @@ Rules:
 
 ### Test Compose (`docker-compose.test.yml`)
 
+Testing the built binary/server. `DEBUG` on, `MODE: dev`, `172.17.0.1:` bind, valkey included.
+
 ```yaml
+name: {name}-test
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
 services:
   {name}:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    container_name: {name}-test
+    hostname: {name}
+    restart: "no"
+    logging: *default-logging
     environment:
-      - TEST_MODE=1
+      DEBUG: 1
+      MODE: dev
+      PORT: 80
+      TZ: ${TZ:-America/New_York}
+      CACHE_URL: valkey://{name}-cache-test:6379
+    volumes:
+      - ./volumes/config:/config:z
+      - ./volumes/data:/data:z
+    ports:
+      - "172.17.0.1:{port}:80"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/{name}", "--status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      {name}-cache-test:
+        condition: service_healthy
     networks:
       - {name}-test
 
-  # include only when the project needs a DB
-  db-test:
-    image: postgres:alpine
-    environment:
-      - POSTGRES_PASSWORD=test
+  {name}-cache-test:
+    image: valkey/valkey:alpine
+    container_name: {name}-cache-test
+    restart: "no"
+    logging: *default-logging
     tmpfs:
       # ephemeral — always clean state
-      - /var/lib/postgresql/data
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - {name}-test
 
@@ -502,7 +611,7 @@ networks:
 Test Compose rules:
 - AI copies `docker-compose.test.yml` to a temp dir before running — `./volumes` resolves to `{tempdir}/volumes/`
 - Named bridge network for all test services — never `--network host` or default bridge
-- Database services use `tmpfs` — no persistent volume, always starts clean
+- The valkey cache service uses `tmpfs` — no persistent volume, always starts clean
 - Network name is explicit so `docker network rm {name}-test` cleans up reliably
 - Never mount `./volumes/` or any project directory path at runtime during tests
 
@@ -510,7 +619,8 @@ Test Compose rules:
 
 - **NEVER** run `docker compose up` with `docker-compose.yml` or `docker-compose.dev.yml` — those are human-only
 - **NEVER** mount `./volumes/` or any project-directory path at runtime when testing
-- For automated testing: copy `docker/docker-compose.test.yml` to a temp dir and run from there — `./volumes` then resolves to `{tempdir}/volumes/`
+- **`tests/` scripts are AI's preferred interface for testing** — prefer the project's `tests/` directory scripts over invoking `docker-compose.test.yml` directly; those scripts wrap the temp-dir copy/run/cleanup sequence below
+- When a direct compose invocation is unavoidable (e.g. no `tests/` script exists yet): copy `docker/docker-compose.test.yml` to a temp dir and run from there — `./volumes` then resolves to `{tempdir}/volumes/`
 - **NEVER** create or modify files in the project directory during testing
 
 ---
