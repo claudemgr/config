@@ -264,7 +264,38 @@ Controls Claude Code permissions and hook wiring. Structure:
 
 ---
 
-## Part 9: Commit Conventions
+## Part 9: Template Repositories (../{lang}/{type}.md)
+
+"Templates" refers to the sibling repos next to this one — `~/Projects/github/claudemgr/{lang}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`.
+
+```
+~/Projects/github/claudemgr/
+├── config/                      # this repo — source of ~/.claude/
+├── go/                           # github.com/claudemgr/go
+│   ├── API.md                    # REST/JSON API server template
+│   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template
+│   └── SERVER.md                 # full-stack web server template
+├── rust/                         # github.com/claudemgr/rust
+│   ├── API.md
+│   ├── APPLICATION.md
+│   └── SERVER.md
+└── android/                      # github.com/claudemgr/android
+    └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
+```
+
+**If a template dir doesn't exist locally**, clone it before reading/editing — never treat a missing dir as "no templates to update":
+
+```bash
+git clone https://github.com/claudemgr/{lang}.git ~/Projects/github/claudemgr/{lang}
+```
+
+**Alignment rule:** template repos are separate git repos, each with its own remote, its own `gitcommit --dir {repo} all`, and no dependency on this repo's git history — but their CI/CD, security, and build content MUST stay aligned with `home/**` (especially `home/memory/cicd_conventions.md`, `go_conventions.md`, `rust_conventions.md`). When a rule in `home/**` changes in a way that affects generated projects (e.g. a new CI gate, a new verification step), check the matching template file(s) for the same gap and fix them in the same session, as separate commits in their own repos.
+
+Templates are licensed WTFPL (the templates themselves); generated projects ship MIT.
+
+---
+
+## Part 10: Commit Conventions
 
 Follow the global gitcommit workflow from `home/CLAUDE.md`. One logical change per commit.
 
