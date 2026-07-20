@@ -168,6 +168,8 @@ Wrong order:   1, 2, 3, a, b, c   (2 runs before its prerequisites)
 - Before task completion: check compliance against the relevant spec sections
 - When uncertain about a spec requirement: read that specific section — never guess, never rely on memory of a prior session
 
+**Hook-enforced, not just advisory:** in any project with an `AI.md` or `SPEC.md` at its root, `spec-guard.sh` (PreToolUse on Write/Edit) blocks edits to project files until `spec-guard-mark.sh` (PostToolUse on Read) has recorded a Read of that project's `AI.md` or `SPEC.md` this session. Meta files (`AI.md`, `IDEA.md`, `SPEC.md`, `CLAUDE.md`, `TODO(.AI).md`, `PLAN(.AI).md`, `.claude/*`, `.git/*`, etc.) are exempt — only implementation files are gated. `post-compact.sh` clears the marker on every compaction, so the spec must be re-read after each compact before edits resume. This closes the gap where the schedule above was previously prose-only and easy to drift from.
+
 ## Language-specific implementation rules
 
 For language-specific build rules, binary naming, Makefile targets, and code conventions see the dedicated files: `~/.claude/memory/go_conventions.md` and `~/.claude/memory/rust_conventions.md`.

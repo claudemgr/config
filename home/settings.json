@@ -478,6 +478,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/no-forbidden-files.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/spec-guard.sh",
+            "timeout": 10
           }
         ]
       },
@@ -497,6 +502,23 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/no-forbidden-files.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/spec-guard.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/spec-guard-mark.sh",
             "timeout": 10
           }
         ]
