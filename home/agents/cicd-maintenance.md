@@ -92,7 +92,30 @@ If all checks pass:
    ```
 3. Report the edited file(s) back to the caller. Do not commit — the caller runs `gitcommit --dir {project_dir} all` with message: `🔧 Fix stale action tag comment after Renovate bump 🔧`
 
-### Step 4: Merge
+### Step 4: Verify CI build status (if the project has workflows)
+
+Static checks (Steps 1-3) are necessary but not sufficient — a project can pass every static check and still have a red CI build. If the project has any CI config (`.github/workflows/`, `.gitlab-ci.yml`, `.gitea/workflows/`, `.forgejo/workflows/`, `Jenkinsfile`), the actual build/check-run status on the PR/MR's head commit must be checked before merging. Skipping this makes the merge decision a no-op with respect to CI — the PR/MR can look clean statically while the real build is failing or still running.
+
+**GitHub**: `gh pr checks {number} --repo {owner}/{repo}` (or the check-runs API: `GET /repos/{owner}/{repo}/commits/{sha}/check-runs`)
+
+**GitLab**:
+```bash
+curl -qsSf -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/projects/{id}/merge_requests/{iid}/pipelines"
+```
+
+**Gitea / Forgejo**:
+```bash
+curl -qsSf -H "Authorization: token $GITEA_TOKEN" \
+  "https://{instance}/api/v1/repos/{owner}/{repo}/commits/{sha}/status"
+```
+
+- All required checks `success`/`passed` → proceed to merge
+- Any check `failure`/`failed`/`error` → do not merge, comment with the failing job name and log excerpt
+- Any check `pending`/`running` → wait and re-check; do not merge on a pending build
+- No CI config in the repo → this step is a no-op, proceed to merge
+
+### Step 5: Merge
 
 **GitHub**: `mcp__github__merge_pull_request` with `merge_method: squash`
 
@@ -111,7 +134,7 @@ curl -qsSf -X POST -H "Authorization: token $GITEA_TOKEN" \
   -d '{"Do":"squash"}'
 ```
 
-### Step 5: Update the SHA table
+### Step 6: Update the SHA table
 
 After merging, update `~/.claude/memory/cicd_conventions.md` — "Common Action Reference SHAs" table — for every action that was updated:
 
@@ -125,11 +148,13 @@ Report the updated SHA table row(s) back to the caller. Do not commit — the ca
 
 | Outcome | Action |
 |---------|--------|
-| All checks pass | Fix stale comment → merge → update SHA table |
+| All static checks pass, CI build green (or no CI config) | Fix stale comment → merge → update SHA table |
 | Action archived / deprecated | Comment on PR/MR, do not merge, flag replacement |
 | Runtime blocked (`node20` etc.) | Comment with specific runtime issue, do not merge |
 | Supply-chain red flag | Comment with specific concern, do not merge |
 | CVE introduced by dep bump | Comment with CVE ID and severity, do not merge |
+| CI build failing | Comment with failing job name and log excerpt, do not merge |
+| CI build pending/running | Wait and re-check; do not merge on a pending build |
 
 ---
 
