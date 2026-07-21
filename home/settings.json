@@ -13,6 +13,8 @@
   "agentPushNotifEnabled": true,
   "inputNeededNotifEnabled": true,
   "feedbackSurveyRate": 0,
+  "disableWorkflows": true,
+  "workflowKeywordTriggerEnabled": false,
   "plansDirectory": "./.claude/plans",
   "theme": "dark-ansi",
   "tui": "fullscreen",
