@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607201500-git
+##@Version           :  202607241700-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -12,11 +12,13 @@
 # @@Description      :  SessionStart(compact) hook: re-inject project-dir and global context after compaction
 # @@Changelog        :  Registered as SessionStart matcher=compact; emit additionalContext so the model sees it
 # @@Changelog        :  Clear spec-guard marker on compaction so AI.md/SPEC.md must be re-read (spec-guard.sh)
+# @@Changelog        :  Message no longer mandates bulk file re-reads (was causing autocompact thrashing); now on-demand only
 # @@TODO             :
 # @@Other            :  Compaction drops old context — this hook re-anchors Claude to the project
+# @@Other            :  Message intentionally avoids ordering a full re-read of AI.md/CLAUDE.md/MEMORY.md — that refilled context fast enough to re-trigger compaction in a loop
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607201500-git"
+VERSION="202607241700-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -35,13 +37,13 @@ POST_COMPACT_PROJECT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || e
 
 POST_COMPACT_MSG="POST-COMPACT CONTEXT
 project_dir: ${POST_COMPACT_PROJECT}
-Context was compacted. Re-establish full state before continuing:
-1. Project CLAUDE.md and AI.md are the source of truth — they override ~/.claude/CLAUDE.md; re-read them now
-2. Re-read ~/.claude/memory/MEMORY.md and any convention files it references that are relevant to the current task
+Context was compacted. The summary above is your state — resume from its task goal and next actions.
+Do NOT bulk re-read files now; that refills context immediately and can trigger another compaction.
+1. Project CLAUDE.md/AI.md/SPEC.md still override the global CLAUDE.md, but consult them on demand —
+   read only the specific section your next action needs, not the whole file
+2. Before editing a file, re-read only that file (or the relevant section) — don't proactively re-read files you are not about to touch
 3. All writes must stay within ${POST_COMPACT_PROJECT} unless the user explicitly names an external path
-4. Do not rely on pre-compaction memory of file contents — re-read files before editing them
-5. Resume from the task goal and next actions captured in the compaction summary
-6. Read AI.md and IDEA.md before acting on this project"
+4. spec-guard.sh will block Edit/Write until AI.md/SPEC.md is Read again this session — it fires on its own when you attempt an edit; no need to pre-emptively satisfy it"
 
 python3 -c "
 import json, sys
