@@ -1,7 +1,7 @@
 {
   "model": "claude-sonnet-5",
   "fallbackModel": [
-    "claude-sonnet-4-6",
+    "claude-sonnet-4-8",
     "haiku"
   ],
   "agent": "general",
@@ -540,6 +540,6 @@
     "MAX_THINKING_TOKENS": "1024",
     "CLAUDE_CODE_NO_FLICKER": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
   }
 }
