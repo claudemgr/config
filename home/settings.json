@@ -6,7 +6,7 @@
   ],
   "agent": "general",
   "language": "english",
-  "autoCompactWindow": 140000,
+  "autoCompactWindow": 200000,
   "cleanupPeriodDays": 60,
   "autoUpdatesChannel": "stable",
   "remoteControlAtStartup": true,
