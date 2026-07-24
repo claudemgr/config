@@ -52,6 +52,8 @@ Drift = ignoring project-specific rules and reverting to global defaults or prio
 3. Am I applying a rule from THIS project's files, not a global assumption?
 4. Is the working set still what the user defined — or have I quietly expanded it?
 
+**This self-check must be answered explicitly (in output or reasoning), not silently assumed** — skipping it is how stale global-default behavior sneaks back in after a compaction.
+
 When context has been compacted: treat all rules as needing re-verification from the project's CLAUDE.md and AI.md.
 
 If a SessionStart or PostCompact system message references a project_dir: that path IS `{project_dir}` for this session.
