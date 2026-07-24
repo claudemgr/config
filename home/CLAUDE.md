@@ -126,6 +126,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - **Define success up front**, then **verify against ground truth** (UI → design; logic → expected output; data → spot-check a sample) and **iterate until passing** — don't stop at "compiles"
 - **Add tests for new behavior** — a test that fails before and passes after, then run it
 - **One run, then fix** — don't loop on flaky failures without a hypothesis
+- **Verification statement required** — before declaring a task done, state the specific ground-truth check performed and its actual result (e.g. "ran `go test ./...`, all pass" or "diffed output against expected.json, matches"); "looks right" or "should work" is not a check and does not count as done
 
 ## Build & Execution
 - Full rules: `~/.claude/memory/execution_hierarchy.md` · Hierarchy: QEMU/KVM > Incus > Docker > host
