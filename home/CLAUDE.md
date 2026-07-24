@@ -188,7 +188,7 @@ Key rules always in effect:
 
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
-- "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session
+- "Run X" pre-authorizes X and its entire workflow (subcommands, loops, retries, pipes) for this session — but not a *different* command, and not a destructive/irreversible action X doesn't plainly imply (e.g. "run the tests" does not pre-authorize a force-push, a schema migration, or deleting a branch); if a step falls outside what X plainly means, stop and ask
 - Write/Edit allowlists are in `{project_dir}/.claude/settings.json` — pre-approved paths: `.git/COMMIT_MESS`, `CLAUDE.md`, `AI.md`, `SPEC.md`, `IDEA.md`, `TODO.AI.md`, `TODO.md`, `PLAN.AI.md`, `PLAN.md`, `.claude/settings.json`, `.claude/settings.local.json`, `.env`/`app.env`/`default.env`, `.no_push`
 
 ## Task Dependency Ordering
