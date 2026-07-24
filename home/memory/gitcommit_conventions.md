@@ -36,6 +36,10 @@ Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat`
 
 One logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
 
+**Findings-based work (audits, code reviews, punch lists, numbered user fix-lists) is never "one logical change" by default.** Each finding is independently fixable and independently verifiable — batching N findings into one commit because they share a file, subsystem, or session hides which findings actually landed and makes a bad fix silently swallow a good one. Default to **one commit per finding**; only combine findings when they are genuinely inseparable (the same line/block, or fixing one is impossible without the other).
+
+**Before writing COMMIT_MESS for findings-based work:** re-list every finding by its original ID/number, then for each one grep/diff-check that its specific fix is actually present in the working tree — not just described in a prior message or agent report. A finding with no matching diff hunk is not fixed; do not include it in COMMIT_MESS as done, and do not commit until it's resolved or explicitly deferred (say so to the user, don't silently drop it).
+
 ## Push Behavior
 
 Push is immediate and irreversible. To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.

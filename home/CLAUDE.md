@@ -209,7 +209,7 @@ Key rules always in effect:
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
 6. Run `gitcommit --dir {dir} all`
 
-**Message format, emoji map, no-bare-`@` rule, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets; one logical change per commit.
+**Message format, emoji map, no-bare-`@` rule, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets; one logical change per commit. **Findings-based work (audits, reviews, numbered fix-lists) defaults to one commit per finding — never batch distinct findings into one commit just because they share a file or session.**
 
 **Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`) must pass before every commit — no exceptions; never skip tests to "save time".
 
