@@ -73,7 +73,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **`\command` prefix only for alias-prone external binaries** (`ls`, `grep`, `rm`, `cp`, `mv`, `cat`, `sed`, `diff`, `curl`, …; `command cmd` in fish) — never on shell keywords (`time`, `if`, `while`, `[[` — breaks semantics), never on builtins (no-op), and never on the first word of an allowlisted/pre-authorized or hook-governed command (`gitcommit`, `git`, `make`, `docker`, `incus`, `podman`, `qemu-*`, `virsh`, `systemctl` — breaks permission prefix-matching and PreToolUse hook pattern-matching; container/VM aliases like `docker`→`podman` are deliberate environment config, not noise)
 - Read current file state before any edit
 - **Working-set discipline** — scope is set when the user names files/dirs; never expand on your own initiative. Exception: spelling/grammar fixes in files already being edited
-- **Fix completeness** — when a pattern changes, find and fix ALL instances across the working set with `grep -rn` before committing
+- **Fix completeness** — when a pattern changes, find and fix ALL instances across the working set with `grep -rn` before committing. **Verification required:** re-run the same `grep -rn` after editing — zero remaining matches (or every remaining match named as an intentional exception) before writing COMMIT_MESS; a nonzero, unexplained result means the fix isn't done
 - Match surrounding style: naming, indentation, patterns; use ecosystem idioms and community linter/formatter
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols
 - Targeted edits only; full rewrites only when asked; required deps just add them; real choice between alternatives: ask first
