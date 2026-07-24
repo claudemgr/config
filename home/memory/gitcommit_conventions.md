@@ -40,6 +40,12 @@ One logical change per commit. Unrelated subsystems → split. Mid-task inconsis
 
 **Before writing COMMIT_MESS for findings-based work:** re-list every finding by its original ID/number, then for each one grep/diff-check that its specific fix is actually present in the working tree — not just described in a prior message or agent report. A finding with no matching diff hunk is not fixed; do not include it in COMMIT_MESS as done, and do not commit until it's resolved or explicitly deferred (say so to the user, don't silently drop it).
 
+**Feature work is the opposite of findings-based work — one commit for the whole feature.** Do not split a single feature into per-part, per-subtask, or per-file commits; the feature is the logical unit, not its internals.
+
+**Unrelated bugs found while building a feature:** do not fix them inline and do not fold them into the feature commit. Log them to `TODO.AI.md` for a later, separate fix.
+
+**Exception — app-breaking bugs found mid-feature:** if the bug breaks the build, crashes the app, or blocks the feature/app from functioning, fix it immediately, in place, before continuing. Committing a broken project is itself a bug — it violates "no partially implemented code."
+
 ## Push Behavior
 
 Push is immediate and irreversible. To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
