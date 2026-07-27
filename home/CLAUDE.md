@@ -100,6 +100,7 @@ Key rules always in effect:
 - See `~/.claude/memory/project_conventions.md` for AI.md / IDEA.md / CLAUDE.md roles, placeholder system, and directory layout
 - See `~/.claude/memory/project_files.md` for README.md requirements, LICENSE.md naming, allowed root files, and what must never be created
 - **`TODO.AI.md` hygiene** — complete each item fully before removing; never clear while in progress. **`PLAN.AI.md` hygiene** — delete once work is fully committed
+- **No issue left only in conversation** — any flagged-but-not-fixed issue (found during an audit, a review, or incidentally while doing something else) must, before moving on to other work, either be fixed immediately or logged as a line item in `TODO.AI.md` (create it if missing). A commit message, a chat reply, or a summary is not a durable record — conversation context can be compacted or lost. This applies regardless of severity or how small the issue seems; the `audit` agent's >5-issues-to-`AUDIT.AI.md` threshold is a separate, additional rule for large batches, not an exemption from logging smaller ones here
 - **`TODO.AI.md` PART loading** — `grep -n "^# PART N" AI.md` to find the slice; read only that slice; never load the full spec file; cross-refs inside the slice: finish the slice first, then follow
 
 ## Cleanup
