@@ -188,6 +188,17 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 **Goal: verify the project matches its own stated spec and the project rules.**
 
+### AI.md requirement walk (mandatory, exhaustive, line by line)
+
+Reading AI.md once during Pre-Flight and then working from memory/impression of the code is not sufficient — that produces guessing ("this looks compliant") instead of verification. Do this instead, every audit run:
+
+1. `grep -n "^# PART" {project_dir}/AI.md` to enumerate every PART.
+2. Go through each PART **word for word, line by line** — not skimmed, not summarized from memory. For every sentence that states a MUST/NEVER/ALWAYS, a specific file/function/flag/config key, a naming rule, or a behavioral constraint, extract it as one checkable requirement.
+3. For each requirement, open the actual corresponding code (grep, then Read the real implementation) and compare the requirement text against what the code actually does — never assume compliance because a similarly-named file/function exists, and never assume non-compliance without reading the code. Both "guessing it's fine" and "guessing it's broken" are failures here — only what the code and the spec text actually say counts.
+4. Track progress PART by PART (e.g. "PART 3: 6/6 requirements checked") so no PART is silently skipped.
+5. Record every requirement as compliant, non-compliant (cite the exact AI.md line and the exact code location that contradicts it), or not-yet-implemented.
+6. Do not report "spec compliant" or move to Pass 6 until every PART has been walked this way in the current run — a partial pass is not a pass.
+
 ### Structure
 - Directory layout matches `{project_dir}/AI.md` spec (or project `{project_dir}/CLAUDE.md` spec)
 - No forbidden files or directories (`~/.claude/memory/project_files.md`) — flag any found; do NOT delete without user confirmation
