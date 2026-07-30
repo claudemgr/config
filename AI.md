@@ -149,7 +149,7 @@ Instructions for the agent...
 | Agent | Model | Purpose |
 |-------|-------|---------|
 | `architect.md` | opus | System design, API design, data modeling, architectural tradeoffs |
-| `audit.md` | opus | Full project health audit — security, quality, logic, docs, spec compliance |
+| `audit.md` | opus | Full project health audit — security, quality, logic, docs, line-by-line AI.md compliance |
 | `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
 | `bootstrap.md` | sonnet | Bootstrap a project from a spec file (`{project_dir}/AI.md`); executes PART 0–6 |
 | `cicd-maintenance.md` | sonnet | Dependabot PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix |

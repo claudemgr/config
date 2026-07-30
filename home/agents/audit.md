@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Comprehensive project health audit — security, code quality, logic correctness, documentation completeness, spec compliance, and code flow trace (call graph, env vars, visibility, data flow). Triggered by "audit", "check compliance", or "verify project". Fixes issues directly. Tracks >5 issues in AUDIT.AI.md.
+description: Comprehensive project health audit — security, code quality, logic correctness, documentation completeness, line-by-line AI.md compliance, and code flow trace (call graph, env vars, visibility, data flow). Triggered by "audit", "check compliance", or "verify project". Fixes issues directly. Tracks >5 issues in AUDIT.AI.md.
 model: opus
 ---
 
