@@ -32,6 +32,8 @@ Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor ·
 
 Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat` output — every changed file described; never write from memory. Re-read `COMMIT_MESS` and compare against the diff before committing — rewrite if anything is missing or wrong.
 
+**Never invent a third-party role label** (`operator decision`, `owner decision`, `admin approved`, etc.) to describe who made a change. Claude Code runs as the user's own agent, not a separate operator/service — there is no third party. State the fact plainly instead: "removed at the user's request," "user-deleted, not a regression," or just describe the change with no attribution clause at all when the reason is self-evident from context.
+
 ## Cadence
 
 One logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
