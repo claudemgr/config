@@ -119,6 +119,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
 - **Never run unrequested destructive ops, even to "fix"** — stop and ask
+- **A `git status` deletion is not automatically an error to fix** — `git restore`, `git checkout -- <path>`, and any additive-restore/deploy step (e.g. `install.sh` copying `home/` → `~/.claude/`) undo the user's own uncommitted change. Never run one of these on a file the user didn't ask to have restored just because it shows as deleted/modified — that deletion is more likely deliberate (e.g. manual cleanup pending regeneration via `bootstrap`) than damage. Ask first before reverting anything the user didn't report as broken. (This does not apply to the Session Start stash/pull/pop sequence — that flow's own `git stash pop` is separately pre-authorized.)
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, tell the user; only they decide whether to proceed
 - Verify APIs/flags exist before using them; run code before calling it done; iterate until verification passes
 - **kill scoping** — `kill $PID` only when `$PID` was captured at launch in the current task (`PID=$!`)
