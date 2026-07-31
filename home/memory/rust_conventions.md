@@ -24,6 +24,41 @@ type: user
 
 **Rust projects default to NO `docker/Dockerfile.build` or `build-toolchain.yml`** — `casjaysdev/rust:latest` is a comprehensive maintained image. Exceptions: an image declared in IDEA.md/SPEC.md/AI.md wins; a genuine custom need (proprietary SDK, vendor toolchain, exotic system libraries) allows a `Dockerfile.build`, and then it MUST be `FROM casjaysdev/rust:latest` — extend, never replace.
 
+## Toolchain Image Capabilities — casjaysdev/rust:latest
+
+Source: `~/Projects/github/dockersrc/rust`. Alpine-based, rolling tag, stable + nightly toolchains.
+
+**Toolchain**: `rustc`, `cargo`, `rustfmt`, `clippy`, `rust-src`, `rust-analyzer`, `llvm-tools-preview` (stable); `miri`, `rust-src` (nightly, minimal profile — run via `cargo +nightly miri test`)
+
+**Pre-installed tools** (via `cargo-binstall`, prebuilt binaries only — no source compiles):
+- Linting/analysis: `cargo-geiger`, `cargo-deny`, `cargo-audit`, `cargo-machete`, `cargo-udeps` (nightly), `cargo-hack`, `cargo-minimal-versions`, `cargo-semver-checks`, `cargo-public-api`, `typos-cli`, `cargo-spellcheck`
+- Formatting: `taplo-cli`, `dprint`, `cargo-sort`
+- Testing/coverage: `cargo-nextest`, `cargo-llvm-cov`, `cargo-tarpaulin`, `grcov`, `cargo-mutants`
+- Benchmarking/profiling: `cargo-criterion`, `hyperfine`, `samply`, `flamegraph` (need `--privileged` or `--cap-add SYS_ADMIN --cap-add PERFMON` at container runtime — cannot be baked into the image), `perf`
+- Fuzzing/debugging: `cargo-fuzz`, `gdb` (+ `rust-gdb` wrapper), `cargo-careful`, `probe-rs`
+- Code analysis: `cargo-expand`, `cargo-asm`, `cargo-bloat`, `cargo-binutils`, `tokei`
+- Build/release: `cargo-make`, `just`, `cargo-release`, `cargo-dist`, `cargo-deb`, `cargo-generate`, `cargo-chef`
+- Cross-compilation: `cargo-zigbuild`, `cross`, `cargo-ndk`, `cbindgen`, `flip-link`, `zig` (universal C/C++ cross-toolchain)
+- WASM: `wasm-pack`, `wasm-bindgen-cli`, `wasm-tools`, `trunk`, `wasm-opt` (binaryen)
+- Docs: `mdbook`, `mdbook-toc`
+- Dev loop: `bacon`, `cargo-watch`, `cargo-edit`, `cargo-update`, `cargo-outdated`, `cargo-info`, `cargo-msrv`
+- Compilation cache: `sccache`
+- Database (best-effort, `rustls`-based): `sqlx-cli`, `sea-orm-cli`
+
+**C/C++ toolchain** (`05-custom.sh`, not the base Alpine `PACK_LIST`): `build-base`, `musl-dev`, `clang`, `clang-dev`, `llvm-dev`, `lld`, `cmake`, `make`, `perl`, `openssl-dev`, `openssl-libs-static`, `pkgconf`, `gdb`, and (best-effort) `mingw-w64-gcc` for Windows GNU cross-compilation.
+
+**Cross-compile — 30 pre-installed targets**, pre-configured in `$CARGO_HOME/config.toml` (`rust-lld` linker for ARM/aarch64/RISC-V/embedded, `*-w64-mingw32-gcc`/`ar` for Windows GNU): Linux musl (x86_64, aarch64, i686, armv7, riscv64gc); Linux glibc (x86_64, aarch64, i686, armv7, arm, riscv64gc, ppc64le, s390x); Windows GNU (x86_64-gnu, i686-gnu, aarch64-gnullvm); macOS (x86_64, aarch64); `x86_64-unknown-freebsd`; WASM (wasm32-unknown-unknown, wasip1, wasip2, unknown-emscripten); embedded ARM/RISC-V; `aarch64-linux-android`. Additional targets: `rustup target add <triple>`.
+
+**Windows MSVC is NOT supported** — the image has no MSVC toolchain, only `mingw-w64-gcc`. Always target `*-pc-windows-gnu` / `*-pc-windows-gnullvm`, never `*-pc-windows-msvc`.
+
+**Cross-compile method by dependency type**: pure-Rust crates → plain `cargo build --target ...`; crates with C deps (`*-sys`, `openssl-sys`, `ring`, etc.) → `cargo zigbuild`; full stdlib/libc needs → `cross` (official cross-rs container via QEMU).
+
+**Env defaults** (set as Docker `ENV`, active for every `docker run`): `RUSTUP_HOME=/usr/local/share/rustup`, `CARGO_HOME=/usr/local/share/cargo`, `RUSTUP_TOOLCHAIN=stable`, `SCCACHE_DIR=/root/.cache/sccache`, `CARGO_INCREMENTAL=0`. **Not** set as image `ENV` (login-shell only, via `/etc/profile.d/rust.sh`): `RUSTC_WRAPPER=sccache` — see the `RUST_DOCKER` macro note below for why it must be passed explicitly. `CARGO_TARGET_DIR` is intentionally unset so each project keeps its own `./target/`.
+
+**`rust-workflow`**: a 4-step pipeline baked into the image (`fmt check → clippy -D warnings → cargo test --all → cargo build --release`), invoked explicitly: `docker run ... casjaysdev/rust:latest rust-workflow`. **Unlike the Go image, a no-args `docker run` does NOT auto-run this pipeline** — it starts the image's background "monitoring mode" instead. `CARGO_WORKDIR` overrides the working dir; `CARGO_BUILD_TARGET` sets the cross-compile triple, both `rust-workflow`-only.
+
+**Miri**: nightly-only interpreter for detecting UB, borrow violations across FFI, and data races — slower than normal test runs; use it targeted on unsafe code or after a refactor, not in the default CI test path.
+
 ## Makefile — Standard Variables
 
 ```makefile
@@ -38,14 +73,15 @@ RELEASES_DIR  := ./releases
 CARGO_CACHE   ?= $(HOME)/.cargo
 RUSTUP_CACHE  ?= $(HOME)/.rustup
 SCCACHE_CACHE ?= $(HOME)/.cache/sccache
-CARGO_TARGET  ?= $(HOME)/.cache/cargo-target/$(PROJECTNAME)
+CARGO_TARGET  ?= $(HOME)/.cache/cargo-target/$(PROJECT_NAME)
 
 DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
 
 RUST_DOCKER := docker run --rm \
-	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
+	-e RUSTC_WRAPPER=sccache \
 	-v "$(PWD)":/app \
 	-v $(CARGO_CACHE):/usr/local/share/cargo \
 	-v $(RUSTUP_CACHE):/usr/local/share/rustup \
@@ -58,11 +94,11 @@ RUST_DOCKER := docker run --rm \
 - `casjaysdev/rust:latest` rolling tag — never pinned; Alpine-based with stable + nightly toolchains, 30 cross-compile targets, and every common Cargo tool pre-installed
 - `PROJECT_NAME` and `ORGANIZATION` are literal here (not inferred from git); keep in sync with `Cargo.toml`
 - `CARGO_CACHE`, `RUSTUP_CACHE`, and `SCCACHE_CACHE` use `?=` so host env vars (`CARGO_HOME`, `RUSTUP_HOME`, custom XDG paths) are honored; defaults are `~/.cargo`, `~/.rustup`, and `~/.cache/sccache`
-- `CARGO_TARGET ?= $(HOME)/.cache/cargo-target/$(PROJECTNAME)` mounts the Cargo target dir at `/app/target` — scoped per project because target artifacts are not safe to share across projects, and it keeps `target/` out of the source tree
+- `CARGO_TARGET ?= $(HOME)/.cache/cargo-target/$(PROJECT_NAME)` mounts the Cargo target dir at `/app/target` — scoped per project because target artifacts are not safe to share across projects, and it keeps `target/` out of the source tree
 - Every target that uses `RUST_DOCKER` must `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)` first so host dirs exist before Docker mounts them and downloaded crates persist across runs
 - `CARGO_HOME` is `/usr/local/share/cargo` inside the image (not `/usr/local/cargo` as in the official `rust:alpine`)
 - `RUSTUP_HOME` is `/usr/local/share/rustup`; sccache cache is at `/root/.cache/sccache`
-- `RUSTC_WRAPPER=sccache` and `CARGO_INCREMENTAL=0` are `casjaysdev/rust:latest` image defaults — set in both the Docker `ENV` table (active for all `docker run` invocations) and `/etc/profile.d/rust.sh` (interactive login shells). Mount `SCCACHE_CACHE` to persist the cache; omit the mount and every build starts cold. To opt out: `-e RUSTC_WRAPPER=`
+- `CARGO_INCREMENTAL=0` is a `casjaysdev/rust:latest` image `ENV` default (active for every `docker run`, forced off because it conflicts with sccache). `RUSTC_WRAPPER=sccache` is **not** set as an image `ENV` — it is only exported by `/etc/profile.d/rust.sh`, which fires for interactive login shells, not for a plain `docker run cargo ...`. `RUST_DOCKER` above sets `-e RUSTC_WRAPPER=sccache` explicitly so non-interactive Makefile invocations still get compiler caching. Mount `SCCACHE_CACHE` to persist the cache; omit the mount and every build starts cold. To opt out: `-e RUSTC_WRAPPER=`
 - See **Named Volume Fallback** below for when bind-mounting is not desired
 
 ## Makefile — Standard Targets
@@ -71,7 +107,7 @@ RUST_DOCKER := docker run --rm \
 |--------|-------------|
 | `build` | Builds all platforms inside Docker; outputs to `binaries/` |
 | `release` | Prepares release archives in `releases/` |
-| `test` | Runs `cargo fmt --check`, `cargo clippy -- -D warnings`, then `cargo test --lib --no-fail-fast` inside Docker |
+| `test` | Runs `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo audit`, then `cargo test --lib --no-fail-fast` inside Docker |
 | `clean` | Removes `binaries/`, `releases/`, and `target/` |
 | `help` | Prints target list and current version |
 
@@ -108,8 +144,9 @@ RUST_RUSTUP_VOL  := rust-rustup
 RUST_SCCACHE_VOL := rust-sccache
 
 RUST_DOCKER := docker run --rm \
-	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
+	-e RUSTC_WRAPPER=sccache \
 	-v "$(PWD)":/app \
 	-v $(RUST_CARGO_VOL):/usr/local/share/cargo \
 	-v $(RUST_RUSTUP_VOL):/usr/local/share/rustup \
@@ -143,7 +180,7 @@ macOS and FreeBSD cross-compilation from Linux is generally not supported — do
 ```makefile
 test:
 	$(RUST_DOCKER) bash -c \
-	    'cargo fmt --check && cargo clippy -- -D warnings && cargo test --lib --no-fail-fast'
+	    'cargo fmt --check && cargo clippy -- -D warnings && cargo audit && cargo test --lib --no-fail-fast'
 ```
 
 Always inside Docker. Never `cargo test` directly on host.
@@ -387,7 +424,7 @@ GUI surfaces must support **both X11 and Wayland** as first-class backends — n
 ## Static Binary Rules
 
 - Linux: musl target for fully static binary (`x86_64-unknown-linux-musl`) where no native libs needed
-- Windows: static CRT (MSVC or MinGW)
+- Windows: static CRT via MinGW GNU targets (`x86_64-pc-windows-gnu`, `aarch64-pc-windows-gnullvm`) — `casjaysdev/rust:latest` ships no MSVC toolchain, so `*-pc-windows-msvc` is not buildable in the standard image
 - macOS: link against system frameworks — no dylib vendoring
 - `strip = true` in release profile handles symbol stripping
 
