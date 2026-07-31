@@ -72,13 +72,17 @@ If `{project_dir}/CLAUDE.md` exists and contains more than loader boilerplate (i
 Read `AI.md` and `IDEA.md` before acting on this project.
 ```
 
+### 2c. Check SPEC.md for rule overrides
+
+If `{project_dir}/SPEC.md` exists, read it. An empty SPEC.md means no overrides — proceed with AI.md as-is. A non-empty SPEC.md means it contains project-specific rule overrides: **SPEC.md wins over AI.md wherever the two conflict.** Apply every SPEC.md override when interpreting and executing AI.md's PARTs in Phase 3 — do not execute an AI.md directive that a non-empty SPEC.md explicitly contradicts.
+
 ---
 
 ## Phase 3 — Read and execute PART 0 through PART 6
 
 Read `{project_dir}/AI.md` in full from the beginning through the end of PART 6. Do not stop at the first PART boundary — read all six parts completely before acting, so you understand the full scope before creating anything.
 
-**`{project_dir}/AI.md` is the source of truth.** If it conflicts with any global rule, it wins for this project.
+**`{project_dir}/AI.md` is the source of truth.** If it conflicts with any global rule, it wins for this project. **A non-empty `{project_dir}/SPEC.md` wins over AI.md** — resolve any conflict in SPEC.md's favor (per 2c above).
 
 After reading, execute each PART's directives in order. If any PART listed below is missing from `{project_dir}/AI.md`, skip it and continue with the next PART — do not stop.
 

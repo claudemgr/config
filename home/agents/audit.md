@@ -21,10 +21,11 @@ Normal development, file reading, and understanding the project are NOT audit tr
 
 1. Identify the project root (directory containing `{project_dir}/AI.md` and `{project_dir}/IDEA.md`, or the directory the user specified).
 2. Read `{project_dir}/AI.md` if present (source of truth — never modify).
-3. Read `{project_dir}/IDEA.md` if present (project description, variables, business logic).
-4. Read `{project_dir}/CLAUDE.md` if present.
-5. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. shell scripts in `bin/`, `scripts/`, `sbin/`, `usr/bin/`, `usr/local/bin/`, `libexec/`, `hooks/`, `.github/`, `tools/`, `hack/`, or any `.sh`/`.bash`/`.zsh`/`.fish` file at the repo root → apply script lint checks. Multiple ecosystems → apply all relevant checks.
-6. Scan the directory tree to understand the project layout before diving into individual files.
+3. Read `{project_dir}/SPEC.md` if present. An empty SPEC.md means no overrides. A non-empty SPEC.md contains project-specific rule overrides — **SPEC.md wins over AI.md wherever the two conflict.** Apply every SPEC.md override throughout every pass below, including the AI.md requirement walk in Pass 5 — never flag code as non-compliant with an AI.md line that a non-empty SPEC.md explicitly overrides.
+4. Read `{project_dir}/IDEA.md` if present (project description, variables, business logic).
+5. Read `{project_dir}/CLAUDE.md` if present.
+6. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. shell scripts in `bin/`, `scripts/`, `sbin/`, `usr/bin/`, `usr/local/bin/`, `libexec/`, `hooks/`, `.github/`, `tools/`, `hack/`, or any `.sh`/`.bash`/`.zsh`/`.fish` file at the repo root → apply script lint checks. Multiple ecosystems → apply all relevant checks.
+7. Scan the directory tree to understand the project layout before diving into individual files.
 
 ---
 
