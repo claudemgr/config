@@ -72,7 +72,7 @@ GO_DOCKER := docker run --rm \
 | `build` | All 8 platforms + host binary; outputs to `binaries/` |
 | `release` | Prepares release archives in `releases/` |
 | `docker` | Builds multi-arch image locally via `docker buildx --platform linux/amd64,linux/arm64` (no push) |
-| `test` | Runs `go vet ./...` then `go test -v -cover ./...` inside Docker |
+| `test` | Runs `go vet ./...`, `govulncheck ./...`, then `go test -v -cover ./...` inside Docker |
 | `dev` | Quick host-platform-only build into `mktemp` temp dir |
 | `clean` | Removes `binaries/` and `releases/` |
 
@@ -92,6 +92,33 @@ GO_DOCKER := docker run --rm \
 | `freebsd` | `arm64` | `{name}-freebsd-arm64` |
 
 Schema: **`{project_name}-{GOOS}-{GOARCH}`** — windows appends `.exe`. macOS is always `darwin`, never `macos`. The host-platform binary (no suffix) is also built: `{project_name}` (or `{project_name}.exe` on Windows host).
+
+## Toolchain Image Capabilities — `casjaysdev/go:latest`
+
+Source: `~/Projects/github/dockersrc/go`. Image defaults (Docker `ENV`, already set — never re-declare in templates except as a safety net): `CGO_ENABLED=0`, `GOFLAGS=-buildvcs=false`, `GOTOOLCHAIN=auto`, `GOTELEMETRY=off`, `GOPROXY=https://proxy.golang.org,direct`.
+
+Pre-installed tools:
+
+- Latest stable Go toolchain (`go`, `gofmt`)
+- `golangci-lint`, `staticcheck`, `gofumpt`, `goimports` — linting and formatting
+- `govulncheck` — vulnerability scanner
+- `go-licenses` — dependency license reporter
+- `cyclonedx-gomod` — CycloneDX SBOM generator
+- `goreleaser` — release automation
+- `gotestsum` — structured test runner
+- `gopls` — official Go language server
+- `dlv` (Delve) — source-level debugger
+- `ko` — build container images from Go source without a Dockerfile
+- `air` — live-reload dev server
+- `buf`, `protoc` — protobuf toolchain; `protoc-gen-go`, `protoc-gen-go-grpc`
+- `goose` — DB migration runner
+- `wire` — compile-time dependency injection
+- `mockgen` (uber/mock) — interface mock generator
+- `stringer` — `String()` method generator for iota types
+- `benchstat` — statistically sound benchmark comparison
+- `gops` — live Go process diagnostics
+
+**Default entrypoint behavior** (only relevant to a bare `docker run casjaysdev/go:latest` with no command — templates never rely on this, they always invoke explicit `go`/tool commands via `GO_DOCKER`): with no arguments the container runs `go mod tidy → gofmt -w . → go vet ./... → govulncheck ./... → go test ./... → go build ./...` against `/app`. `GO_MODE=prod` (or `production`) strips release binaries (`-trimpath -ldflags=-s -w`) in that default workflow; templates apply the same stripping explicitly via `LDFLAGS` (see "Build Info Variables" below) so `GO_MODE` is not needed for Makefile-driven builds.
 
 ## Docker Build Pattern
 
@@ -138,6 +165,7 @@ build:
 test:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	$(GO_DOCKER) go vet ./...
+	$(GO_DOCKER) govulncheck ./...
 	$(GO_DOCKER) go test -v -cover ./...
 
 dev:
