@@ -362,10 +362,12 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
 
 - **Functions**: ALL functions prefixed with `__` regardless of shell — `__my_function() {}` (bash/sh/zsh), `function __my_function` (fish). No exceptions.
 - **Variables**:
-  - Global vars: `{SCRIPTNAME}_{VAR}` in uppercase (e.g. `MYSCRIPT_VAR`) — `{SCRIPTNAME}` is the script filename without extension, uppercased. Never use generic prefixes like `APP_`, `MY_`, `SCRIPT_` — always the actual script/project name.
+  - **Prefixing exists to prevent namespace collisions, not as a style mandate.** Whether a global needs the `{SCRIPTNAME}_{VAR}` prefix (uppercase, e.g. `MYSCRIPT_VAR`; `{SCRIPTNAME}` is the script filename without extension, uppercased) depends on whether it can actually leak into a shell namespace it doesn't own:
+    - **Sourced library files** (no shebang, or only ever `source`d / `.`-included) — every global lands directly in the caller's shell. Prefix all globals; never use generic prefixes like `APP_`, `MY_`, `SCRIPT_` — always the actual script/project name.
+    - **Executed scripts** (has a shebang, runs as its own process) — prefix vars that cross a process boundary: `export`ed vars, and vars read as a caller-settable override via `${VAR:-default}` (these come from the invoking shell's environment even without being re-exported, so a generic name can still collide with the caller's namespace). Purely internal globals — assigned and consumed only within the script's own execution, never read from the incoming environment and never exported — don't need the prefix.
   - Function-scoped vars: declare with `local` in bash/zsh; `set -l` in fish; plain assignment in sh (no `local` in POSIX sh unless targeting bash/zsh)
   - Always use `_` (underscore) — never `-` (hyphen) in variable or function names
-  - Exceptions to prefix rule: well-known globals (`VERSION`, `APPNAME`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR`, `HOME`, `PATH`, `USER`, `PWD`), loop variables, single-letter scratch vars
+  - Exceptions to prefix rule (both cases above): well-known globals (`VERSION`, `APPNAME`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR`, `HOME`, `PATH`, `USER`, `PWD`), loop variables, single-letter scratch vars
   - **System environment variables — read freely, overwrite by category** — reading is always fine; use system vars as fallbacks anywhere (`RUN_USER="${SUDO_USER:-$USER}"`, `MYSCRIPT_FQDN="${MYSCRIPT_FQDN:-$HOSTNAME}"`). Use `{SCRIPTNAME}_{VAR}` for project-specific values. Overwriting rules:
     - **Shell mechanics — never overwrite:** `PS1`–`PS4`, `OPTIND`, `OPTARG`, `SHLVL`, all `BASH_*`/`ZSH_*`/`FISH_*` vars. Exception: `IFS` may be temporarily changed — save and restore, or scope to a subshell: `old_IFS="$IFS"; IFS=:; …; IFS="$old_IFS"` or `( IFS=:; … )`.
     - **Process identity — never overwrite:** `HOME`, `USER`, `LOGNAME`, `SHELL`, `UID`, `EUID`, `GID`, `PATH`, `PWD`, `OLDPWD`. **Container exception:** inside a Dockerfile `ENV` instruction, docker-compose `environment:` block, or a container `entrypoint.sh`, ALL of these are freely settable — the container is an isolated environment being initialized from scratch, not a host process. See `dockerfile_conventions.md`.
@@ -397,7 +399,7 @@ sysctl -p /etc/sysctl.d/99-projectname.conf 2>/dev/null || true
 
 ## Setup and Install Script Env Prefix
 
-Setup, install, and uninstall scripts must prefix all environment variables with `{PROJECT_NAME}_` (uppercased). Never use generic prefixes like `INSTALL_`, `SETUP_`, or `UNINSTALL_` — they collide across projects and give no namespace.
+Setup, install, and uninstall scripts must prefix every environment variable that is exported or read as a caller-settable override with `{PROJECT_NAME}_` (uppercased) — this is the case where the variable is meant to interface with the outside. Never use generic prefixes like `INSTALL_`, `SETUP_`, or `UNINSTALL_` — they collide across projects and give no namespace. Purely internal vars used only within the install script's own process follow the standard executed-script exemption above.
 
 ```bash
 # Correct — namespaced to the project

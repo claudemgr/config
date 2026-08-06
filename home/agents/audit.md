@@ -113,7 +113,7 @@ Normal development, file reading, and understanding the project are NOT audit tr
 - `echo "$var" | grep -q` → `[[ "$var" == *pattern* ]]`
 - `echo "$ver" | cut -d. -f1` → `${ver%%.*}`
 - Inline comments on code lines (comments must be above the code they describe)
-- Functions missing `__` prefix; variables missing `SCRIPTNAME_` prefix
+- Functions missing `__` prefix; exported or env-overridable globals missing `SCRIPTNAME_` prefix (see `script_conventions.md` — purely internal, non-exported, non-overridable globals are exempt)
 - Version stamp mismatch between `@@Version` header and `VERSION=` assignment
 
 ---
