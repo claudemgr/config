@@ -40,7 +40,7 @@ DEST_KEY="/etc/{project_name}/tls/privkey.pem"
 \systemctl reload nginx
 
 # Docker Compose service (run from compose file directory)
-\docker compose -f /opt/{project_name}/docker-compose.yaml restart
+\docker compose -f /opt/{project_name}/docker-compose.yml restart
 
 # Single Docker container
 \docker restart {project_name}-app

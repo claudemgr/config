@@ -544,6 +544,8 @@ Rules:
 Testing the built binary/server. `DEBUG` on, `MODE: dev`, `172.17.0.1:` bind, valkey included.
 
 ```yaml
+# nginx proxy address - http://172.17.0.1:{port}
+
 name: {name}-test
 
 x-logging: &default-logging

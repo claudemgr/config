@@ -246,11 +246,15 @@ Docker is **REQUIRED**. The language toolchain MUST NOT run on the host.
 
 ```text
 docker/
-├── Dockerfile          # builds the dev/build/test image using official alpine language image
-├── compose.yaml        # services: dev (build/test/run), runtime (optional)
-├── entrypoint.sh       # sets non-root UID/GID, prepares cache dirs
-└── README.md           # how to build, run tests, run the app
+├── Dockerfile              # builds the dev/build/test image using official alpine language image
+├── docker-compose.yml      # production/human runtime
+├── docker-compose.dev.yml  # human development only (debug/devel)
+├── docker-compose.test.yml # automated testing
+├── entrypoint.sh           # sets non-root UID/GID, prepares cache dirs
+└── README.md               # how to build, run tests, run the app
 ```
+
+See `~/.claude/memory/dockerfile_conventions.md` for the required layout, fields, and rules for all three compose files.
 
 ### Mandatory Image Properties
 
@@ -473,7 +477,7 @@ Must contain:
 - [ ] `.gitignore` created
 - [ ] `release.txt` created (`0.1.0`)
 - [ ] `docker/Dockerfile` created and builds successfully
-- [ ] `docker/compose.yaml` created
+- [ ] `docker/docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml` created
 - [ ] `docker/entrypoint.sh` created
 - [ ] `Makefile` created with required targets
 - [ ] CI workflow created

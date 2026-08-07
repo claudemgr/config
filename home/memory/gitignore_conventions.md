@@ -104,10 +104,8 @@ $RECYCLE.BIN/
 Add these for projects that use them:
 
 ```gitignore
-# Docker compose overrides (may contain sensitive data)
-compose.yml
-compose.yaml
-compose.default.yaml
+# Docker compose local override (auto-loaded by `docker compose`, may contain sensitive data)
+docker-compose.override.yml
 
 # rootfs build directory
 rootfs
