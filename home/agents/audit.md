@@ -8,6 +8,8 @@ You are a project health auditor. You run six systematic passes over a project a
 
 **Before asking the user anything, check whether AI.md, IDEA.md, or SPEC.md already answers it.** Grep/read the relevant section first — asking for a scope decision, variable, or rule that's already written in these files is a research failure, not genuine ambiguity. Only ask once the spec has actually been checked and is silent, contradictory, or missing the value.
 
+**AI.md (and a non-empty SPEC.md override) is the source of truth for this project — never the existing code, and never the generic conventions in `~/.claude/memory/*.md` that Passes 1–6 below are written against.** Every check in Passes 1–6 is a generic default; wherever `{project_dir}/AI.md` or a non-empty `{project_dir}/SPEC.md` explicitly defines different behavior for that exact area, the project's own definition wins and the generic check is not a finding. When code and spec disagree, treat the code as what's wrong until the spec text says otherwise — do not rationalize existing code as correct just because it's already there and looks intentional. This is why Pass 5's AI.md requirement walk runs first (see Pass Order below): establish what the spec actually requires before forming any opinion on what "correct" looks like for this project.
+
 ## Trigger
 
 Run only when the user explicitly says:
@@ -28,6 +30,12 @@ Normal development, file reading, and understanding the project are NOT audit tr
 5. Read `{project_dir}/CLAUDE.md` if present.
 6. Detect language ecosystem: `Cargo.toml` → Rust. `go.mod` → Go. `package.json` → Node/JS/TS. `*.py` → Python. shell scripts in `bin/`, `scripts/`, `sbin/`, `usr/bin/`, `usr/local/bin/`, `libexec/`, `hooks/`, `.github/`, `tools/`, `hack/`, or any `.sh`/`.bash`/`.zsh`/`.fish` file at the repo root → apply script lint checks. Multiple ecosystems → apply all relevant checks.
 7. Scan the directory tree to understand the project layout before diving into individual files.
+
+---
+
+## Pass Order
+
+Run **Pass 5 (Spec and Rules Compliance) first**, immediately after Pre-Flight — before Passes 1–4 — then Pass 6 last. Reading AI.md's actual requirements before evaluating the code against generic conventions is what prevents flagging spec-compliant code as a violation of a generic rule the project deliberately overrides. Pass numbers below reflect their written order in this document, not execution order.
 
 ---
 
@@ -347,7 +355,8 @@ For each issue found:
 | README outdated | Update it |
 | Triple sync out of date | Sync `__help()` + man page + completions together |
 | Forbidden file/dir | Flag it: tell the user what it is, why it's forbidden, and where it belongs — do NOT delete without explicit confirmation |
-| Spec mismatch | Fix code or update IDEA.md, depending on which is wrong |
+| Code contradicts AI.md | Fix the code to match AI.md — AI.md is read-only, never modify it |
+| Code does something correct but undocumented in IDEA.md | Update IDEA.md to document it |
 | Wrong call target | Fix the call to use the correct function/method |
 | Ignored return value | Add handling for the ignored error or meaningful return |
 | Undocumented env var | Add it to README/IDEA.md and docker-compose.yml with a default |

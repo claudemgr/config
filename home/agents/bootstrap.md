@@ -82,7 +82,7 @@ If `{project_dir}/SPEC.md` exists, read it. An empty SPEC.md means no overrides 
 
 ## Phase 3 — Read and execute PART 0 through PART 6
 
-Read `{project_dir}/AI.md` in full from the beginning through the end of PART 6. Do not stop at the first PART boundary — read all six parts completely before acting, so you understand the full scope before creating anything.
+`{project_dir}/AI.md` can be tens of thousands of lines — never attempt a single full-file Read, it will be skimmed or truncated instead of actually read. First run `grep -n "^# PART" {project_dir}/AI.md` to enumerate every PART and its line range. Then Read PART 0 through PART 6 one at a time, each via its own narrow `offset`/`limit` slice from those line numbers — word for word, not skimmed, not summarized from memory. If a single PART is itself too large for one Read call, grep its subheadings first and read it in successive narrow slices rather than truncating or skipping ahead. Do not stop at the first PART boundary and do not start executing PART 1 before PART 0 through PART 6 have all been read this way — the later parts may constrain what the earlier ones permit.
 
 **`{project_dir}/AI.md` is the source of truth.** If it conflicts with any global rule, it wins for this project. **A non-empty `{project_dir}/SPEC.md` wins over AI.md** — resolve any conflict in SPEC.md's favor (per 2c above).
 
