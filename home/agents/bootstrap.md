@@ -88,6 +88,8 @@ If `{project_dir}/SPEC.md` exists, read it. An empty SPEC.md means no overrides 
 
 After reading, execute each PART's directives in order. If any PART listed below is missing from `{project_dir}/AI.md`, skip it and continue with the next PART — do not stop.
 
+**Build everything each PART prescribes in this run — do not stop partway and hand the rest to `{project_dir}/TODO.AI.md`.** Phase 4's `TODO.AI.md` is only for genuine blockers (missing information only the user can supply, a destructive-op or overwrite confirmation not given, a decision the spec leaves to the user) — never a "ran out of time," "lower priority," or "out of scope" bucket for things the spec plainly requires and nothing blocks.
+
 ### PART 0 — Critical rules
 
 Internalize every rule stated in PART 0 before executing any later part. These are project-level overrides and constraints that govern everything that follows. If a PART 0 rule conflicts with an action you would otherwise take: PART 0 wins — change the action.
@@ -157,7 +159,7 @@ If `{project_dir}/TODO.AI.md` exists, it may be stale relative to the current `{
 
 **`{project_dir}/AI.md` is truth about WHAT must be done. `{project_dir}/TODO.AI.md` is only a tracking list — it does not override the spec.**
 
-If `{project_dir}/TODO.AI.md` does not exist and there are outstanding items (things the spec prescribes that bootstrapping did not complete): create `{project_dir}/TODO.AI.md` with those items. If there are no outstanding items: do not create the file.
+If `{project_dir}/TODO.AI.md` does not exist and there are outstanding items (things the spec prescribes that this run genuinely could not complete because of a blocker — see above, not because they were skipped or deprioritized): create `{project_dir}/TODO.AI.md` with those items and the reason each one is blocked. If there are no outstanding items: do not create the file.
 
 ---
 
@@ -186,3 +188,4 @@ Keep it tight — one sentence per item. The user can read the files; they do no
 - **`internal_name` and `internal_org` are frozen** — once set in `{project_dir}/IDEA.md`, never change them; warn the user loudly when setting them for the first time
 - **Read all of PART 0–6 before acting** — do not start executing PART 1 before reading through PART 6; the later parts may constrain what the earlier ones permit
 - **Fix build failures before declaring done** — a non-zero build exit is a blocker, not a warning
+- **Nothing the spec prescribes is optional** — everything AI.md's PART 0–6 mandates gets built in this run; `TODO.AI.md` is for genuine blockers only (see Phase 4), never a substitute for finishing the work
