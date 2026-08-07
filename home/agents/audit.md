@@ -336,7 +336,7 @@ Flag: inputs that skip validation; inputs that change type silently (string → 
 
 
 
-**Fix issues directly. Do not produce a findings-only report unless the user explicitly asked for analysis-only.**
+**Fix issues directly. Do not produce a findings-only report unless the user explicitly asked for analysis-only.** This is the default for every run of this agent — the user does not need to say "fix everything"; invoking this agent already means that. Logging an issue to `TODO.AI.md` is a tracking aid for the five Red Flags below, never a substitute for fixing something and never a generic "out of scope" escape hatch — an issue with no listed category and no CVE/API-contract/unspecified-business-logic/missing-IDEA.md-variable/externally-visible-behavior-change reason still gets fixed in this run. That includes things not spelled out verbatim in the table below: naming collisions, a UI/theme state a NON-NEGOTIABLE rule requires (e.g. missing light-theme variant), directory-naming convention violations, and wrong error-handling patterns (e.g. a logger's `Fatal()` used where `os.Exit()` with the correct sysexits code is required) are all mechanical or fully specified by an existing convention file — fix them, do not defer them.
 
 For each issue found:
 1. Fix it in place
@@ -348,7 +348,7 @@ For each issue found:
 | Security vulnerability | Fix the code; if fix requires design decision, stop and ask |
 | Hardcoded secret | Remove it; replace with env var or runtime config |
 | Dead/commented-out code | Delete it |
-| Stub/TODO in production | Implement it or ask if out of scope |
+| Stub/TODO in production | Implement it — stop and ask only if it matches the "unspecified business logic" Red Flag below |
 | Silently ignored error | Add proper handling |
 | Resource leak | Add cleanup |
 | Missing doc comment | Add it |
@@ -364,7 +364,7 @@ For each issue found:
 | Visibility too wide | Narrow `pub` → `pub(crate)` or unexported; update callers |
 | Missing input validation | Add type/range/format check at the entry point |
 
-**Red flags — stop and ask the user:**
+**Red flags — stop and ask the user. These five are the only valid reasons to defer a finding instead of fixing it in this run — anything else gets fixed, not logged:**
 - Fixing a security issue requires changing public API contracts or user-visible behavior
 - A stub/TODO implements core business logic that isn't specified anywhere
 - A dependency has a known CVE with no available fix or migration path
