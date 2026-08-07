@@ -73,10 +73,10 @@ Support three modes, in every UI, on every surface:
 
 ### Theme implementation
 ```css
-:root[data-theme="dark"]  { --bg: #0d1117; --fg: #e6edf3; --accent: #58a6ff; }
+:root[data-theme="dark"]  { --bg: #282a36; --fg: #f8f8f2; --accent: #bd93f9; }
 :root[data-theme="light"] { --bg: #ffffff; --fg: #1f2328; --accent: #0969da; }
 
-@media (prefers-color-scheme: dark)  { :root { --bg: #0d1117; --fg: #e6edf3; --accent: #58a6ff; } }
+@media (prefers-color-scheme: dark)  { :root { --bg: #282a36; --fg: #f8f8f2; --accent: #bd93f9; } }
 @media (prefers-color-scheme: light) { :root { --bg: #ffffff; --fg: #1f2328; --accent: #0969da; } }
 ```
 - `data-theme` on `<html>` rendered server-side from a `theme` cookie — correct theme on first paint, no flash, no JS required; `auto` (no cookie) = no attribute, the CSS media query handles it

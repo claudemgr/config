@@ -45,22 +45,22 @@ All colors **must** come from this token set. Never hardcode hex values in compo
 
 | Token | Dark | Light | Purpose |
 |-------|------|-------|---------|
-| `--bg` | `#0d1117` | `#ffffff` | Page / app background |
-| `--bg-subtle` | `#161b22` | `#f6f8fa` | Sidebar, input fill, table stripe |
-| `--bg-elevated` | `#21262d` | `#ffffff` | Card, modal, dialog (use `box-shadow` for elevation on light) |
-| `--bg-overlay` | `#30363d` | `#ffffff` | Tooltip, dropdown, popover (use `box-shadow` for depth on light) |
-| `--bg-inset` | `#010409` | `#eaeef2` | Code block, terminal, inset well |
+| `--bg` | `#282a36` | `#ffffff` | Page / app background |
+| `--bg-subtle` | `#21222c` | `#f6f8fa` | Sidebar, input fill, table stripe |
+| `--bg-elevated` | `#2b2d3a` | `#ffffff` | Card, modal, dialog (use `box-shadow` for elevation on light) |
+| `--bg-overlay` | `#343746` | `#ffffff` | Tooltip, dropdown, popover (use `box-shadow` for depth on light) |
+| `--bg-inset` | `#1e1f29` | `#eaeef2` | Code block, terminal, inset well |
 
 #### Text tokens
 
 | Token | Dark | Light | Contrast on `--bg` | Use |
 |-------|------|-------|-------------------|-----|
-| `--fg` | `#e6edf3` | `#1f2328` | 16:1 / 17:1 | Primary body text, headings, labels |
-| `--fg-muted` | `#8b949e` | `#636c76` | 6.6:1 / 5.5:1 | Secondary text, descriptions, metadata |
-| `--fg-subtle` | `#6e7681` | `#818b98` | 4.6:1 / 3.5:1 | Timestamps, placeholders, de-emphasized labels *(large text / UI text only — ≥18px or ≥14px bold)* |
-| `--fg-disabled` | `#484f58` | `#adb5c0` | 2.5:1 / 2.2:1 | Disabled controls — intentionally below AA to signal non-interactivity |
-| `--fg-on-accent` | `#0d1117` | `#ffffff` | 8:1 on `--accent` (dark) / 5.7:1 on `--accent` (light) | Text and icons drawn on top of an accent-colored background |
-| `--fg-link` | `#58a6ff` | `#0969da` | 8:1 / 5.7:1 | Hyperlinks; always underlined or icon-paired |
+| `--fg` | `#f8f8f2` | `#1f2328` | 13:1 / 17:1 | Primary body text, headings, labels |
+| `--fg-muted` | `#a3a9cc` | `#636c76` | 6.2:1 / 5.5:1 | Secondary text, descriptions, metadata |
+| `--fg-subtle` | `#7b83ad` | `#818b98` | 3.9:1 / 3.5:1 | Timestamps, placeholders, de-emphasized labels *(large text / UI text only — ≥18px or ≥14px bold)* |
+| `--fg-disabled` | `#565f89` | `#adb5c0` | 2.3:1 / 2.2:1 | Disabled controls — intentionally below AA to signal non-interactivity |
+| `--fg-on-accent` | `#282a36` | `#ffffff` | 5.9:1 on `--accent` (dark) / 5.7:1 on `--accent` (light) | Text and icons drawn on top of an accent-colored background |
+| `--fg-link` | `#bd93f9` | `#0969da` | 5.9:1 / 5.7:1 | Hyperlinks; always underlined or icon-paired |
 
 > **Rule:** `--fg-subtle` and `--fg-disabled` must **never** be used for critical information, error messages, or any text that is the sole conveyor of meaning. If in doubt, step up to `--fg-muted`.
 
@@ -68,19 +68,19 @@ All colors **must** come from this token set. Never hardcode hex values in compo
 
 | Token | Dark | Light | Purpose |
 |-------|------|-------|---------|
-| `--border-subtle` | `#21262d` | `#eaeef2` | Dividers, hairlines — visual separation only |
-| `--border` | `#30363d` | `#d0d7de` | Input borders, card outlines, table borders |
-| `--border-strong` | `#8b949e` | `#636c76` | High-emphasis borders, active input, focused non-accent element |
+| `--border-subtle` | `#2b2d3a` | `#eaeef2` | Dividers, hairlines — visual separation only |
+| `--border` | `#44475a` | `#d0d7de` | Input borders, card outlines, table borders |
+| `--border-strong` | `#a3a9cc` | `#636c76` | High-emphasis borders, active input, focused non-accent element |
 
 #### Accent / interactive tokens
 
 | Token | Dark | Light | Purpose |
 |-------|------|-------|---------|
-| `--accent` | `#58a6ff` | `#0969da` | Primary interactive blue — buttons, links, focus rings |
-| `--accent-hover` | `#79b8ff` | `#0860ca` | Hover state of an accent element |
-| `--accent-pressed` | `#388bfd` | `#0550ae` | Active / pressed state |
-| `--accent-subtle` | `#1f3d63` | `#ddf4ff` | Tinted selection background, highlighted row, tag fill |
-| `--accent-fg` | `#58a6ff` | `#0969da` | Accent-colored text or icon on a surface (not on accent bg) |
+| `--accent` | `#bd93f9` | `#0969da` | Primary interactive purple — buttons, links, focus rings |
+| `--accent-hover` | `#caa9fa` | `#0860ca` | Hover state of an accent element |
+| `--accent-pressed` | `#a679f2` | `#0550ae` | Active / pressed state |
+| `--accent-subtle` | `#3d3a5c` | `#ddf4ff` | Tinted selection background, highlighted row, tag fill |
+| `--accent-fg` | `#bd93f9` | `#0969da` | Accent-colored text or icon on a surface (not on accent bg) |
 
 #### Status / semantic tokens
 
@@ -88,20 +88,20 @@ Each status group has three sub-tokens: `fg` (text/icon color), `bg` (tinted fil
 
 | Token | Dark fg | Dark bg | Dark border | Light fg | Light bg | Light border |
 |-------|---------|---------|-------------|----------|----------|--------------|
-| `--color-success-fg` | `#3fb950` | — | — | `#1a7f37` | — | — |
-| `--color-success-bg` | — | `#0f2d1b` | — | — | `#dafbe1` | — |
-| `--color-success-border` | — | — | `#238636` | — | — | `#82cfb0` |
-| `--color-warning-fg` | `#e3b341` | — | — | `#9a6700` | — | — |
-| `--color-warning-bg` | — | `#2d2000` | — | — | `#fff8c5` | — |
-| `--color-warning-border` | — | — | `#9e6a03` | — | — | `#d4a72c` |
-| `--color-error-fg` | `#f85149` | — | — | `#d1242f` | — | — |
-| `--color-error-bg` | — | `#2d1212` | — | — | `#ffebe9` | — |
-| `--color-error-border` | — | — | `#da3633` | — | — | `#cf222e` |
-| `--color-info-fg` | `#58a6ff` | — | — | `#0969da` | — | — |
-| `--color-info-bg` | — | `#1f3d63` | — | — | `#ddf4ff` | — |
-| `--color-info-border` | — | — | `#1f6feb` | — | — | `#54aeff` |
+| `--color-success-fg` | `#50fa7b` | — | — | `#1a7f37` | — | — |
+| `--color-success-bg` | — | `#16281d` | — | — | `#dafbe1` | — |
+| `--color-success-border` | — | — | `#2fa855` | — | — | `#82cfb0` |
+| `--color-warning-fg` | `#ffb86c` | — | — | `#9a6700` | — | — |
+| `--color-warning-bg` | — | `#2e2113` | — | — | `#fff8c5` | — |
+| `--color-warning-border` | — | — | `#d68f3e` | — | — | `#d4a72c` |
+| `--color-error-fg` | `#ff5555` | — | — | `#d1242f` | — | — |
+| `--color-error-bg` | — | `#2e1616` | — | — | `#ffebe9` | — |
+| `--color-error-border` | — | — | `#d63f3f` | — | — | `#cf222e` |
+| `--color-info-fg` | `#8be9fd` | — | — | `#0969da` | — | — |
+| `--color-info-bg` | — | `#16282a` | — | — | `#ddf4ff` | — |
+| `--color-info-border` | — | — | `#4fc4dc` | — | — | `#54aeff` |
 
-Status fg contrast on `--bg`: success 4.8:1 / warning 7:1 / error 5.4:1 / info 8:1 — all WCAG AA ✓
+Status fg contrast on `--bg`: success 10.4:1 / warning 8.4:1 / error 4.5:1 / info 10.3:1 — all WCAG AA ✓
 
 > **Icons:** use the same fg token as adjacent text — `--fg` for primary icons, `--fg-muted` for decorative or secondary icons, `--accent-fg` for interactive icons, status fg tokens for status icons. No independent icon color tokens.
 
@@ -111,74 +111,74 @@ Only use these foreground / background pairings. Any combination not in this tab
 
 | Foreground | Background | Ratio | Passes |
 |------------|------------|-------|--------|
-| `--fg` | `--bg` | 16:1 / 17:1 | AA + AAA ✓ |
-| `--fg` | `--bg-subtle` | 14:1 / 15:1 | AA + AAA ✓ |
-| `--fg` | `--bg-elevated` | 12:1 / 17:1 | AA + AAA ✓ |
-| `--fg` | `--bg-overlay` | 10:1 / 17:1 | AA + AAA ✓ |
-| `--fg` | `--accent-subtle` | 9:1 / 14:1 | AA + AAA ✓ |
-| `--fg-muted` | `--bg` | 6.6:1 / 5.5:1 | AA ✓ |
-| `--fg-muted` | `--bg-subtle` | 5.8:1 / 5.0:1 | AA ✓ |
-| `--fg-muted` | `--bg-elevated` | 4.9:1 / 5.5:1 | AA ✓ |
-| `--fg-subtle` | `--bg` | 4.6:1 / 3.5:1 | AA (large/UI) ✓ |
-| `--fg-on-accent` | `--accent` | 8:1 / 5.7:1 | AA ✓ |
-| `--fg-link` | `--bg` | 8:1 / 5.7:1 | AA ✓ |
-| `--color-success-fg` | `--bg` | 4.8:1 / 5.4:1 | AA ✓ |
-| `--color-warning-fg` | `--bg` | 7.0:1 / 5.6:1 | AA ✓ |
-| `--color-error-fg` | `--bg` | 5.4:1 / 5.2:1 | AA ✓ |
-| `--color-info-fg` | `--bg` | 8:1 / 5.7:1 | AA ✓ |
-| `--color-success-fg` | `--color-success-bg` | 9:1 / 7:1 | AA ✓ |
-| `--color-warning-fg` | `--color-warning-bg` | 11:1 / 8:1 | AA ✓ |
-| `--color-error-fg` | `--color-error-bg` | 8:1 / 6:1 | AA ✓ |
-| `--color-info-fg` | `--color-info-bg` | 9:1 / 7:1 | AA ✓ |
+| `--fg` | `--bg` | 13:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--bg-subtle` | 15:1 / 15:1 | AA + AAA ✓ |
+| `--fg` | `--bg-elevated` | 13:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--bg-overlay` | 11:1 / 17:1 | AA + AAA ✓ |
+| `--fg` | `--accent-subtle` | 10:1 / 14:1 | AA + AAA ✓ |
+| `--fg-muted` | `--bg` | 6.2:1 / 5.5:1 | AA ✓ |
+| `--fg-muted` | `--bg-subtle` | 6.9:1 / 5.0:1 | AA ✓ |
+| `--fg-muted` | `--bg-elevated` | 5.9:1 / 5.5:1 | AA ✓ |
+| `--fg-subtle` | `--bg` | 3.9:1 / 3.5:1 | AA (large/UI) ✓ |
+| `--fg-on-accent` | `--accent` | 5.9:1 / 5.7:1 | AA ✓ |
+| `--fg-link` | `--bg` | 5.9:1 / 5.7:1 | AA ✓ |
+| `--color-success-fg` | `--bg` | 10.4:1 / 5.4:1 | AA ✓ |
+| `--color-warning-fg` | `--bg` | 8.4:1 / 5.6:1 | AA ✓ |
+| `--color-error-fg` | `--bg` | 4.5:1 / 5.2:1 | AA ✓ |
+| `--color-info-fg` | `--bg` | 10.3:1 / 5.7:1 | AA ✓ |
+| `--color-success-fg` | `--color-success-bg` | 11.3:1 / 7:1 | AA ✓ |
+| `--color-warning-fg` | `--color-warning-bg` | 9.2:1 / 8:1 | AA ✓ |
+| `--color-error-fg` | `--color-error-bg` | 5.4:1 / 6:1 | AA ✓ |
+| `--color-info-fg` | `--color-info-bg` | 11.1:1 / 7:1 | AA ✓ |
 
 ### Full CSS variable block (web)
 
 ```css
 /* ── Dark theme ─────────────────────────────────────────────────── */
 :root[data-theme="dark"] {
-  /* Surface */
-  --bg:           #0d1117;
-  --bg-subtle:    #161b22;
-  --bg-elevated:  #21262d;
-  --bg-overlay:   #30363d;
-  --bg-inset:     #010409;
+  /* Surface — based on Dracula */
+  --bg:           #282a36;
+  --bg-subtle:    #21222c;
+  --bg-elevated:  #2b2d3a;
+  --bg-overlay:   #343746;
+  --bg-inset:     #1e1f29;
 
   /* Text */
-  --fg:           #e6edf3;
-  --fg-muted:     #8b949e;
-  --fg-subtle:    #6e7681;
-  --fg-disabled:  #484f58;
-  --fg-on-accent: #0d1117;
-  --fg-link:      #58a6ff;
+  --fg:           #f8f8f2;
+  --fg-muted:     #a3a9cc;
+  --fg-subtle:    #7b83ad;
+  --fg-disabled:  #565f89;
+  --fg-on-accent: #282a36;
+  --fg-link:      #bd93f9;
 
   /* Border */
-  --border-subtle: #21262d;
-  --border:        #30363d;
-  --border-strong: #8b949e;
+  --border-subtle: #2b2d3a;
+  --border:        #44475a;
+  --border-strong: #a3a9cc;
 
   /* Accent */
-  --accent:        #58a6ff;
-  --accent-hover:  #79b8ff;
-  --accent-pressed:#388bfd;
-  --accent-subtle: #1f3d63;
-  --accent-fg:     #58a6ff;
+  --accent:        #bd93f9;
+  --accent-hover:  #caa9fa;
+  --accent-pressed:#a679f2;
+  --accent-subtle: #3d3a5c;
+  --accent-fg:     #bd93f9;
 
   /* Status */
-  --color-success-fg:     #3fb950;
-  --color-success-bg:     #0f2d1b;
-  --color-success-border: #238636;
+  --color-success-fg:     #50fa7b;
+  --color-success-bg:     #16281d;
+  --color-success-border: #2fa855;
 
-  --color-warning-fg:     #e3b341;
-  --color-warning-bg:     #2d2000;
-  --color-warning-border: #9e6a03;
+  --color-warning-fg:     #ffb86c;
+  --color-warning-bg:     #2e2113;
+  --color-warning-border: #d68f3e;
 
-  --color-error-fg:       #f85149;
-  --color-error-bg:       #2d1212;
-  --color-error-border:   #da3633;
+  --color-error-fg:       #ff5555;
+  --color-error-bg:       #2e1616;
+  --color-error-border:   #d63f3f;
 
-  --color-info-fg:        #58a6ff;
-  --color-info-bg:        #1f3d63;
-  --color-info-border:    #1f6feb;
+  --color-info-fg:        #8be9fd;
+  --color-info-bg:        #16282a;
+  --color-info-border:    #4fc4dc;
 }
 
 /* ── Light theme ────────────────────────────────────────────────── */
@@ -231,17 +231,17 @@ Only use these foreground / background pairings. Any combination not in this tab
 /* ── Auto (no JS / no data-theme attribute) ─────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --bg-subtle: #161b22; --bg-elevated: #21262d;
-    --bg-overlay: #30363d; --bg-inset: #010409;
-    --fg: #e6edf3; --fg-muted: #8b949e; --fg-subtle: #6e7681;
-    --fg-disabled: #484f58; --fg-on-accent: #0d1117; --fg-link: #58a6ff;
-    --border-subtle: #21262d; --border: #30363d; --border-strong: #8b949e;
-    --accent: #58a6ff; --accent-hover: #79b8ff; --accent-pressed: #388bfd;
-    --accent-subtle: #1f3d63; --accent-fg: #58a6ff;
-    --color-success-fg: #3fb950; --color-success-bg: #0f2d1b; --color-success-border: #238636;
-    --color-warning-fg: #e3b341; --color-warning-bg: #2d2000; --color-warning-border: #9e6a03;
-    --color-error-fg:   #f85149; --color-error-bg:   #2d1212; --color-error-border:   #da3633;
-    --color-info-fg:    #58a6ff; --color-info-bg:    #1f3d63; --color-info-border:    #1f6feb;
+    --bg: #282a36; --bg-subtle: #21222c; --bg-elevated: #2b2d3a;
+    --bg-overlay: #343746; --bg-inset: #1e1f29;
+    --fg: #f8f8f2; --fg-muted: #a3a9cc; --fg-subtle: #7b83ad;
+    --fg-disabled: #565f89; --fg-on-accent: #282a36; --fg-link: #bd93f9;
+    --border-subtle: #2b2d3a; --border: #44475a; --border-strong: #a3a9cc;
+    --accent: #bd93f9; --accent-hover: #caa9fa; --accent-pressed: #a679f2;
+    --accent-subtle: #3d3a5c; --accent-fg: #bd93f9;
+    --color-success-fg: #50fa7b; --color-success-bg: #16281d; --color-success-border: #2fa855;
+    --color-warning-fg: #ffb86c; --color-warning-bg: #2e2113; --color-warning-border: #d68f3e;
+    --color-error-fg:   #ff5555; --color-error-bg:   #2e1616; --color-error-border:   #d63f3f;
+    --color-info-fg:    #8be9fd; --color-info-bg:    #16282a; --color-info-border:    #4fc4dc;
   }
 }
 @media (prefers-color-scheme: light) {
@@ -296,7 +296,7 @@ When true-color is unavailable (16-color or 8-color terminal), map tokens to the
 | `--fg-subtle` | `BrightBlack` (gray) | `BrightBlack` |
 | `--fg-disabled` | `BrightBlack` | `BrightBlack` |
 | `--fg-on-accent` | `Black` | `White` |
-| `--accent` / `--accent-fg` | `BrightBlue` | `Blue` |
+| `--accent` / `--accent-fg` | `BrightMagenta` | `Blue` |
 | `--color-success-fg` | `BrightGreen` | `Green` |
 | `--color-warning-fg` | `BrightYellow` | `Yellow` |
 | `--color-error-fg` | `BrightRed` | `Red` |
