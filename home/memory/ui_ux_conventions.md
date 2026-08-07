@@ -136,7 +136,7 @@ Only use these foreground / background pairings. Any combination not in this tab
 ```css
 /* ── Dark theme ─────────────────────────────────────────────────── */
 :root[data-theme="dark"] {
-  /* Surface — based on Dracula */
+  /* Surface */
   --bg:           #282a36;
   --bg-subtle:    #21222c;
   --bg-elevated:  #2b2d3a;
