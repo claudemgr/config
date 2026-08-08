@@ -275,8 +275,9 @@ Controls Claude Code permissions and hook wiring. Structure:
 | Full server (server-rendered HTML + optional REST) | `SERVER.md` |
 | API-only (REST/JSON, no frontend) | `API.md` |
 | Desktop/GUI/TUI/CLI app, no server component | `APPLICATION.md` (singular — not `APPLICATIONS.md`) |
+| Hybrid — application surfaces (GUI/TUI/CLI) plus an embedded API server in one binary | `HYBRID.md` |
 
-Not every repo ships every category — `android` is app-only (`APPLICATION.md` only, no `API.md`/`SERVER.md`), since there's no server-side Android target.
+Not every repo ships every category — `android` is app-only (`APPLICATION.md` only, no `API.md`/`SERVER.md`/`HYBRID.md`), since there's no server-side Android target.
 
 ```
 ~/Projects/github/claudemgr/
@@ -284,16 +285,18 @@ Not every repo ships every category — `android` is app-only (`APPLICATION.md` 
 ├── go/                           # github.com/claudemgr/go — language
 │   ├── API.md                    # REST/JSON API server template
 │   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template
+│   ├── HYBRID.md                 # application + embedded API server template
 │   └── SERVER.md                 # full-stack web server template
 ├── rust/                         # github.com/claudemgr/rust — language
 │   ├── API.md
 │   ├── APPLICATION.md
+│   ├── HYBRID.md
 │   └── SERVER.md
 └── android/                      # github.com/claudemgr/android — device/platform, app-only
     └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
 ```
 
-More `{lang|type}` repos will be added over time (languages and device/platform targets alike) using this same three-filename convention — do not invent new filenames per repo.
+More `{lang|type}` repos will be added over time (languages and device/platform targets alike) using this same filename convention — do not invent new filenames per repo.
 
 **If a template dir doesn't exist locally**, clone it before reading/editing — never treat a missing dir as "no templates to update":
 
