@@ -308,19 +308,21 @@ Rules:
 - **Same image structure as release** — not a toolchain image; the compiled binary is baked in, not mounted at runtime
 - **Binary runs in debug mode** — pass debug flags via `ENV` or `CMD`; do not change the image structure
 - **`MODE=devel`** — set via `ENV` in `Dockerfile.dev` (not the release `Dockerfile`). The application must accept `dev`, `devel`, and `development` as synonymous valid values for `MODE`
-- **Pushed to the registry** as `{project_org}/{project_name}:devel` (and `:devel-aio` for the all-in-one variant, where an aio devel image exists) — built by CI **on every push** to any branch (excluding version tags) **and** on a **daily schedule**, via a dedicated `.github/workflows/docker-devel.yml` (and equivalent on other providers) — never folded into the release `docker.yml`. The daily schedule keeps the `:devel` image fresh even during periods with no pushes; the push trigger keeps it current with the latest commit
+- **Pushed to the registry** as `{project_org}/{project_name}:devel` — built by a `build-devel` **job inside the same `docker.yml`** workflow that builds the standard image (never a separate `docker-devel.yml` file). `docker.yml`'s `on:` block gains a `schedule: - cron: '0 4 * * *'` trigger alongside its existing push/tag/`workflow_dispatch` triggers; `build-devel` runs on that schedule plus every non-tag push, while `build-standard` runs on every push except the schedule event. One file, shared triggers/env/concurrency group, no duplicated workflow boilerplate. Where an all-in-one image exists (`docker/Dockerfile.aio`), it is *also* a single-file, multi-job workflow (`docker-aio.yml`) — the AIO image is the only image type that gets its own dedicated workflow file, because it is a materially different image (different base, different service composition), not just a different build mode. There is no `Dockerfile.dev.aio` by default, so `docker-aio.yml` normally has no devel job/tag unless a project explicitly adds that variant
 - **No source mount, no hot-reload** — source is compiled into the image at build time; for live-reload development use the compose dev service with the `:devel` image
 - Starts with `tini → entrypoint.sh → {binary} --debug` (or equivalent debug flag for the project)
 
-### Daily devel build workflow (GitHub Actions pattern)
+### Devel build folded into docker.yml (GitHub Actions pattern)
 
 ```yaml
-name: Build Devel Image
+name: Docker Build
 on:
   push:
-    branches-ignore: []
+    branches: ['**']
+    tags:
+      - 'v*'
+      - '*.*.*'
   schedule:
-    # Every day at 04:00 UTC
     - cron: '0 4 * * *'
   workflow_dispatch:
 
@@ -329,9 +331,31 @@ permissions:
   packages: write
 
 jobs:
-  build:
+  build-standard:
     runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
+          # + latest/version/YYMM on tag push, + beta on beta branch push
+
+  build-devel:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
