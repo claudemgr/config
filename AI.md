@@ -159,6 +159,7 @@ Instructions for the agent...
 | `debugger.md` | sonnet | Root cause analysis for bugs, crashes, hangs, unexpected behavior |
 | `devops.md` | sonnet | Infrastructure, CI/CD, containers, orchestration, deployment strategies |
 | `doc-sync.md` | haiku | Sync `__help()`, man page, and completions triple after a script changes |
+| `dockersrc-bootstrap.md` | sonnet | Bootstrap or update a CasjaysDev Docker image repo against the current gen-dockerfile templates |
 | `explorer.md` | haiku | Fast read-only codebase search — files by pattern, symbol definitions, keywords |
 | `general.md` | sonnet | Catch-all for everyday tasks when no specialist agent fits |
 | `go-lint.md` | haiku | Lint Go projects for CasjaysDev convention violations |
@@ -292,11 +293,15 @@ Not every repo ships every category — `android` is app-only (`APPLICATION.md` 
 │   ├── APPLICATION.md
 │   ├── HYBRID.md
 │   └── SERVER.md
-└── android/                      # github.com/claudemgr/android — device/platform, app-only
-    └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
+├── android/                      # github.com/claudemgr/android — device/platform, app-only
+│   └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
+└── docker/                       # github.com/claudemgr/docker — Docker image repo templates
+    └── DOCKERSRC.md              # master spec for dockersrc/* base-image repos
 ```
 
 More `{lang|type}` repos will be added over time (languages and device/platform targets alike) using this same filename convention — do not invent new filenames per repo.
+
+**Exception — `docker/`:** it holds master specs for Docker *image repositories* (`dockersrc/*`, `casjaysdevdocker/*`), not app projects, so the app-category filenames don't apply. Its files are named per repo family (`DOCKERSRC.md`; more may follow the same `{FAMILY}.md` pattern). Everything else about template repos applies unchanged: copied verbatim into a repo as its `AI.md`, WTFPL-licensed, own remote, own commits, swept by the alignment rule where content overlaps. Its maintenance runbook lives in the `dockersrc-bootstrap` agent, not in the spec.
 
 **If a template dir doesn't exist locally**, clone it before reading/editing — never treat a missing dir as "no templates to update":
 
