@@ -822,7 +822,7 @@ Available Providers:
 ├── Stripe [Disabled] [Configure]
 ├── PayPal [Disabled] [Configure]
 ├── Square [Disabled] [Configure]
-├── [Show all 40+ providers...]
+├── [Show all 47+ providers...]
 
 Provider: Stripe
 Status: ○ Disabled ● Enabled

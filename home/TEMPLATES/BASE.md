@@ -232,7 +232,10 @@ Distribution artifacts follow:
 | `{.ext}` | `.exe` on Windows; empty elsewhere |
 
 Local/dev artifact name: `{project_name}` (no platform/arch suffix).
-Checksum files: `{artifact}.sha256`.
+
+## Release Checksums
+
+Checksums ship as two aggregate manifests only: `sha256.txt` and `sha512.txt`, each covering the full release asset set (binaries, `version.txt`, source archive, SBOM). Per-artifact sidecar checksum files (`{artifact}.sha256`) are forbidden. The manifests are computed LAST — after every other asset is staged — over a single pre-captured file list, so both manifests cover the identical set and never hash each other.
 
 ---
 
@@ -338,14 +341,18 @@ On-disk paths use the frozen pair `{internal_org}` and `{internal_name}` only �
 
 ## Build Metadata Injection
 
+**Single time source:** every build captures one build epoch — `date -u +%s` — exactly once per build. Any human-readable build date is DERIVED from that epoch; it is never captured separately.
+
 Inject at build time (via `-ldflags`, `build.rs`, `build.js`, or equivalent):
 
 | Variable | Default | Source |
 |----------|---------|--------|
 | `Version` | `dev` | `release.txt` |
 | `CommitID` | `unknown` | `git rev-parse --short HEAD` |
-| `BuildDate` | `unknown` | `date -u +%Y-%m-%dT%H:%M:%SZ` |
+| `BuildEpoch` | `0` | `date -u +%s` (captured once per build) |
 | `OfficialSite` | `` | `site.txt` (if present) |
+
+The artifact embeds version, commit id, and build epoch. Version strings come from `release.txt` — hardcoded version literals anywhere in code, scripts, or CI are violations.
 
 ---
 
@@ -417,6 +424,22 @@ The project MUST have CI that runs on every push and pull request:
 - Security/vulnerability scan
 - Static-binary self-check (confirm artifact has no unexpected dynamic dependencies)
 
+## One Canonical Release Flow
+
+All release channels (stable, beta, daily) run the identical pipeline skeleton:
+
+build → stage assets → `version.txt` → source archive → SBOM → checksum manifests LAST → provenance attestation (only where the platform supports it, e.g. GitHub) → publish
+
+Channels differ ONLY in context, never in steps:
+
+| Channel | Trigger | Tag / version identity | Prerelease | Retention |
+|---------|---------|------------------------|------------|-----------|
+| Stable | Version tag | Tag is the version | No | Permanent |
+| Beta | Beta branch push | Timestamp-beta tag | Yes | Limited |
+| Daily | Schedule | Rolling `daily` tag, deleted and recreated each run; version = short commit id | Yes | Rolling |
+
+Never fork the pipeline logic per channel — one skeleton, parameterized by context.
+
 ## Release Checklist
 
 Before tagging a release:
@@ -427,8 +450,8 @@ Before tagging a release:
 - [ ] `README.md` up to date with any usage changes
 - [ ] `LICENSE.md` up to date with any new dependencies
 - [ ] Artifacts built for all target platforms
-- [ ] SHA-256 checksums generated for all artifacts
 - [ ] SBOM generated
+- [ ] `sha256.txt` and `sha512.txt` manifests generated LAST over the full asset set
 - [ ] Release notes written
 
 ## GitHub Actions
@@ -500,8 +523,9 @@ Must contain:
 
 - [ ] All CI checks green
 - [ ] `release.txt` updated
-- [ ] Artifacts built and checksummed for all targets
+- [ ] Artifacts built for all targets
 - [ ] SBOM generated
+- [ ] `sha256.txt` and `sha512.txt` manifests generated LAST
 - [ ] Release notes written
 
 ---

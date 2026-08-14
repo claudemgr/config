@@ -304,7 +304,25 @@ More `{lang|type}` repos will be added over time (languages and device/platform 
 git clone https://github.com/claudemgr/{lang|type}.git ~/Projects/github/claudemgr/{lang|type}
 ```
 
-**Alignment rule:** template repos are separate git repos, each with its own remote, its own `gitcommit --dir {repo} all`, and no dependency on this repo's git history — but their CI/CD, security, and build content MUST stay aligned with `home/**` (especially `home/memory/cicd_conventions.md`, `go_conventions.md`, `rust_conventions.md`). When a rule in `home/**` changes in a way that affects generated projects (e.g. a new CI gate, a new verification step), check the matching template file(s) in every existing `{lang|type}` repo for the same gap and fix them in the same session, as separate commits in their own repos.
+**Alignment rule:** template repos are separate git repos, each with its own remote, its own `gitcommit --dir {repo} all`, and no dependency on this repo's git history — but their CI/CD, security, and build content MUST stay aligned with `home/**` (especially `home/memory/cicd_conventions.md`, `go_conventions.md`, `rust_conventions.md`). When a rule in `home/**` changes in a way that affects generated projects (e.g. a new CI gate, a new verification step), check the matching template file(s) in every existing `{lang|type}` repo for the same gap and fix them in the same session, as separate commits in their own repos — and sweep `home/TEMPLATES/` for the same gap in the same session (see below).
+
+### Global Templates (home/TEMPLATES/, installed to ~/.claude/TEMPLATES/)
+
+`home/TEMPLATES/` holds two species of template; both are templates in the full sense — every template-authoring rule (no inline comments, no hardcoded versions, placeholder system, templates follow their own rules) applies to them exactly as it does to the repo templates:
+
+| File | Species | Role |
+|------|---------|------|
+| `BASE.md` | **Project template** | Generic fallback member of the project-template family — copied into a project as its `AI.md` when language/shape is unknown; replaced by a `{lang|type}/{TYPE}.md` once known |
+| `BILLING.md`, `NOTIFICATIONS.md`, `SUPPORT.md` | **Feature template** | Authoritative feature-module spec applied INTO an existing project by its builder agent (`billing-builder`, `notifications-builder`, `support-builder`) — never a whole-project spec |
+
+**Terminology:** "project templates" = the `{lang|type}/{TYPE}.md` repo specs plus `BASE.md`; "feature templates" = the builder-agent specs. Unqualified "templates" continues to mean the repo templates.
+
+**Alignment, two tiers:**
+
+- `BASE.md` aligns with the template repos on ALL shared canon (release-flow skeleton, version/build-metadata rules, checksum format, commit workflow, verification gates). It stays language-agnostic — it states the canon generically and defers language-specific mechanics to the `{lang|type}` templates that replace it.
+- Feature templates align where they OVERLAP shared canon (CI additions, security rules, DB/config conventions) but defer to the host project's template on build/release matters — a feature template never redefines the release flow.
+
+**Sweep rule:** any canon change that triggers a template-repo sweep also triggers a `home/TEMPLATES/` sweep in the same session (BASE.md always; feature templates when the change touches content they overlap).
 
 Templates are licensed WTFPL (the templates themselves); generated projects ship MIT.
 
