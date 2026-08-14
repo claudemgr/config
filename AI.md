@@ -296,12 +296,13 @@ Not every repo ships every category — `android` is app-only (`APPLICATION.md` 
 ├── android/                      # github.com/claudemgr/android — device/platform, app-only
 │   └── APPLICATION.md            # no API.md/SERVER.md — app-only ecosystem
 └── docker/                       # github.com/claudemgr/docker — Docker image repo templates
-    └── DOCKERSRC.md              # master spec for dockersrc/* base-image repos
+    ├── DOCKERSRC.md              # master spec for dockersrc/* base-image repos
+    └── CASJAYSDEVDOCKER.md       # master spec for casjaysdevdocker/* app-image repos
 ```
 
 More `{lang|type}` repos will be added over time (languages and device/platform targets alike) using this same filename convention — do not invent new filenames per repo.
 
-**Exception — `docker/`:** it holds master specs for Docker *image repositories* (`dockersrc/*`, `casjaysdevdocker/*`), not app projects, so the app-category filenames don't apply. Its files are named per repo family (`DOCKERSRC.md`; more may follow the same `{FAMILY}.md` pattern). Everything else about template repos applies unchanged: copied verbatim into a repo as its `AI.md`, WTFPL-licensed, own remote, own commits, swept by the alignment rule where content overlaps. Its maintenance runbook lives in the `dockersrc-bootstrap` agent, not in the spec.
+**Exception — `docker/`:** it holds master specs for Docker *image repositories* (`dockersrc/*`, `casjaysdevdocker/*`), not app projects, so the app-category filenames don't apply. Its files are named per repo family (`DOCKERSRC.md`, `CASJAYSDEVDOCKER.md`; more may follow the same `{FAMILY}.md` pattern). Everything else about template repos applies unchanged: copied verbatim into a repo as its `AI.md`, WTFPL-licensed, own remote, own commits, swept by the alignment rule where content overlaps. Its maintenance runbook lives in the `dockersrc-bootstrap` agent, not in the spec.
 
 **If a template dir doesn't exist locally**, clone it before reading/editing — never treat a missing dir as "no templates to update":
 
