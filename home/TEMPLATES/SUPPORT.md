@@ -916,7 +916,7 @@ Expected response time: ~2 hours
 - Link detection and preview
 - Code formatting with ```
 - Message editing (within 5 minutes)
-- Shift+Enter to send, Enter for new line
+- Shift+Enter to send, Enter for new line (deliberate for web-based chat — multi-line messages first; the input UI MUST document this binding visibly, e.g. the input placeholder text shown in the customer-view mockup)
 
 #### Agent Tools
 - **Canned Responses**: 
