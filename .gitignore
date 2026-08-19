@@ -87,6 +87,7 @@ $RECYCLE.BIN/
 .claude/history.jsonl
 .claude/.credentials.json
 .claude/projects/
+.claude/plans/
 .claude/statsFile
 .claude/*.lock
 # claudemgr/config specific — home/ maps to ~/.claude/; ignore runtime dirs there too

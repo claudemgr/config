@@ -151,7 +151,7 @@ Instructions for the agent...
 | `architect.md` | opus | System design, API design, data modeling, architectural tradeoffs |
 | `audit.md` | opus | Full project health audit — security, quality, logic, docs, line-by-line AI.md compliance |
 | `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
-| `bootstrap.md` | sonnet | Bootstrap a project from a spec file (`{project_dir}/AI.md`); executes PART 0–6 |
+| `bootstrap.md` | sonnet | Bootstrap a project from a spec (`{project_dir}/AI.md`); builds PART 0–6 scaffolding incl. loaders + `.claude/rules/`, enumerates feature PARTs into a complete `TODO.AI.md`, ensures IDEA.md without fabricating it |
 | `cicd-maintenance.md` | sonnet | Dependabot PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix |
 | `claude-code-guide.md` | sonnet | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
 | `code-reviewer.md` | sonnet | Review diffs, PRs, or files before committing or merging |
