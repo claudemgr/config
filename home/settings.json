@@ -24,7 +24,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "jq -r '\"[\\(.model.display_name)] \\(.context_window.used_percentage // 0)% | \\(.effort.level // env.CLAUDE_CODE_EFFORT_LEVEL // \"?\")\"'"
+    "command": "jq -r 'def p(v): if v==null then \"?\" else (v|floor|tostring) end; \"[\\(.model.display_name)] \\(p(.context_window.used_percentage))% ctx | 5h \\(p(.rate_limits.five_hour.used_percentage))% 7d \\(p(.rate_limits.seven_day.used_percentage))% | \\(.effort.level // env.CLAUDE_CODE_EFFORT_LEVEL // \"?\")\"'"
   },
   "permissions": {
     "allow": [
@@ -537,6 +537,7 @@
     "MAX_THINKING_TOKENS": "1024",
     "CLAUDE_CODE_NO_FLICKER": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80",
+    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"
   }
 }

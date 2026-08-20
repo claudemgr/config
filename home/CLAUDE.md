@@ -192,6 +192,7 @@ Key rules always in effect:
 - **Parallelize independent research** — spawn agents in parallel (single message, multiple Agent calls)
 
 ## Agent Usage
+- **Model routing** — route each task to the cheapest capable model; full tier table in `~/.claude/memory/model_routing.md`. Largest single lever on weekly-cap consumption
 - **Haiku for trivial tasks** — renames, format conversions, single-line edits, simple lookups, mechanical refactors
 - **Agents never commit** — agents edit and report back; main instance reviews the diff, writes `COMMIT_MESS`, runs `gitcommit`
 

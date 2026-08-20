@@ -6,6 +6,7 @@
 
 
 - [Project conventions](project_conventions.md) — AI.md=HOW (impl spec, readonly template copy, never modified after initial copy), SPEC.md=thin project rule overrides (optional, may be empty, only when contradicting template/global; SPEC.md>AI.md>global), IDEA.md=WHAT (intent/goal/compatibility/feature requirements only — never HOW), CLAUDE.md=short loader only; WHAT/HOW boundary is strict; template system in claudemgr
+- [Model routing](model_routing.md) — route each task to the cheapest capable model (Haiku=trivial, Sonnet=default coding, Opus=deep reasoning only after Sonnet fails, Fable=visual/design only, never logic); largest single lever on weekly-cap consumption; never spend Opus/Fable on mechanical work; delegate trivial subtasks to a Haiku subagent
 - [Execution hierarchy](execution_hierarchy.md) — QEMU/KVM>Incus>Docker>host; tier purpose, image selection (Docker=alpine, Incus=systemd, QEMU/KVM=full OS), cleanup rules
 - [Sensitive data rule](sensitive_data.md) — all public destinations equal (git/pastes/issues/chat/screenshots); masking: preserve key, replace value with xxxxx, never partial values; personal dotfiles is the only exception; pre-flight scan before sharing anywhere
 - [Image conventions](image_conventions.md) — convert before reading (max 1280px, WebP target, fallback chain: convert→ffmpeg→vips→original); URL images: curl to tempdir→convert→read; never skip conversion
