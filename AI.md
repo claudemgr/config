@@ -163,6 +163,7 @@ Instructions for the agent...
 | `explorer.md` | haiku | Fast read-only codebase search — files by pattern, symbol definitions, keywords |
 | `general.md` | sonnet | Catch-all for everyday tasks when no specialist agent fits |
 | `go-lint.md` | haiku | Lint Go projects for CasjaysDev convention violations |
+| `implement.md` | opus | Read a spec from its first word and implement everything in order (following refs); orchestrates scaffold-then-build-all, delegates to scoped builders, never commits or runs the gate |
 | `planner.md` | sonnet | Design an implementation plan before writing code; flags risks |
 | `researcher.md` | sonnet | Multi-step research spanning multiple files or requiring web + code reading |
 | `rust-lint.md` | haiku | Lint Rust projects for CasjaysDev convention violations |
