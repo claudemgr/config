@@ -11,6 +11,16 @@ capped plans (Max weekly limit) model choice is the largest single lever on
 consumption — Opus and Fable cost multiples of Sonnet, so spending them on
 mechanical work burns the weekly budget for no quality gain.
 
+## Mechanism (how routing is even possible)
+
+The main thread's model is fixed for the session — it cannot self-switch
+per task. Routing to a cheaper model therefore happens **by delegation**: a
+spawned subagent runs on its own model (agent frontmatter `model:`, or the
+Agent tool's per-spawn `model` override), independent of the coordinating
+thread. So "route to Haiku" means *delegate the subtask to a Haiku subagent*,
+not switch the current thread. `fallbackModel` is availability-only, not
+task-based.
+
 ## Tier table
 
 | Task class | Model | Examples |

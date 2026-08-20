@@ -18,6 +18,7 @@
   "plansDirectory": "./.claude/plans",
   "theme": "dark-ansi",
   "tui": "fullscreen",
+  "outputStyle": "Concise",
   "attribution": {
     "commit": "",
     "pr": ""
