@@ -210,6 +210,7 @@ exit 2
 |------|---------|---------|
 | `protect-host.sh` | PreToolUse Bash | Blocks destructive host commands |
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
+| `session-start.sh` | SessionStart | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start (incl. `/clear`) |
 
 **Wiring hooks in settings.json:**
 
