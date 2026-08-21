@@ -673,7 +673,7 @@ Use the full CSS variable block from the **Design Token System** section above �
 - **Degraded mode** — if the service is reachable but slow or partially unavailable, show a non-blocking warning banner; do not block the entire UI
 - Never disable the UI entirely when offline — allow read-only access to cached data; disable only actions that require a network round-trip, with a clear disabled reason shown on hover/press
 - Retry UX: offer a manual "Retry" button for failed actions alongside automatic retry; show retry count only after two or more failures
-- Data freshness: if cached data is older than a reasonable threshold for the content type, show a "Last updated X ago" label; never silently serve stale data as current
+- Data freshness: show a "Last updated X ago" label once cached data exceeds its staleness threshold — live/real-time data (chat, prices, status feeds): 30s; frequently-changing data (feeds, dashboards): 5 min; slow-changing data (settings, profiles): 1 hour; static/reference data: 24h. A project MAY override these in its IDEA.md/SPEC.md. Never silently serve stale data as current
 
 ### Pointer & Hover Adaptation
 

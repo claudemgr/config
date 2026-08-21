@@ -168,7 +168,10 @@ Wrong order:   1, 2, 3, a, b, c   (2 runs before its prerequisites)
 - Before task completion: check compliance against the relevant spec sections
 - When uncertain about a spec requirement: read that specific section — never guess, never rely on memory of a prior session
 
-**Hook-enforced, not just advisory:** in any project with an `AI.md` or `SPEC.md` at its root, `spec-guard.sh` (PreToolUse on Write/Edit) blocks edits to project files until `spec-guard-mark.sh` (PostToolUse on Read) has recorded a Read of that project's `AI.md` or `SPEC.md` this session. Meta files (`AI.md`, `IDEA.md`, `SPEC.md`, `CLAUDE.md`, `TODO(.AI).md`, `PLAN(.AI).md`, `.claude/*`, `.git/*`, etc.) are exempt — only implementation files are gated. `post-compact.sh` clears the marker on every compaction, so the spec must be re-read after each compact before edits resume. This closes the gap where the schedule above was previously prose-only and easy to drift from.
+**Hook-enforced, not just advisory:** this closes the gap where the schedule above was previously prose-only and easy to drift from.
+- **What's gated:** in any project with an `AI.md` or `SPEC.md` at its root, `spec-guard.sh` (PreToolUse on Write/Edit) blocks edits to project files until `spec-guard-mark.sh` (PostToolUse on Read) has recorded a Read of that project's `AI.md` or `SPEC.md` this session.
+- **What's exempt:** meta files (`AI.md`, `IDEA.md`, `SPEC.md`, `CLAUDE.md`, `TODO(.AI).md`, `PLAN(.AI).md`, `.claude/*`, `.git/*`, etc.) — only implementation files are gated.
+- **When the marker clears:** `post-compact.sh` clears the marker on every compaction, so the spec must be re-read after each compact before edits resume.
 
 **Existence precedence in the gate:** `AI.md` (THE HOW, primary spec) > `CLAUDE.md` (loader — its presence without `AI.md`/`SPEC.md` means a broken bootstrap, not an ungoverned project) > `SPEC.md` (rule overrides; gates on its own if `AI.md` is absent too). A project with none of the three is treated as ungoverned and never gated. A project with a `CLAUDE.md` loader but no `AI.md`/`SPEC.md` is blocked with a distinct message telling the AI to bootstrap `AI.md` first — per this file's own `CLAUDE.md` definition (a loader always implies a spec it points at), a loader with nothing to load is a broken setup, not a green light for unrestricted edits.
 
