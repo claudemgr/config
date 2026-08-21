@@ -195,6 +195,16 @@ Update these when their subject changes:
 
 **Loader rule:** loader files stay short. Long-form content belongs in `IDEA.md` (product) and `AI.md` (implementation policy).
 
+## Reuse Before Creating
+
+**Before writing new code for anything — a function, a variable/constant, or a UI component/style — check whether an equivalent already exists in the project and reuse or extend it. Only create something new when nothing existing covers the need.** This is a general project-wide rule, not restricted to any one feature.
+
+- **Functions:** search for an existing one with the same or similar behavior before writing a new one; two near-identical functions differing only by a hardcoded value should be one function taking that value as a parameter.
+- **Variables & Constants:** check existing constants, config keys, and enum values for one that already means the same thing before adding a new one.
+- **Components / Styling:** check for an existing UI component, style class, or theme token before building a near-duplicate or hardcoding a new value. The concrete mechanism (CSS custom properties + classes for a web UI, a shared theme struct for TUI/CLI/desktop) is defined once the project's actual shape is known — see the `{lang|type}/{TYPE}.md` template that replaces this file, or `~/.claude/memory/ui_ux_conventions.md`.
+
+Any feature that exports or imports data (audit logs, data exports, config/settings export, generated lists, etc.) uses the platform's native, no-JS-required mechanism for choosing the file path/name — a plain link/GET response with `Content-Disposition: attachment` for a web UI, a native OS save/open dialog for a desktop/mobile app — never a JS-only or custom in-app-only path. Full web-specific rules: `~/.claude/memory/ui_ux_conventions.md` → Import/Export.
+
 ---
 
 # PART 2: APPLICATION MODEL

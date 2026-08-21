@@ -334,6 +334,14 @@ Use semantic system colors where available — they automatically adapt to dark/
 - Prefer native elements over JS re-implementations: `<details>/<summary>` for accordions; `:hover`/`:focus-within`, `popover`, or `title` for dropdowns and tooltips; `loading="lazy"` for image lazy loading; CSS `scroll-behavior: smooth` (with a `prefers-reduced-motion` override) for smooth scroll and back-to-top `<a href="#top">` links; `position: sticky` for sticky headers; `<progress>` for progress bars; `<button type="reset">` for form reset
 - Form validation: HTML5 `required`/`pattern`/`type=` first; style invalid state with CSS `:user-invalid`; JS only mirrors `validationMessage` text as an enhancement — never blur-handler styling
 
+### Import/Export
+Applies to every feature that exports or imports data (audit logs, data
+exports, config/settings export, generated lists, etc.) — a generic rule,
+not a spec for one named feature.
+- **Export** — a plain `<a href="...">` link or `<form method="get">`, no JavaScript required. The server sets `Content-Type` and `Content-Disposition: attachment; filename="..."` so the browser's native save flow handles the download. Never JS `Blob` + `URL.createObjectURL()` + a synthetic clicked `<a download>`, and never make the File System Access API (`showSaveFilePicker()`) the only path — both require JavaScript and fail in Text Browsers or with JS disabled.
+- **Import** — a plain `<input type="file">` inside `<form method="post" enctype="multipart/form-data">`, the browser's native file picker, no JavaScript required to select or submit. Server-side validation is always authoritative. Never hide the native `<input type="file">` behind a custom-styled JS trigger — the feature breaks with JavaScript disabled.
+- **Styling** — every element in the flow (trigger, form, label, input, status/progress/error text) is fully styled, reusing existing classes/tokens before writing new CSS (Reuse before creating, `~/.claude/CLAUDE.md`); "no-JS" governs markup/mechanism only, not appearance.
+
 ### Layout — mobile-first
 - Write CSS for mobile first; expand with media queries
 - Never desktop-first CSS
