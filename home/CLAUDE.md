@@ -11,6 +11,8 @@ Before any work, sync `{project_dir}` with the remote:
 
 If the pull fails (no remote, offline, branch diverged): report it and wait — never start work on a potentially stale tree.
 
+**`/clear` note:** `SessionStart` hooks (including `session-start.sh`'s project_dir context injection) are documented to fire on `/clear` but do not, due to a confirmed upstream Claude Code bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned). This isn't a gap in practice: `{project_dir}` is already self-derived from `git rev-parse --show-toplevel`, falling back to `$PWD` when not in a git repo, per the `Working Directory & Path Resolution` rule below, not from the hook's injected text — so re-run this Session Start sequence yourself after any `/clear` using that same resolution; don't wait for hook-injected context that won't arrive.
+
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
 

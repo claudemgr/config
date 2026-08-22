@@ -208,7 +208,7 @@ exit 2
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `session-start.sh` | SessionStart | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start (incl. `/clear`) |
+| `session-start.sh` | SessionStart | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start. Documented to also fire on `/clear` (`matcher: "clear"`), but a confirmed upstream bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned) means `SessionStart` hooks do not actually fire on `/clear` as of Claude Code 2.1.231 — CLAUDE.md's own "Session Start" section is the reliable fallback since CLAUDE.md is always reloaded on `/clear` regardless of hooks |
 | `post-compact.sh` | SessionStart(compact) | Re-injects project-dir and global context after compaction |
 | `drift-guard-read.sh` | PreToolUse Read | Blocks reading `~/.claude/` deployed copies when a `home/` source exists |
 | `protect-host.sh` | PreToolUse Bash | Blocks destructive host commands |
