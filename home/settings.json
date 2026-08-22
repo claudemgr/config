@@ -27,6 +27,12 @@
     "type": "command",
     "command": "jq -r 'def p(v): if v==null then \"?\" else (v|floor|tostring) end; \"[\\(.model.display_name)] \\(p(.context_window.used_percentage))% ctx | 5h \\(p(.rate_limits.five_hour.used_percentage))% 7d \\(p(.rate_limits.seven_day.used_percentage))% | \\(.effort.level // env.CLAUDE_CODE_EFFORT_LEVEL // \"?\")\"'"
   },
+  "autoMode": {
+    "classifyAllShell": false
+  },
+  "skillOverrides": {
+    "auto-mode-setup": "off"
+  },
   "permissions": {
     "allow": [
       "Bash(**)",
@@ -393,9 +399,6 @@
       "Bash(wipefs *)"
     ],
     "ask": []
-  },
-  "preferences": {
-    "auto_commit": false
   },
   "hooks": {
     "SessionStart": [
