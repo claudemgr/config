@@ -72,7 +72,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers: `github` (use `gh`) · `gitlab` (use `glab`) · `gitea` / `private` (use `tea`) · `local` (no remote)
 - **Git gate** — if `{project_dir}/.git` does not exist, never run any git operation. Check for `.git` first.
 - **Project files override global** — if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it supersedes this file
-- **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path
+- **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. **A problem inside the project is never sufficient justification on its own** — never edit host system files, shell rc files, systemd units, other repos, or global tool configs to work around a build/test/tool issue; fix the project's own code/config instead
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
