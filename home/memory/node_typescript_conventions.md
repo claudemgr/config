@@ -37,7 +37,7 @@ PROJECTORG  := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/
 
 VERSION    ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 BUILD_DATE := $(shell date +"%a %b %d, %Y at %H:%M:%S %Z")
-COMMIT_ID  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+COMMIT_ID  := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo "N/A")
 PLATFORMS  ?= linux/amd64,linux/arm64
 
 NPM_CACHE ?= $(HOME)/.npm

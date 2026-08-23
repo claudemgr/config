@@ -51,7 +51,7 @@ Never use `only:` / `except:` — they are deprecated. Always use `rules:`.
 | Variable | Value |
 |----------|-------|
 | `$CI_COMMIT_SHA` | Full 40-char commit SHA |
-| `$CI_COMMIT_SHORT_SHA` | 8-char short SHA |
+| `$CI_COMMIT_SHORT_SHA` | 8-char short SHA — GitLab hardcodes 8; use `${CI_COMMIT_SHA:0:7}` instead to match the 7-char short-SHA standard used everywhere else |
 | `$CI_COMMIT_TAG` | Tag name (set only on tag pipelines) |
 | `$CI_COMMIT_BRANCH` | Branch name (unset on tag pipelines) |
 | `$CI_DEFAULT_BRANCH` | Default branch (`main`) |
@@ -75,10 +75,12 @@ build-image:
   image: docker:latest
   services:
     - docker:dind
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHA:0:7}
   script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
-    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker build -t "$CI_REGISTRY_IMAGE:$SHORT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:$SHORT_SHA"
 ```
 
 **Tag matrix on release:**
@@ -87,14 +89,18 @@ release-image:
   stage: release
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
+  variables:
+    SHORT_SHA: ${CI_COMMIT_SHA:0:7}
   script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
-    - docker pull "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
+    - docker pull "$CI_REGISTRY_IMAGE:$SHORT_SHA"
+    - docker tag "$CI_REGISTRY_IMAGE:$SHORT_SHA" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+    - docker tag "$CI_REGISTRY_IMAGE:$SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
     - docker push "$CI_REGISTRY_IMAGE:latest"
 ```
+
+Use `$SHORT_SHA` (7 chars, matches the standard used in Makefiles/GitHub Actions), never the raw `$CI_COMMIT_SHORT_SHA` (GitLab hardcodes 8).
 
 Never hardcode the registry URL — always use `$CI_REGISTRY` and `$CI_REGISTRY_IMAGE`.
 

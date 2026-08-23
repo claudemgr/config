@@ -65,7 +65,7 @@ Source: `~/Projects/github/dockersrc/rust`. Alpine-based, rolling tag, stable + 
 PROJECT_NAME  := {project_name}
 ORGANIZATION  := {project_org}
 VERSION       := $(shell cat release.txt 2>/dev/null || echo "devel")
-COMMIT_ID     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+COMMIT_ID     := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo "N/A")
 PLATFORMS     ?= linux/amd64,linux/arm64
 BINARIES_DIR  := ./binaries
 RELEASES_DIR  := ./releases

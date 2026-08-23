@@ -359,7 +359,7 @@ Inject at build time (via `-ldflags`, `build.rs`, `build.js`, or equivalent):
 | Variable | Default | Source |
 |----------|---------|--------|
 | `Version` | `dev` | `release.txt` |
-| `CommitID` | `unknown` | `git rev-parse --short HEAD` |
+| `CommitID` | `unknown` | `git rev-parse --short=7 HEAD` |
 | `BuildEpoch` | `0` | `date -u +%s` (captured once per build) |
 | `OfficialSite` | `` | `site.txt` (if present) |
 
