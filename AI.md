@@ -289,7 +289,7 @@ Controls Claude Code permissions and hook wiring. Structure:
 | Full server (server-rendered HTML + optional REST) | `SERVER.md` |
 | API-only (REST/JSON, no frontend) | `API.md` |
 | Desktop/GUI/TUI/CLI app, no server component | `APPLICATION.md` (singular — not `APPLICATIONS.md`) |
-| Hybrid — application surfaces (GUI/TUI/CLI) plus an embedded API server in one binary | `HYBRID.md` |
+| Hybrid — application surfaces (GUI/TUI/CLI) plus an embedded full server (frontend + backend) in one binary | `HYBRID.md` |
 
 Not every repo ships every category — `android` is app-only (`APPLICATION.md` only, no `API.md`/`SERVER.md`/`HYBRID.md`), since there's no server-side Android target.
 
@@ -299,7 +299,7 @@ Not every repo ships every category — `android` is app-only (`APPLICATION.md` 
 ├── go/                           # github.com/claudemgr/go — language
 │   ├── API.md                    # REST/JSON API server template
 │   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template
-│   ├── HYBRID.md                 # application + embedded API server template
+│   ├── HYBRID.md                 # application + embedded full server template
 │   └── SERVER.md                 # full-stack web server template
 ├── rust/                         # github.com/claudemgr/rust — language
 │   ├── API.md
