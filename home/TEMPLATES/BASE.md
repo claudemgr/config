@@ -100,6 +100,14 @@ security assumptions, and any exceptions.)
 - `IDEA.md` is where project-specific values and product rules live
 - Loader files (`CLAUDE.md`, `.claude/CLAUDE.md`) stay short and point back to `AI.md`
 - If a loader file and `AI.md` disagree, `AI.md` wins
+- `.claude/memory/` holds durable, project-specific knowledge discovered during
+  development — decisions, gotchas, conventions unique to this codebase — distinct
+  from `AI.md` (spec) and the loader files above. Committed to the repo, not
+  gitignored. One markdown file per topic, YAML frontmatter (`name`, `description`,
+  `type: project`), indexed by `.claude/memory/MEMORY.md`, read on demand. Same
+  credential-masking rule as everywhere else. `~/.claude/**` (global) stays
+  read-only, deployed only via `claudemgr/config`'s `install.sh`; `.claude/memory/`
+  here is read/write in this repo directly
 
 ## ⚠️ CRITICAL: Language is Determined by IDEA.md
 
@@ -506,6 +514,7 @@ Must contain:
 - [ ] `IDEA.md` created with all required sections and variables
 - [ ] `AI.md` in place (this file, or a language-specific upgrade)
 - [ ] `CLAUDE.md` is a short loader pointing at `AI.md` and `IDEA.md`
+- [ ] `.claude/memory/` directory exists (with an empty `MEMORY.md` index if no entries yet) and is committed, not gitignored
 - [ ] `README.md` created
 - [ ] `LICENSE.md` created (MIT + dependency attribution)
 - [ ] `.gitignore` created
