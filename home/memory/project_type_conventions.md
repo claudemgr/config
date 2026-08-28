@@ -20,6 +20,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | `tui` | terminal UI, interactive terminal, ncurses-style |
 | `cli` | command-line tool, one-shot invocation, scripting target |
 | `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
+| `spec-collection` | root is entirely Markdown (spec/template/doc files consumed by AI tooling or humans) plus README.md/LICENSE.md/.gitignore; no source code directory at all — not even scripts; e.g. `claudemgr/config`, `claudemgr/go`, `claudemgr/rust`, `claudemgr/android`, `claudemgr/docker` |
 | `library` | importable package/crate, no binary entrypoint |
 | `agent` / `worker` | background job processor, queue consumer, scheduled task |
 
@@ -167,6 +168,27 @@ Applies to: repos that are a collection of standalone bash/sh/zsh/fish scripts w
 - **Test/lint gate:** `bash -n bin/{script}` (syntax check) + `script-lint bin/{script}` — this is this project type's equivalent of `make test` in the Commit Workflow pre-commit sequence. If `script-lint` is absent, fall back to `bash -n` plus `shellcheck` when available.
 - **Documentation:** the Documentation Triple Sync (`__help()` output, man page, shell completions — see the `doc-sync` agent) replaces language-doc-generation (`godoc`/`cargo doc`) as the doc-completeness requirement.
 - Full per-script code-style rules: `~/.claude/memory/script_conventions.md`.
+
+---
+
+## Type: `spec-collection`
+
+Applies to: repos whose entire content is Markdown specification/template/documentation files — no source code, not even scripts. Distinct from `script-collection`: there is nothing to lint or syntax-check because there is no code, only prose/spec files consumed by AI tooling (e.g. copied verbatim into a generated project as its `AI.md`) or read by humans. Example: the `claudemgr` template repos (`config`, `go`, `rust`, `android`, `docker`) — each root holds only `.md` spec files plus `README.md`/`LICENSE.md`/`.gitignore`, and `config` additionally ships a single `install.sh` whose job is to copy files into place, not to build anything.
+
+### Detection signals
+- Root directory contains only `.md` files plus standard repo metadata (`README.md`, `LICENSE.md`, `.gitignore`, `.gitattributes`) — no `src/`, `bin/`, `cmd/`, `lib/`, or any language manifest (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`).
+- An `install.sh`, if present, only copies/deploys files (no compile step) — this alone does not disqualify the repo from `spec-collection`.
+- `IDEA.md`/`README.md` describes the repo as a spec, template, prompt library, or documentation set — not an executable tool.
+
+### What is NOT required
+- **No Makefile** — there is nothing to build.
+- **No CI/CD workflow** — do not create `.github/workflows/`, `.gitlab-ci.yml`, or Forgejo/Gitea Actions by default; `~/.claude/memory/cicd_conventions.md` is skipped entirely unless the user explicitly asks for one (e.g. a link-checker or markdown-lint pipeline).
+- **No test suite** — there is no runtime to exercise.
+
+### What replaces the standard gates
+- **Verification:** re-read the edited file(s) and diff against the intended content per the Self-Validation rule — the "test" for a spec repo is that the prose is correct and internally consistent (cross-references resolve, terminology matches across sibling files), not that a command exits 0.
+- **Consistency sweep:** when a rule changes in one file that has sibling copies (e.g. a `home/**` rule that also appears in `{lang}/AI.md` templates), grep every sibling for the same pattern and update them together — see `~/Projects/github/claudemgr/config/AI.md § Part 9` for the claudemgr-specific alignment rule.
+- If `install.sh` exists, it still follows `~/.claude/memory/script_conventions.md` for its own code style, but that does not make the surrounding repo a `script-collection`.
 
 ---
 

@@ -115,7 +115,7 @@ type: user
 | `cicd_conventions.md` | SHA pinning, no `pull_request_target`, branch protection, SBOM, release integrity |
 | `go_conventions.md` | Go project layout, Makefile targets, CGO=0, binary naming, module cache |
 | `rust_conventions.md` | Rust project layout, Cargo, release profile, static linking |
-| `project_type_conventions.md` | Rules by project type: server, cli, script-collection, library, tui, desktop-gui, worker |
+| `project_type_conventions.md` | Rules by project type: server, cli, script-collection, spec-collection, library, tui, desktop-gui, worker |
 
 **Adding a new memory file:**
 1. Create `home/memory/{topic}.md` with frontmatter
