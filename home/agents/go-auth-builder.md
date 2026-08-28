@@ -74,7 +74,7 @@ Reply with numbers separated by spaces — e.g. "1 3" or "1 2 3 4 5"
 
   1. Admin authentication   — admin login, sessions, admin panel routes
   2. API tokens             — per-user/admin API keys for programmatic access
-  3. User accounts          — registration, login, profiles, password reset, email verify
+  3. User accounts          — registration (open or admin-invite/private mode), login, profiles, password reset, email verify
   4. Organizations / Teams  — user groups, shared resource ownership  [requires 3]
   5. Custom domains         — per-user/org domain routing              [requires 3 or 4]
 
@@ -203,7 +203,22 @@ CREATE TABLE IF NOT EXISTS email_verifications (
 );
 CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
 CREATE INDEX IF NOT EXISTS idx_email_verif_user  ON email_verifications(user_id);
+
+CREATE TABLE IF NOT EXISTS user_invites (
+    id           TEXT PRIMARY KEY,             -- crypto/rand 32-byte hex
+    username     TEXT UNIQUE NOT NULL,          -- pre-assigned; taken by the invited user on accept
+    invited_by   INTEGER NOT NULL REFERENCES admins(id),
+    token_hash   TEXT UNIQUE NOT NULL,          -- SHA-256 hex of raw token
+    created_at   INTEGER NOT NULL,
+    expires_at   INTEGER NOT NULL,             -- default 7d, configurable (1h/6h/24h/48h/7d)
+    max_uses     INTEGER NOT NULL DEFAULT 1,   -- 0 = unlimited
+    used_count   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_user_invites_token    ON user_invites(token_hash);
+CREATE INDEX IF NOT EXISTS idx_user_invites_username ON user_invites(username);
 ```
+
+**`users.password_hash` note:** for the admin-invite and direct-create flows (private mode), the `users` row is inserted with `password_hash = ''` before the invited user has set a password. Any login/session-creation path MUST reject an empty `password_hash` (treat as "account not yet activated" — same "Invalid credentials" response as a wrong password, never a distinguishing message) so a not-yet-activated account can never be logged into.
 
 ### Tables for Feature 4 (orgs/teams)
 
@@ -536,6 +551,21 @@ type PasswordReset struct {
 }
 
 func (r *PasswordReset) Expired() bool { return time.Now().Unix() > r.ExpiresAt }
+
+type UserInvite struct {
+    ID         string `db:"id"`
+    Username   string `db:"username"`
+    InvitedBy  int64  `db:"invited_by"`
+    TokenHash  string `db:"token_hash"`
+    CreatedAt  int64  `db:"created_at"`
+    ExpiresAt  int64  `db:"expires_at"`
+    MaxUses    int    `db:"max_uses"`
+    UsedCount  int    `db:"used_count"`
+}
+
+func (i *UserInvite) Expired() bool { return time.Now().Unix() > i.ExpiresAt }
+func (i *UserInvite) Exhausted() bool { return i.MaxUses != 0 && i.UsedCount >= i.MaxUses }
+func (i *UserInvite) Valid() bool { return !i.Expired() && !i.Exhausted() }
 
 func ValidateUsername(u string) error {
     if !userUsernameRe.MatchString(u) {
@@ -985,6 +1015,8 @@ Routes and their implementations:
 
 ```go
 // POST /api/{api_version}/auth/register
+// Only reachable when users.registration.mode == "open" — return 404 "not found" when mode == "private"
+// (check the config value first, before any body parsing or rate-limit consumption)
 // Rate limit: 5 / 3600s per IP (key "auth.register")
 // Body: {"username":"...","email":"...","password":"..."}
 // Flow:
@@ -995,6 +1027,43 @@ Routes and their implementations:
 //   5. NewSessionID() → insert user_sessions row
 //   6. Set-Cookie: user_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/
 //   7. Return {"ok":true,"data":{"user_id":N,"username":"...","email_verification_required":bool}}
+
+// POST /server/{admin_path}/users/invite
+// Auth: RequireAdmin middleware (available in BOTH open and private mode — mode only gates
+// the public /auth/register form, never the admin's ability to add users; see PART 34 note below)
+// Rate limit: 20 / 3600s per admin
+// Body: {"username":"..."}
+// Flow:
+//   1. Validate username; check not already taken (users table) and no pending invite for it
+//   2. NewTokenRaw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
+//   3. Return {"ok":true,"data":{"username":"...","invite_url":"https://.../auth/invite/{raw_token}","expires_at":N}}
+//   — the raw token is never stored, only its hash; admin copies/shares the URL manually
+
+// POST /server/{admin_path}/users/create
+// Auth: RequireAdmin middleware (available in both modes)
+// Body: {"username":"...","email":"..."}
+// Flow:
+//   1. Validate username + email; check neither already taken
+//   2. Insert users row with password_hash = '' (not yet activated — see Step 4 note)
+//   3. NewTokenRaw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
+//   4. If SMTP configured: email the activation link to the address automatically
+//   5. Return {"ok":true,"data":{"user_id":N,"username":"...","activation_url":"..." (only when SMTP not configured, for manual delivery)}}
+
+// GET /api/{api_version}/auth/invite/{token}
+// Public (no auth) — validates the token exists and is unexpired/unused before rendering the
+// password-setup form; on invalid/expired/used token render the same generic
+// "This invite link is no longer valid" state (never distinguish expired vs used vs unknown)
+
+// POST /api/{api_version}/auth/invite/{token}/accept
+// Rate limit: 10 / 3600s per IP
+// Body: {"password":"..."}
+// Flow:
+//   1. HashToken(token) → look up user_invites → validate not expired and used_count < max_uses
+//   2. HashPassword(password) → update the corresponding users row's password_hash (matched by
+//      invite.username for the direct-create flow, or create the users row now for the invite flow)
+//   3. user_invites.used_count += 1
+//   4. NewSessionID() → insert user_sessions row → Set-Cookie (same as register)
+//   5. Return {"ok":true,"data":{"user_id":N,"username":"..."}}
 
 // POST /api/{api_version}/auth/login
 // Rate limit: 5 / 900s per IP (key "auth.user_login")
@@ -1129,6 +1198,8 @@ All templates use Go's `html/template` package. All user-supplied values are `{{
 
 ### User registration — `{TEMPLATE_DIR}/auth/register.html`
 
+**Only rendered when `users.registration.mode == "open"`** — the route handler returns 404 before this template is invoked when `mode == "private"`.
+
 ```html
 {{template "layout" .}}
 {{define "content"}}
@@ -1246,6 +1317,38 @@ All templates use Go's `html/template` package. All user-supplied values are `{{
       </div>
       <button type="submit" class="btn btn-primary btn-full">Set password</button>
     </form>
+  </div>
+</div>
+{{end}}
+```
+
+### Invite / activation accept — `{TEMPLATE_DIR}/auth/invite_accept.html`
+
+Rendered for both the admin-invite and direct-create private-mode flows (Step 4/8) — the token identifies which; the form is identical either way. If the token is invalid/expired/used, render the generic invalid state instead of this form (never distinguish the reason).
+
+```html
+{{template "layout" .}}
+{{define "content"}}
+<div class="auth-container">
+  <div class="auth-card">
+    {{if .InviteValid}}
+    <h1 class="auth-title">Welcome, {{.Username}}</h1>
+    <p>Set a password to activate your account.</p>
+    {{if .Error}}<div class="alert alert-error" role="alert">{{.Error}}</div>{{end}}
+    <form method="POST" action="/api/{{.APIVersion}}/auth/invite/{{.Token}}/accept">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" minlength="8"
+               autocomplete="new-password" required autofocus>
+        <span class="field-hint">At least 8 characters</span>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">Activate account</button>
+    </form>
+    {{else}}
+    <h1 class="auth-title">This invite link is no longer valid</h1>
+    <p class="auth-footer">Ask your administrator for a new invite.</p>
+    {{end}}
   </div>
 </div>
 {{end}}
@@ -1425,10 +1528,11 @@ Register HTML-serving routes alongside the API routes. Each HTML route renders t
 | Method | Path | Template | Auth |
 |--------|------|----------|------|
 | GET | `/server/{admin_path}/auth/login` | `auth/admin_login.html` | none |
-| GET | `/auth/register` | `auth/register.html` | none |
+| GET | `/auth/register` | `auth/register.html` (404 when `users.registration.mode == "private"`) | none |
 | GET | `/auth/login` | `auth/login.html` | none |
 | GET | `/auth/password/reset` | `auth/password_reset_request.html` | none |
 | GET | `/auth/password/reset/confirm` | `auth/password_reset_confirm.html` | none |
+| GET | `/auth/invite/{token}` | `auth/invite_accept.html` | none |
 | GET | `/auth/me` | `auth/profile.html` | RequireUser |
 | GET | `/orgs/new` | `auth/org_new.html` | RequireUser |
 | GET | `/domains/add` | `auth/domain_add.html` | RequireUser |
@@ -1470,8 +1574,7 @@ type AdminAuthConfig struct {
 }
 
 type UsersAuthConfig struct {
-    // default: true
-    RegistrationEnabled      bool `yaml:"registration_enabled"`
+    Registration              RegistrationConfig `yaml:"registration"`
     // default: true
     RequireEmailVerification bool `yaml:"require_email_verification"`
     // default: 2592000 (30d)
@@ -1480,6 +1583,16 @@ type UsersAuthConfig struct {
     SessionIdleTimeout       int  `yaml:"session_idle_timeout"`
     // default: 10
     MaxSessionsPerUser       int  `yaml:"max_sessions_per_user"`
+    // default: 604800 (7d); seconds — invite/activation link TTL
+    InviteExpiry             int  `yaml:"invite_expiry"`
+}
+
+type RegistrationConfig struct {
+    // "open" (anyone can self-register, default) or "private" (admin invite/create only —
+    // /auth/register returns 404). There is no "disabled" mode: to stop growth under
+    // "private", the admin simply stops inviting/creating users. Admin invite and direct-create
+    // are available in BOTH modes — this setting only gates the public self-registration form.
+    Mode string `yaml:"mode"`
 }
 
 type TokensAuthConfig struct {
@@ -1497,11 +1610,13 @@ server:
       require_totp: false
       max_sessions: 5
     users:
-      registration_enabled: true
+      registration:
+        mode: open           # open | private
       require_email_verification: true
       session_timeout: 2592000
       session_idle_timeout: 86400
       max_sessions_per_user: 10
+      invite_expiry: 604800
     tokens:
       default_expiry: 0
 ```
@@ -1525,7 +1640,10 @@ Find the project's i18n translation files (`find src -name "*.json" -path "*/i18
   "email_invalid":                "Please enter a valid email address",
   "email_taken":                  "An account with that email already exists",
   "username_taken":               "That username is already taken",
-  "registration_disabled":        "New registrations are not currently open",
+  "registration_closed":          "Registration is currently by invitation only",
+  "invite_invalid":               "This invite link is no longer valid",
+  "invite_sent":                  "Invite created — share the link with the new user",
+  "invite_username_taken":        "That username already has a pending or active account",
   "password_reset_sent":          "If an account exists for that email, a reset link has been sent",
   "password_reset_expired":       "This reset link has expired. Please request a new one",
   "password_reset_used":          "This reset link has already been used",
