@@ -150,6 +150,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - **Go Docker builds require `-e GOFLAGS=-buildvcs=false`** — mounted `.git` UID mismatch fails `go build` with "exit status 128"; full pattern: `~/.claude/memory/go_conventions.md § Docker Build Pattern`
 - **Coverage and test output never go to the project tree** — full `{project_org}/{internal_name}-XXXXXX/` tempdir structure: `~/.claude/memory/tempdir_conventions.md`
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
+- **Script-collection projects are exempt from this section** — no Makefile, no Docker toolchain build, no CI/CD workflow by default; detection criteria and replacement gates: `~/.claude/memory/project_type_conventions.md § Type: script-collection`
 
 ## UI/UX
 - Designer-level intent · dark mode default (support dark/light/auto) · never hardcode colors — CSS custom properties (web) or shared theme struct (desktop/TUI)
@@ -219,7 +220,7 @@ Key rules always in effect:
 
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
-2. **Run `make test`** (or language equivalent) — every test must pass; never commit with a failing test
+2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` + `script-lint` instead, no Makefile required) — every test must pass; never commit with a failing test
 3. Run the lint gate (see below) — never commit with violations
 4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
@@ -227,7 +228,7 @@ Key rules always in effect:
 
 **Message format, emoji map, no-bare-`@` rule, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets; one logical change per commit. **Findings-based work (audits, reviews, numbered fix-lists) defaults to one commit per finding — never batch distinct findings into one commit just because they share a file or session.** Exception: when multiple findings from the same audit pass are pure doc/template-alignment fixes (no logic or behavior change) in the same repo, they may be batched into one commit, each described as its own bullet — this exception never applies to security findings, logic bugs, or anything that might independently need reverting; those always get their own commit. **Feature work is the opposite — one commit for the whole feature, never split per part. Unrelated bugs found mid-feature go to `TODO.AI.md`, except app-breaking bugs, which must be fixed immediately.**
 
-**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`) must pass before every commit — no exceptions; never skip tests to "save time".
+**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` + `script-lint` instead) must pass before every commit — no exceptions; never skip tests to "save time".
 
 **Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) — never commit with violations.
 

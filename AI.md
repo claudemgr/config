@@ -106,7 +106,7 @@ type: user
 | `image_conventions.md` | Convert before reading (max 1280px, WebP); fallback chain; URL image workflow |
 | `gitcommit_conventions.md` | `gitcommit` path resolution; never hardcode path |
 | `script_conventions.md` | Shebang/extension → interpreter; header template; `__` prefix; NO_COLOR; exit codes; doc triple sync |
-| `project_forbidden_files.md` | Files/dirs that must never be created; README.md/LICENSE.md naming rules |
+| `project_files.md` | Files/dirs that must never be created; README.md/LICENSE.md naming rules |
 | `standards_reference.md` | HTTP status codes, RFC 7807, ISO 8601, semver, MIME, UUID, TLS, JWT, OAuth2, pagination |
 | `gitignore_conventions.md` | Header format, standard entries, project-type additions |
 | `dockerfile_conventions.md` | Two-stage builds, OCI labels, tini entrypoint, Docker Compose rules, .dockerignore |
@@ -115,7 +115,7 @@ type: user
 | `cicd_conventions.md` | SHA pinning, no `pull_request_target`, branch protection, SBOM, release integrity |
 | `go_conventions.md` | Go project layout, Makefile targets, CGO=0, binary naming, module cache |
 | `rust_conventions.md` | Rust project layout, Cargo, release profile, static linking |
-| `project_type_conventions.md` | Rules by project type: server, cli, library, tui, desktop-gui, worker |
+| `project_type_conventions.md` | Rules by project type: server, cli, script-collection, library, tui, desktop-gui, worker |
 
 **Adding a new memory file:**
 1. Create `home/memory/{topic}.md` with frontmatter

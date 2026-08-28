@@ -19,6 +19,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | `desktop-gui` | windowed UI, native app, desktop application |
 | `tui` | terminal UI, interactive terminal, ncurses-style |
 | `cli` | command-line tool, one-shot invocation, scripting target |
+| `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
 | `library` | importable package/crate, no binary entrypoint |
 | `agent` / `worker` | background job processor, queue consumer, scheduled task |
 
@@ -144,6 +145,28 @@ Applies to: non-interactive command-line tools invoked once per task.
 - Node / TypeScript: `commander`, `yargs`, or `oclif` — choose based on complexity (`commander` for simple CLIs, `oclif` for multi-command plugin-style tools)
 
 Never hand-roll a parser.
+
+---
+
+## Type: `script-collection`
+
+Applies to: repos that are a collection of standalone bash/sh/zsh/fish scripts with no compiled or interpreted-language build target — e.g. `casjay-dotfiles/scripts` and the `*mgr` repo family. Distinct from a single-script `cli` project: a `script-collection` has multiple entrypoints under `bin/` plus supporting `functions/`/`helpers/`/`sources/`, driven by one `install.sh`.
+
+### Detection signals
+- No `go.mod`, `Cargo.toml`, `package.json`, or `pyproject.toml` at the project root.
+- `bin/` holding one or more standalone scripts; commonly paired with `completions/`, `man/`, `functions/`/`helpers/`, `sources/`, `applications/`.
+- `install.sh` at the root is the build/deploy step — there is no separate compile stage.
+- `IDEA.md ## Project description` / `## Business logic` describes a script collection, dotfiles/toolkit, or shell-based utility suite.
+
+### What is NOT required
+- **No Makefile** — `install.sh` is the build+deploy step; do not add a Makefile just to have one. (`~/.claude/memory/makefile_conventions.md` does not apply to this project type.)
+- **No CI/CD workflow** — do not create `.github/workflows/`, `.gitlab-ci.yml`, or Forgejo/Gitea Actions by default; `~/.claude/memory/cicd_conventions.md` is skipped entirely for this project type unless the user explicitly asks for an automated release/publish pipeline. If one is added later, it must still follow that file's rules (SHA-pinned third-party actions, etc.) — the exemption is "not required by default," not "forbidden."
+- **No language-specific build/test tooling** (`go test`, `cargo test`, `npm test`) — there is no compiled/interpreted-language runtime to invoke it against.
+
+### What replaces the standard gates
+- **Test/lint gate:** `bash -n bin/{script}` (syntax check) + `script-lint bin/{script}` — this is this project type's equivalent of `make test` in the Commit Workflow pre-commit sequence. If `script-lint` is absent, fall back to `bash -n` plus `shellcheck` when available.
+- **Documentation:** the Documentation Triple Sync (`__help()` output, man page, shell completions — see the `doc-sync` agent) replaces language-doc-generation (`godoc`/`cargo doc`) as the doc-completeness requirement.
+- Full per-script code-style rules: `~/.claude/memory/script_conventions.md`.
 
 ---
 

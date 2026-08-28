@@ -8,6 +8,8 @@ type: user
 
 Every project targets all five CI/CD providers. The goal is zero vendor lock-in: the same build, test, security, and release gates run correctly regardless of where the code is hosted.
 
+**Exception — `script-collection` projects:** repos matching the `script-collection` project type (see `~/.claude/memory/project_type_conventions.md`) do not require CI/CD workflows by default; this entire file is skipped for them unless the user explicitly asks for an automated release/publish pipeline. If one is added later, it must still follow this file's rules (SHA-pinned third-party actions, etc.).
+
 ### Philosophy
 
 | Principle | Description |
