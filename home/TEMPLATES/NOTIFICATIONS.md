@@ -783,6 +783,8 @@ Template Engine
 
 ### Template Variables
 
+Variable names below are catalog-only (channel-agnostic); actual delimiter syntax is per-channel/per-engine — see each channel's template example (Email defers to the host project's `{variable}` engine when one exists; Slack/SMS shown here use `{{variable}}` since they have no host-engine equivalent).
+
 #### System Variables
 ```
 {{notification_id}} - Unique identifier
@@ -818,26 +820,25 @@ Template Engine
 ### Channel-Specific Templates
 
 #### Email Template
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>{{title}}</title>
-</head>
-<body>
-  <h2>[{{priority}}] {{title}}</h2>
-  <p>{{message}}</p>
-  <p>Time: {{timestamp}}</p>
-  {{#if action_url}}
-  <a href="{{action_url}}">{{action_text}}</a>
-  {{/if}}
-  <hr>
-  <small>
-    <a href="{{unsubscribe_url}}">Unsubscribe</a>
-  </small>
-</body>
-</html>
+
+**When the host project already ships an email-template engine** (Go/Rust `SERVER.md`/`API.md`/`HYBRID.md` § EMAIL & NOTIFICATIONS), defer to it — do not introduce a second, incompatible engine. That engine uses plain `{variable}` string substitution only (no template-side conditionals/loops); optional sections like an action link are handled by the caller choosing which template variant to render, not by an inline `{{#if}}` block:
+
 ```
+Subject: [{priority}] {title}
+---
+{title}
+
+{message}
+
+Time: {timestamp}
+
+{action_text}: {action_url}
+
+--
+Unsubscribe: {unsubscribe_url}
+```
+
+**When no host template engine exists** (e.g. non-Go/Rust project), the notifications-builder may implement any variable-substitution engine it chooses, documenting the actual syntax used — never assume Handlebars-style `{{variable}}`/`{{#if}}` without confirming the target stack supports it.
 
 #### Slack Template
 ```json
