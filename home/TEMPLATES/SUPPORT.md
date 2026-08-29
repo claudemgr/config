@@ -1069,15 +1069,19 @@ Articles written in Markdown format with:
 - Password reset
 - SLA warning
 
-**Template Variables**:
+**Template Variables**: catalog-only (channel-agnostic); actual delimiter
+syntax is per-channel/per-engine. When the host project already ships an
+email-template engine (Go/Rust `SERVER.md`/`API.md`/`HYBRID.md` § EMAIL &
+NOTIFICATIONS), defer to it — that engine uses plain `{variable}` string
+substitution only, not Handlebars-style `{{variable}}`:
 ```
-{{user_name}} - Recipient name
-{{ticket_id}} - Ticket identifier
-{{ticket_title}} - Ticket subject
-{{agent_name}} - Responding agent
-{{response_content}} - Latest message
-{{ticket_link}} - Direct link to ticket
-{{unsubscribe_link}} - Opt-out link
+{user_name} - Recipient name
+{ticket_id} - Ticket identifier
+{ticket_title} - Ticket subject
+{agent_name} - Responding agent
+{response_content} - Latest message
+{ticket_link} - Direct link to ticket
+{unsubscribe_link} - Opt-out link
 ```
 
 #### 2. In-App Notifications
