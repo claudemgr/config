@@ -282,6 +282,8 @@ Controls Claude Code permissions and hook wiring. Structure:
 
 "Templates" refers to the sibling repos next to this one — `~/Projects/github/claudemgr/{lang|type}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`. The repo-name segment is not always a programming language — `go`/`rust` are languages, `android` is a device/platform target — so read `{lang|type}` as "whatever the repo is named," never assume it parses as a language.
 
+**Default referent:** an unqualified "the templates" (e.g. "why do the templates say/have/miss X") always means these template repos — `go/`, `rust/`, `android/`, `docker/`, and `home/TEMPLATES/*.md` — and the search/fix scope is all of them. It never means `home/**`/`./home/*`/`./home` (this repo's deployed dotfiles/memory tree) unless the user names one of those paths explicitly.
+
 **Filename convention per app category** (fixed, applies across every `{lang|type}` repo):
 
 | Category | Filename |
