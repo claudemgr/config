@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302200-git
+##@Version           :  202608302300-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -14,6 +14,9 @@
 # @@Description      :  for that project — closing the gap where "run make test first" was prose-only
 # @@Description      :  and nothing stopped a commit going through without either ever having run.
 # @@Changelog        :  Initial version - audit found the pre-commit test/lint gate was unenforced
+# @@Changelog        :  Clarified the block message for template repos (claudemgr/{lang|type}/) whose
+# @@Changelog        :  spec-collection re-read requirement is now satisfiable via spec-guard-mark.sh's
+# @@Changelog        :  root-level *.md fallback instead of literally AI.md/SPEC.md
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh (PostToolUse Bash), which writes the markers this
 # @@Other            :  checks, per session, in ${TMPDIR:-/tmp}/claude-test-lint-guard/<session_id>/
@@ -22,7 +25,9 @@
 # @@Other            :  whether test+lint markers are required. A project with none of those (pure docs,
 # @@Other            :  i.e. spec-collection per project_type_conventions.md) has no runnable test, so
 # @@Other            :  CLAUDE.md's own substitute applies instead: re-reading AI.md/SPEC.md this
-# @@Other            :  session, reusing spec-guard.sh's existing read-marker.
+# @@Other            :  session, reusing spec-guard.sh's existing read-marker. Template repos with
+# @@Other            :  neither AI.md nor SPEC.md (claudemgr/{go,rust,android,docker,mgr}) satisfy this
+# @@Other            :  via spec-guard-mark.sh's root-level *.md fallback instead.
 # @@Other            :  Applies everywhere including the zone - the zone only relaxes gitcommit's own
 # @@Other            :  commit path (raw git), not the test/lint gate itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -32,7 +37,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302200-git"
+VERSION="202608302300-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -139,8 +144,9 @@ for target in targets:
     if is_spec_collection(project):
         if not marked(spec_guard_marker, project):
             blocked.append(
-                f"{project}: spec-collection project — AI.md/SPEC.md has not been re-read this "
-                f"session (CLAUDE.md's substitute for a test runner here)."
+                f"{project}: spec-collection project — AI.md/SPEC.md (or, for a template repo with "
+                f"neither, its root-level *.md spec file) has not been re-read this session "
+                f"(CLAUDE.md's substitute for a test runner here)."
             )
         continue
 
