@@ -497,6 +497,11 @@
           },
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/enforce-test-lint-gate.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/no-read-gitcommit.sh",
             "timeout": 10
           },
@@ -575,6 +580,16 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/spec-guard-mark.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/test-lint-mark.sh",
             "timeout": 10
           }
         ]
