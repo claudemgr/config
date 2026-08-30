@@ -462,6 +462,11 @@
           },
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/no-subagent-commit.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/no-force-push.sh",
             "timeout": 10
           },

@@ -216,6 +216,7 @@ exit 2
 | `enforce-docker-rm.sh` | PreToolUse Bash | Blocks `docker run` without `--rm`/`--name` and `incus launch`/`init` without an instance name (prevents orphaned/untargetable containers) |
 | `bound-shell-lifetime.sh` | PreToolUse Bash | Blocks unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization) |
 | `zone-git-commit-push.sh` | PreToolUse Bash | Blocks raw `git commit`/`git push` outside `~/Projects/local/system/**`; allows them inside the zone (cwd-scoped, see CLAUDE.md's Local System Management Zone). `settings.json`'s `permissions.deny` cannot be directory-scoped, so this hook is the actual enforcement point — `git reset` stays hard-denied everywhere via `permissions.deny` |
+| `no-subagent-commit.sh` | PreToolUse Bash | Blocks `gitcommit`/`git commit`/`git push` when the tool call's `agent_id` field is set (i.e. it came from a subagent, not the main session) — everywhere, including inside the zone. "Agents never commit" (CLAUDE.md's Agent Usage section) was prose-only with no technical gate until this hook |
 | `no-force-push.sh` | PreToolUse Bash | Blocks `git push --force`/`-f`/`+refspec` everywhere, including inside the zone (`gitcommit` is the only sanctioned push path outside the zone; force-push is excluded from the zone's raw-git pre-authorization) |
 | `validate-workflows.sh` | PreToolUse Bash | Validates staged `.github/workflows` files with `act --list` before `gitcommit` |
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
