@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301200-git
+##@Version           :  202608301555-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -14,6 +14,8 @@
 # @@Description      :  gap the "agents never commit" rule left as prose-only with no technical gate.
 # @@Changelog        :  Initial version — a fork/subagent committed and pushed unrequested; the rule
 # @@Changelog        :  existed in CLAUDE.md/AI.md but nothing actually enforced it
+# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass (same fix as
+# @@Changelog        :  zone-git-commit-push.sh); restored the missing executable bit
 # @@TODO             :  None
 # @@Other            :  Applies everywhere, including the Local System Management Zone — the zone's
 # @@Other            :  raw-git exception is about bypassing gitcommit for the main session, never
@@ -25,7 +27,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301200-git"
+VERSION="202608301555-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -68,21 +70,35 @@ if not re.search(r"\bgit\b|\bgitcommit\b", cmd):
     sys.exit(0)
 
 
-def is_commit_or_push(tokens):
-    # tokens = argv of one sub-command, wrapper/env prefixes already stripped
-    if not tokens:
+GIT_GLOBAL_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+
+def find_git_subcommand(tokens):
+    # First non-flag token after "git", skipping the VALUE of any global
+    # option that takes one (-C <path>, -c <k>=<v>, --git-dir <path>, etc.)
+    # so `git -C /repo commit` cannot hide its subcommand from the scan.
+    i = 1
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in GIT_GLOBAL_OPTS_WITH_VALUE:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok
+    return None
+
+
+def is_commit_or_push(clean_tokens):
+    # Expects argv of one sub-command with wrapper/env prefixes already stripped.
+    if not clean_tokens:
         return False
-    if tokens[0] == "gitcommit":
+    if clean_tokens[0] == "gitcommit":
         return True
-    if tokens[0] != "git":
+    if clean_tokens[0] != "git":
         return False
-    for tok in tokens[1:]:
-        if tok in ("commit", "push"):
-            return True
-        # first non-flag token after `git` that isn't commit/push -> different subcommand
-        if not tok.startswith("-"):
-            return tok in ("commit", "push")
-    return False
+    return find_git_subcommand(clean_tokens) in ("commit", "push")
 
 
 found = False

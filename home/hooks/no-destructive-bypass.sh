@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301700-git
+##@Version           :  202608301555-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -18,6 +18,8 @@
 # @@Description      :  no-history-rewrite.sh, closing the bypass gap without changing the underlying policy.
 # @@Changelog        :  Initial version - audit found permissions.deny's raw glob matching has no
 # @@Changelog        :  wrapper-bypass hardening for git reset/dd/shred/mkfs/wipefs
+# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass in the git-reset
+# @@Changelog        :  detection loop (same fix as zone-git-commit-push.sh)
 # @@TODO             :  None
 # @@Other            :  Container/VM-mediated invocations (docker exec, incus exec, etc.) are NOT exempted
 # @@Other            :  here - unlike protect-host.sh's path-scoped rules, these five ops are denied
@@ -30,7 +32,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301700-git"
+VERSION="202608301555-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -99,6 +101,8 @@ cmd = strip_heredoc_bodies(cmd)
 if not re.search(r"\bgit\b|\bdd\b|\bshred\b|\bmkfs|\bwipefs\b", cmd):
     sys.exit(0)
 
+GIT_GLOBAL_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
 violations = []
 
 for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
@@ -148,8 +152,14 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
 
     if head == "git":
         rest = clean[1:]
-        for i, tok in enumerate(rest):
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok in GIT_GLOBAL_OPTS_WITH_VALUE:
+                i += 2
+                continue
             if tok.startswith("-"):
+                i += 1
                 continue
             if tok == "reset":
                 violations.append((sub_cmd, "git reset"))

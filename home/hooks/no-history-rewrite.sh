@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301600-git
+##@Version           :  202608301555-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -17,6 +17,8 @@
 # @@Description      :  the user to run the command manually once they have actually confirmed it.
 # @@Changelog        :  Initial version - audit found these history-rewriting ops had zero technical enforcement,
 # @@Changelog        :  only prose in CLAUDE.md's zone exclusion list
+# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass in the subcommand
+# @@Changelog        :  scan (same fix as zone-git-commit-push.sh)
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt - they resolve an already-started rebase
 # @@Other            :  rather than starting a new history rewrite, and blocking them would trap the user with
@@ -28,7 +30,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301600-git"
+VERSION="202608301555-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -128,28 +130,39 @@ def is_dry_run(tokens):
     return any(tok in ("-n", "--dry-run") for tok in tokens)
 
 
-def violation(tokens):
-    # tokens = argv of one sub-command, wrapper/env prefixes already stripped
-    if not tokens:
+GIT_GLOBAL_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+
+def find_git_subcommand(rest):
+    # First non-flag token, skipping the VALUE of any global option that
+    # takes one (-C <path>, -c <k>=<v>, --git-dir <path>, etc.) so
+    # `git -C /repo rebase` cannot hide its subcommand from the scan.
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok in GIT_GLOBAL_OPTS_WITH_VALUE:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok, i
+    return None, -1
+
+
+def violation(clean_tokens):
+    # Expects argv of one sub-command with wrapper/env prefixes already stripped.
+    if not clean_tokens:
         return None
 
-    if tokens[0] in ("filter-repo", "git-filter-repo"):
+    if clean_tokens[0] in ("filter-repo", "git-filter-repo"):
         return "filter-repo rewrites every commit in history"
 
-    if tokens[0] != "git":
+    if clean_tokens[0] != "git":
         return None
 
-    # Find the subcommand: first non-flag token after "git", skipping
-    # global option values (-C <path>, --git-dir <path>, etc. best-effort).
-    rest = tokens[1:]
-    sub = None
-    sub_idx = -1
-    for i, tok in enumerate(rest):
-        if tok.startswith("-"):
-            continue
-        sub = tok
-        sub_idx = i
-        break
+    rest = clean_tokens[1:]
+    sub, sub_idx = find_git_subcommand(rest)
     if sub is None:
         return None
     args = rest[sub_idx + 1:]
