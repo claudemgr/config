@@ -173,11 +173,13 @@ Applies to: repos that are a collection of standalone bash/sh/zsh/fish scripts w
 
 ## Type: `spec-collection`
 
-Applies to: repos whose entire content is Markdown specification/template/documentation files — no source code, not even scripts. Distinct from `script-collection`: there is nothing to lint or syntax-check because there is no code, only prose/spec files consumed by AI tooling (e.g. copied verbatim into a generated project as its `AI.md`) or read by humans. Example: the `claudemgr` template repos (`config`, `go`, `rust`, `android`, `docker`) — each root holds only `.md` spec files plus `README.md`/`LICENSE.md`/`.gitignore`, and `config` additionally ships a single `install.sh` whose job is to copy files into place, not to build anything.
+Applies to: repos whose entire content is Markdown specification/template/documentation files — no source code, not even scripts. Distinct from `script-collection`: there is nothing to lint or syntax-check because there is no code, only prose/spec files consumed by AI tooling (e.g. copied verbatim into a generated project as its `AI.md`) or read by humans. Example: the `claudemgr` template repos (`go`, `rust`, `android`, `docker`) — each root holds only `.md` spec files plus `README.md`/`LICENSE.md`/`.gitignore`.
+
+**Simple rule: if there are scripts, lint; if there are no scripts, don't.** A repo with any `*.sh`/`*.bash` file anywhere in its tree beyond a bare deploy-only `install.sh` (see below) is not `spec-collection` — it is `script-collection` (or a mix) and needs the test/lint gate. `claudemgr/config` is the disqualifying example: it ships dozens of scripts under `home/hooks/`, so it is **not** `spec-collection` despite being template/spec-heavy — `bash -n` + `script-lint` apply to every `*.sh` in it.
 
 ### Detection signals
 - Root directory contains only `.md` files plus standard repo metadata (`README.md`, `LICENSE.md`, `.gitignore`, `.gitattributes`) — no `src/`, `bin/`, `cmd/`, `lib/`, or any language manifest (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`).
-- An `install.sh`, if present, only copies/deploys files (no compile step) — this alone does not disqualify the repo from `spec-collection`.
+- An `install.sh` at the root, if present, only copies/deploys files (no compile step) and is the *only* script in the repo — this alone does not disqualify the repo from `spec-collection`. Any additional `*.sh`/`*.bash` file anywhere else in the tree (e.g. a `hooks/`, `bin/`, or `scripts/` directory) does disqualify it — that repo needs the test/lint gate for those scripts instead.
 - `IDEA.md`/`README.md` describes the repo as a spec, template, prompt library, or documentation set — not an executable tool.
 
 ### What is NOT required

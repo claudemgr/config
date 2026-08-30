@@ -11,15 +11,26 @@ other items are independent and can be fixed in any order.
 
 ## Needs user decision first
 
-- [ ] 34: Is `claudemgr/config` itself spec-collection? AI.md:226 and
-      home/memory/project_type_conventions.md:176-180 disagree (any *.sh
-      within 4 levels disqualifies per enforce-test-lint-gate.sh, but
-      project_type_conventions.md:176 names config as a spec-collection
-      example and says install.sh alone doesn't disqualify).
-- [ ] 41: post-compact.sh:41 ("Do NOT bulk re-read files now") directly
-      contradicts home/CLAUDE.md:63 ("treat all rules as needing
-      re-verification" after compaction). Which is the intended rule —
-      hook or CLAUDE.md needs updating to match the other.
+- [x] 34 (FIXED, user decision: "if there are scripts then lint, no
+      scripts don't lint"): Is `claudemgr/config` itself spec-collection?
+      AI.md:226 already correctly excludes it (it isn't in the
+      `claudemgr/{go,rust,android,docker,mgr}` no-AI.md template list,
+      and it has AI.md/SPEC.md at root). Fixed
+      home/memory/project_type_conventions.md instead — removed
+      `config` from the spec-collection example list, added the "if
+      there are scripts, lint; if not, don't" simple rule, and
+      clarified that any `*.sh` beyond a bare deploy-only root
+      `install.sh` disqualifies a repo from spec-collection.
+- [x] 41 (FIXED, user decision: keep no-bulk-re-read but tighten the
+      CLAUDE.md wording to "search and read the relevant section
+      before each edit"): post-compact.sh:41 ("Do NOT bulk re-read
+      files now") directly contradicted home/CLAUDE.md:63 ("treat all
+      rules as needing re-verification" after compaction). Fixed
+      home/CLAUDE.md's Drift Prevention section to explicitly say: do
+      not bulk re-read CLAUDE.md/AI.md/SPEC.md after compaction;
+      instead, before each edit, search for and read only the specific
+      relevant section (matching post-compact.sh and the TODO.AI.md
+      PART-loading technique). No hook change needed.
 
 ## Same bug class as make lint (hardcoded value doesn't match source rule)
 
@@ -286,14 +297,19 @@ other items are independent and can be fixed in any order.
       script_conventions.md:29-32,42 and AI.md:182 require the full
       header block; this is the only one of the seven git/commit hooks
       with this defect.
-- [ ] 62: zone-git-commit-push.sh:110-113 scopes the zone check to `cwd`
-      only, so a cwd inside the zone pre-authorizes commit/push to an
-      arbitrary external repo via `git -C /other/repo push`.
-      home/CLAUDE.md:87 requires a per-path recorded grant ("authorizing
-      one never implies another, and nothing is inferred"). AI.md:219
-      documents this as cwd-scoped so the spec is internally consistent,
-      but the looseness conflicts with CLAUDE.md's cross-repo grant rule
-      — needs a decision on which is intended, similar to items 34/41.
+- [x] 62 (FIXED, user decision: keep cwd-scoped — "I prefer -C so it is
+      always full path is set, keep in mind raw git commit/push is
+      limited to ~/Projects/local/system/** only"): zone-git-commit-
+      push.sh:110-113 scopes the zone check to `cwd` only, so a cwd
+      inside the zone pre-authorizes commit/push to an arbitrary
+      external repo via `git -C /other/repo push`. home/CLAUDE.md:87
+      requires a per-path recorded grant; AI.md:219 documents this as
+      cwd-scoped. Resolved as intentional — hook behavior unchanged.
+      Fixed home/CLAUDE.md's cross-repo grant bullet (:87) to explicitly
+      carve out raw git commit/push from the per-path grant requirement
+      (it's covered by the very next bullet's zone-wide raw-git
+      pre-authorization instead) and to recommend always using an
+      explicit `-C <path>` rather than relying on ambient cwd.
 
 Verified clean in this group: zone allow/deny list matches
 home/CLAUDE.md:239 exactly; `git stash push` correctly doesn't trip
