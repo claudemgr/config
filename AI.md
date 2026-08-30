@@ -211,14 +211,14 @@ exit 2
 | `session-start.sh` | SessionStart | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start. Documented to also fire on `/clear` (`matcher: "clear"`), but a confirmed upstream bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned) means `SessionStart` hooks do not actually fire on `/clear` as of Claude Code 2.1.231 — CLAUDE.md's own "Session Start" section is the reliable fallback since CLAUDE.md is always reloaded on `/clear` regardless of hooks |
 | `post-compact.sh` | SessionStart(compact) | Re-injects project-dir and global context after compaction |
 | `drift-guard-read.sh` | PreToolUse Read | Blocks reading `~/.claude/` deployed copies when a `home/` source exists |
-| `protect-host.sh` | PreToolUse Bash | Blocks destructive host commands |
+| `protect-host.sh` | PreToolUse Bash | Blocks destructive host commands; systemctl lifecycle mutation is exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
 | `block-host-toolchain.sh` | PreToolUse Bash | Blocks direct host toolchain invocations and suggests the Docker equivalent |
 | `enforce-docker-rm.sh` | PreToolUse Bash | Blocks `docker run` without `--rm`/`--name` and `incus launch`/`init` without an instance name (prevents orphaned/untargetable containers) |
 | `bound-shell-lifetime.sh` | PreToolUse Bash | Blocks unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization) |
 | `no-force-push.sh` | PreToolUse Bash | Blocks `git push --force`/`-f`/`+refspec` (`gitcommit` is the only sanctioned push path) |
 | `validate-workflows.sh` | PreToolUse Bash | Validates staged `.github/workflows` files with `act --list` before `gitcommit` |
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
-| `no-secrets.sh` | PreToolUse Write+Edit | Scans Write/Edit content for high-confidence secret patterns and blocks if found |
+| `no-secrets.sh` | PreToolUse Write+Edit | Scans Write/Edit content for high-confidence secret patterns and blocks if found; exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
 | `no-forbidden-files.sh` | PreToolUse Write+Edit | Confirms before writing normally-forbidden files |
 | `spec-guard.sh` | PreToolUse Write+Edit | Blocks Edit/Write on project files until AI.md/SPEC.md was read this session |
 | `spec-guard-mark.sh` | PostToolUse Read | Records that AI.md/SPEC.md was read this session, per project |

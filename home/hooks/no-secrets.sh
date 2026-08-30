@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202608291500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Add python3 fail-open guard, JSON parse guard, restrict placeholder suppression to the matched secret text
+# @@Changelog        :  Local System Management Zone exception — plaintext credentials allowed (cwd-scoped)
 # @@TODO             :  None
 # @@Other            :  Applies to Write (new_content) and Edit (new_string) tool calls.
 # @@Other            :  Template/example env files (.env.example, .env.sample, etc.) are exempted.
@@ -22,7 +22,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202608291500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -64,6 +64,13 @@ ALLOWED_TEMPLATES = {
     "default.env.sample",
 }
 if basename in ALLOWED_TEMPLATES:
+    sys.exit(0)
+
+# Local System Management Zone (~/Projects/local/system/**, see CLAUDE.md) allows
+# plaintext credentials — derived from $HOME at runtime, never hardcoded.
+cwd = d.get("cwd", "") or ""
+zone_root = os.path.join(os.environ.get("HOME", "/root"), "Projects", "local", "system")
+if cwd == zone_root or cwd.startswith(zone_root + os.sep):
     sys.exit(0)
 
 # Select content to scan based on tool.

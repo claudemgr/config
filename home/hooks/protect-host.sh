@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607051330-git
+##@Version           :   202608291500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@ReadME           :  protect-host.sh --help
@@ -8,7 +8,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Container-exemption check sees through alias-bypass backslashes and command/env wrappers
+# @@Changelog        :  Local System Management Zone exception for systemctl lifecycle commands (cwd-scoped)
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -18,7 +18,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607051330-git"
+VERSION="202608291500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -116,6 +116,17 @@ import json, sys
 try:
     d = json.load(sys.stdin)
     print(d.get("tool_input", {}).get("command", ""))
+except Exception:
+    print("")
+'
+}
+# __extract_cwd - read the JSON payload on stdin, print the hook cwd field.
+__extract_cwd() {
+  python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("cwd", ""))
 except Exception:
     print("")
 '
@@ -218,6 +229,14 @@ __require_cmd grep
 # $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
 PROTECT_HOST_INPUT="$(cat)"
 PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_INPUT" | __extract_command)"
+# Local System Management Zone (~/Projects/local/system/**, see CLAUDE.md) pre-authorizes
+# a subset of systemctl lifecycle commands. Derived from $HOME at runtime — never hardcode.
+PROTECT_HOST_ZONE_ROOT="${HOME:-/root}/Projects/local/system"
+PROTECT_HOST_CWD="$(printf '%s' "$PROTECT_HOST_INPUT" | __extract_cwd)"
+PROTECT_HOST_IN_ZONE=0
+case "$PROTECT_HOST_CWD" in
+  "$PROTECT_HOST_ZONE_ROOT" | "$PROTECT_HOST_ZONE_ROOT"/*) PROTECT_HOST_IN_ZONE=1 ;;
+esac
 # Non-shell heredoc bodies are data, not commands — drop them before any rule sees
 # the text so a python/cat heredoc mentioning "rm -rf /" is not a false positive.
 PROTECT_HOST_CMD="$(printf '%s' "$PROTECT_HOST_CMD" | __strip_heredoc_bodies)"
@@ -333,6 +352,8 @@ fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 10: systemctl host-service mutation requires user confirmation.
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
+# Local System Management Zone exception: under ~/Projects/local/system/**, the
+# lifecycle subset (excluding mask/unmask/isolate/kill) is pre-authorized (see CLAUDE.md).
 if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
   if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
     # user-scoped — always OK
@@ -340,7 +361,10 @@ if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
   elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
     # read-only — always OK
     :
-  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|disable|enable|mask|unmask|isolate|kill|reset-failed)[[:space:]]"; then
+  elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)[[:space:]]"; then
+    # zone-scoped lifecycle command — pre-authorized, no confirmation needed
+    :
+  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload)[[:space:]]"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
   fi
 fi
