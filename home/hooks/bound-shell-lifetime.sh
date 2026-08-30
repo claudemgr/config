@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301746-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, Jul 03, 2026 12:30 EDT
 # @@File             :  bound-shell-lifetime.sh
 # @@Description      :  Claude Code PreToolUse hook — block unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization)
-# @@Changelog        :  Added quote-aware sh -c recursion, sentinel-poll detection, and fixed timeout-tier wording to match CLAUDE.md.
+# @@Changelog        :  Narrowed the sentinel token to *.done and let timeout/iteration-cap bounding exempt sentinel polls, matching shell_lifetime_conventions.md.
 # @@TODO             :  None
 # @@Other            :  `timeout N`-wrapped and container-mediated commands are exempt; bounded loops (counters, seq, {1..N}, SECONDS) are allowed.
 # @@Resource         :  ~/.claude/memory/execution_hierarchy.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301746-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -200,17 +200,19 @@ def check(text, depth=0, outer_bounded=False):
         cond, body = m.group(2), m.group(3)
         if not re.search(r"\bsleep\b", body):
             continue
-        # Sentinel polling is forbidden unconditionally (shell_lifetime_conventions.md) —
-        # check it BEFORE the iteration-cap/timeout "bounded" escapes below, so a capped
-        # or timeout-wrapped sentinel poll still gets flagged instead of laundered as OK.
-        if re.search(r"\.done\b|\.output\b|/tasks/", cond):
-            snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
-            violations.append(("sentinel-poll", snippet,
-                "Never poll for subagent/background-task completion — the harness sends a task-notification when tracked work finishes. Drop the loop entirely."))
-            continue
         if re.search(r"-lt\b|-le\b|-ge\b|-gt\b|\bseq\b|\{1\.\.|\bSECONDS\b|\(\(", cond + body):
             continue
         if outer_bounded or bounded_before(masked, m.start()):
+            continue
+        # Sentinel-file polling (shell_lifetime_conventions.md's example is
+        # exactly *.done) is a harness-tracked-work poll, not a general
+        # external-state poll — still subject to the Exemptions section's
+        # blanket `timeout {n}`/iteration-cap carve-out above, same as any
+        # other loop, so this check runs after it, not before.
+        if re.search(r"\.done\b", cond):
+            snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
+            violations.append(("sentinel-poll", snippet,
+                "Never poll for subagent/background-task completion — the harness sends a task-notification when tracked work finishes. Drop the loop entirely."))
             continue
         snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
         violations.append(("unbounded-loop", snippet,
