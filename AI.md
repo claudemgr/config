@@ -227,6 +227,7 @@ exit 2
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
 | `no-secrets.sh` | PreToolUse Write+Edit | Scans Write/Edit content for high-confidence secret patterns and blocks if found; exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
 | `no-forbidden-files.sh` | PreToolUse Write+Edit | Confirms before writing normally-forbidden files |
+| `no-todo-comments.sh` | PreToolUse Write+Edit | Blocks `TODO`/`FIXME`/`HACK`/`XXX` markers at the start of a comment, and a narrow high-confidence commented-out-code heuristic — exempt for `TODO.AI.md`/`TODO.md`/`PLAN.AI.md`/`PLAN.md`/`COMMIT_MESS`; never matches the `@@TODO` header field (starts `@@`, not the bare word) |
 | `spec-guard.sh` | PreToolUse Write+Edit | Blocks Edit/Write on project files until AI.md/SPEC.md was read this session |
 | `spec-guard-mark.sh` | PostToolUse Read | Records that AI.md/SPEC.md was read this session, per project |
 
