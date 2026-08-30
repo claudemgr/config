@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301750-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
-# @@Changelog        :  Scoped the lint-gate regex to the three lint agents and fixed the ENXIO-prone /dev/stdin read.
+# @@Changelog        :  Narrowed the script-collection manifest list to match project_type_conventions.md's authoritative set.
 # @@TODO             :  None
 # @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301750-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -70,11 +70,12 @@ TEST_LINT_MARK_PROJECT=$(realpath -- "$TEST_LINT_MARK_PROJECT" 2>/dev/null) || :
 
 # `bash -n` only satisfies the test gate for script-collection projects
 # (home/CLAUDE.md's Test gate line) — a project with a real test runner
-# (Makefile/go.mod/Cargo.toml/package.json/pyproject.toml/setup.py) must
-# not have its test gate satisfied by syntax-checking an unrelated script.
+# (go.mod/Cargo.toml/package.json/pyproject.toml, project_type_conventions.md's
+# authoritative manifest set) must not have its test gate satisfied by
+# syntax-checking an unrelated script.
 if [ "$TEST_LINT_MARK_IS_BASHN" = "1" ] && [ "$TEST_LINT_MARK_IS_TEST" != "1" ]; then
   TEST_LINT_MARK_IS_SCRIPT_COLLECTION=1
-  for TEST_LINT_MARK_MANIFEST in Makefile go.mod Cargo.toml package.json pyproject.toml setup.py; do
+  for TEST_LINT_MARK_MANIFEST in go.mod Cargo.toml package.json pyproject.toml; do
     [ -f "$TEST_LINT_MARK_PROJECT/$TEST_LINT_MARK_MANIFEST" ] && TEST_LINT_MARK_IS_SCRIPT_COLLECTION=0 && break
   done
   if [ "$TEST_LINT_MARK_IS_SCRIPT_COLLECTION" = "1" ]; then

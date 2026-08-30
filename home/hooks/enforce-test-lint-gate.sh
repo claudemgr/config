@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Clarified the template-repo block message and fixed the ENXIO-prone /dev/stdin read to use $(cat).
+# @@Changelog        :  Removed the script-scan depth limit, added an install.sh-only carve-out, narrowed the manifest list, and skipped the lint gate for projects with no defined lint agent.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -100,20 +100,27 @@ def marked(marker_file, project):
 
 
 def has_shell_scripts(root):
+    # project_type_conventions.md's spec-collection rule scans "anywhere in
+    # its tree", unqualified — no depth limit. A bare deploy-only install.sh
+    # at the project root does not disqualify spec-collection on its own;
+    # any *.sh/*.bash file elsewhere in the tree does.
     skip = {".git", "node_modules", "vendor", ".venv", "target", "dist", "build"}
-    depth_limit = root.rstrip(os.sep).count(os.sep) + 4
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip]
-        if dirpath.count(os.sep) > depth_limit:
-            dirnames[:] = []
-            continue
-        if any(f.endswith(".sh") for f in filenames):
+        for f in filenames:
+            if not f.endswith((".sh", ".bash")):
+                continue
+            if dirpath == root and f == "install.sh":
+                continue
             return True
     return False
 
 
 def is_spec_collection(root):
-    manifests = ("Makefile", "go.mod", "Cargo.toml", "package.json", "pyproject.toml", "setup.py")
+    # Authoritative manifest set from project_type_conventions.md's
+    # script-collection detection signals: go.mod/Cargo.toml/package.json/
+    # pyproject.toml only — Makefile/setup.py are not part of that list.
+    manifests = ("go.mod", "Cargo.toml", "package.json", "pyproject.toml")
     if any(os.path.isfile(os.path.join(root, m)) for m in manifests):
         return False
     return not has_shell_scripts(root)
@@ -137,7 +144,16 @@ for target in targets:
     missing = []
     if not marked(os.path.join(marker_dir, "test"), project):
         missing.append("test gate")
-    if not marked(os.path.join(marker_dir, "lint"), project):
+    # Only Go/Rust/shell have a defined lint agent (go-lint/rust-lint/
+    # script-lint) — a Node- or Python-only project (package.json/
+    # pyproject.toml, no go.mod/Cargo.toml/*.sh) has no lint gate the spec
+    # defines, so requiring one here is an unsatisfiable deadlock.
+    has_defined_lint_target = (
+        os.path.isfile(os.path.join(project, "go.mod"))
+        or os.path.isfile(os.path.join(project, "Cargo.toml"))
+        or has_shell_scripts(project)
+    )
+    if has_defined_lint_target and not marked(os.path.join(marker_dir, "lint"), project):
         missing.append("lint gate")
     if missing:
         blocked.append(f"{project}: {' and '.join(missing)} has not run (and passed) this session")
