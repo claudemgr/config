@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607051350-git
+##@Version           :  202608301725-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -11,6 +11,9 @@
 # @@File             :  bound-shell-lifetime.sh
 # @@Description      :  Claude Code PreToolUse hook — block unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization)
 # @@Changelog        :  Initial release — quote-aware scan, sh -c recursion, timeout/docker exemptions, sentinel-poll detection
+# @@Changelog        :  Fixed block message's printed timeout tiers (<=30s/<=120s/<=600s) to
+# @@Changelog        :  match the actual source-of-truth tiers in home/CLAUDE.md/shell_lifetime_conventions.md
+# @@Changelog        :  (lookups/status <=60s | network/package ops <=300s | builds/tests <=600s)
 # @@TODO             :  None
 # @@Other            :  Commands wrapped in `timeout N` are always exempt. Container-mediated payloads (docker/podman/kubectl/incus) are exempt at this layer.
 # @@Other            :  Bounded loops (iteration counters, seq, {1..N}, SECONDS, arithmetic conditions) are allowed.
@@ -21,7 +24,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607051350-git"
+VERSION="202608301725-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -272,7 +275,7 @@ for rule, snippet, fix in violations:
     msg += "  [" + rule + "] " + snippet + "\n    Fix: " + fix + "\n"
 msg += (
     "\nTimeout tiers — every command must be bounded to its operation:\n"
-    "  lookups/status <=30s | network/package ops <=120s | builds/tests <=600s\n"
+    "  lookups/status <=60s | network/package ops <=300s | builds/tests <=600s\n"
     "Commands already wrapped in `timeout N` and container-mediated payloads are exempt.\n"
     "Waiting on harness-tracked work (subagents, background tasks) needs NO polling —\n"
     "a task-notification arrives when it finishes."

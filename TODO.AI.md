@@ -34,9 +34,10 @@ other items are independent and can be fixed in any order.
 
 ## Same bug class as make lint (hardcoded value doesn't match source rule)
 
-- [ ] 1: bound-shell-lifetime.sh:275 block message prints wrong timeout
+- [x] 1 (FIXED): bound-shell-lifetime.sh:275 block message prints wrong timeout
       tiers (<=30s/<=120s/<=600s) vs actual <=60s/<=300s/<=600s
-      (home/CLAUDE.md:149, shell_lifetime_conventions.md:11).
+      (home/CLAUDE.md:149, shell_lifetime_conventions.md:11). Fixed the printed
+      tiers to <=60s/<=300s/<=600s.
 - [ ] 2: test-lint-mark.sh:63 — `bash -n` satisfies the test gate for
       every project type; home/CLAUDE.md:255 scopes it to
       script-collection only.

@@ -60,6 +60,12 @@ Flag these anti-patterns:
 | `cat /proc/file \| awk '{print $1}'` | `read -r field _ < /proc/file` |
 | `cat - \| sed 's/x/y/'` | `sed 's/x/y/'` |
 
+**Exceptions — do NOT flag these:**
+
+| Pattern | Why it's not a violation |
+|---------|---------------------------|
+| `INPUT="$(cat)"` in `home/hooks/*.sh` (bare `cat`, no filename) | Hook stdin is a socket — `$(< /dev/stdin)` fails there with `ENXIO`; `$(cat)` is the only correct read |
+
 ### grep — end-of-options separator
 
 Every `grep` invocation must place `--` between the flags and the query pattern:

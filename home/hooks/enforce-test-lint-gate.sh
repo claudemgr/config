@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302300-git
+##@Version           :  202608301726-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -17,6 +17,10 @@
 # @@Changelog        :  Clarified the block message for template repos (claudemgr/{lang|type}/) whose
 # @@Changelog        :  spec-collection re-read requirement is now satisfiable via spec-guard-mark.sh's
 # @@Changelog        :  root-level *.md fallback instead of literally AI.md/SPEC.md
+# @@Changelog        :  Fixed stdin read: `$(< /dev/stdin)` fails with ENXIO because hook stdin is
+# @@Changelog        :  a socket, not a real file — reported by the user hitting the actual error
+# @@Changelog        :  live ("/dev/stdin: No such device or address"); switched to `$(cat)`, matching
+# @@Changelog        :  the pattern already used by protect-host.sh/enforce-docker-rm.sh
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh (PostToolUse Bash), which writes the markers this
 # @@Other            :  checks, per session, in ${TMPDIR:-/tmp}/claude-test-lint-guard/<session_id>/
@@ -37,7 +41,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302300-git"
+VERSION="202608301726-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -46,7 +50,8 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-ENFORCE_TEST_LINT_GATE_INPUT="$(< /dev/stdin)"
+# $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
+ENFORCE_TEST_LINT_GATE_INPUT="$(cat)"
 
 ENFORCE_TEST_LINT_GATE_HOOK_INPUT="$ENFORCE_TEST_LINT_GATE_INPUT" python3 - <<'PYEOF'
 import json

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302200-git
+##@Version           :  202608301726-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -22,6 +22,10 @@
 # @@Changelog        :  (golangci-lint/clippy/etc.), not the CasjaysDev-specific convention checks
 # @@Changelog        :  those three agents perform — accepting it as equivalent would let a commit
 # @@Changelog        :  through without the actual mandated lint gate ever running
+# @@Changelog        :  Fixed stdin read: `$(< /dev/stdin)` fails with ENXIO because hook stdin is
+# @@Changelog        :  a socket, not a real file — reported by the user hitting the actual error
+# @@Changelog        :  live ("/dev/stdin: No such device or address"); switched to `$(cat)`, matching
+# @@Changelog        :  the pattern already used by protect-host.sh/enforce-docker-rm.sh
 # @@TODO             :  None
 # @@Other            :  Only marks on exit_code == 0 and interrupted == false - a failed or
 # @@Other            :  timed-out test/lint run must never count as passing
@@ -32,7 +36,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302200-git"
+VERSION="202608301726-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -42,7 +46,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-TEST_LINT_MARK_INPUT="$(< /dev/stdin)"
+# $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
+TEST_LINT_MARK_INPUT="$(cat)"
 
 TEST_LINT_MARK_TOOL=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_name // ""')
 [ "$TEST_LINT_MARK_TOOL" = "Bash" ] || exit 0

@@ -817,6 +817,17 @@ contents="$(< file)"
 grep pattern file
 ```
 
+**Exception:** hook scripts (`home/hooks/*.sh`) reading their JSON stdin payload — hook
+stdin is a socket, so `$(< /dev/stdin)` fails with `ENXIO: No such device or address`;
+bare `$(cat)` (no filename) is the only correct read and is not a UUOC violation there.
+```bash
+# BAD — fails with ENXIO, hook stdin is a socket
+INPUT="$(< /dev/stdin)"
+
+# REQUIRED in hooks
+INPUT="$(cat)"
+```
+
 **Path manipulation — parameter expansion, NOT basename/dirname:**
 ```bash
 # BAD
