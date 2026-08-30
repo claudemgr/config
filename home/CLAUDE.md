@@ -78,25 +78,27 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 
 ### Local System Management Zone (`~/Projects/local/system/**`)
 
-Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. **Only the four exceptions below relax; every other rule in this file and its referenced memory files stays in full force**, including git safety, `security_conventions.md`, and all CI/CD, Makefile, language, and framework tooling conventions (test gates, lint gates, build rules).
+Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. **Only the five exceptions below relax; every other rule in this file and its referenced memory files stays in full force**, including git safety, `security_conventions.md`, and all CI/CD, Makefile, language, and framework tooling conventions (test gates, lint gates, build rules).
 
 **Relaxed here — nothing else:**
 - **Plaintext credentials allowed** — tokens/passwords/API keys may be stored in plaintext (inventories, `.env`-style credential stores) without the SHA-256 hashing/masking `sensitive_data.md` normally requires. Full condition: `~/.claude/memory/sensitive_data.md` → "The Only Exception".
 - **`LICENSE.md` not required** — every other `project_files.md` root-file requirement (`AI.md`, `IDEA.md`, `CLAUDE.md`, `README.md`, `Makefile`, `.gitignore`, etc.) still applies.
 - **systemctl lifecycle commands pre-authorized** — `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` run without per-call confirmation (see "Code & Files" → "systemctl gate" above for the exact list and rationale).
 - **Cross-repo / host-config access with recorded consent** — this is the point of the zone: a project here may write outside `{project_dir}` (other repos, host config files including `/etc/**`) once the user has explicitly authorized that specific path/repo for that project. A verbal "yes" in conversation is not durable and does not survive compaction — before acting, write the grant into `{project_dir}/.claude/settings.local.json` as a real permission entry (gitignored, machine-local). The recorded entry, not the conversation, is what pre-authorizes future access to that path without re-asking each session. Each external path/repo needs its own explicit grant — authorizing one never implies another, and nothing is inferred. Every other safety rule still applies to what's reached this way: destructive-op confirmation (`rm -rf`, force-push, etc.), git safety, and the systemctl gate (including its zone exception above) all apply identically whether the target is inside or outside `{project_dir}`.
+- **Raw standard git commands pre-authorized, `gitcommit`-only path lifted** — inside the zone, ordinary git commands (`status`/`diff`/`log`/`add`/`commit`/`push`/`pull`/`fetch`/`checkout`/`branch`/`merge`/`stash`/`remote`/etc.) run directly, without going through `gitcommit` and without per-call confirmation — the point of the zone is managing many repos' git state directly. **Excluded from this pre-authorization — always confirm first, per the global destructive-op rule, and never pre-run even here:** `git reset` (any form — `--hard`/`--mixed`/`--soft`), `git clean -f*`, `git push --force*`/`--force-with-lease`, `git branch -D`, `git rebase`, `git filter-repo`/`filter-branch`, `git tag -d`, and any other command that discards commits, discards uncommitted work, or rewrites history.
+  - **Repo privacy gate** (uses the raw-git exception above, replacing `gitcommit`'s auto-create/auto-push): a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), only under this sequence — never auto-create a remote:
+    1. If no remote exists yet, create it explicitly with `gh repo create --private` (or provider equivalent) — never let anything auto-create it, since auto-create does not guarantee private visibility.
+    2. `git commit` locally first; do not push in the same step.
+    3. Review the local diff for secrets/PII before pushing — the zone's plaintext-credential exception means a diff can legitimately contain real tokens/passwords; confirm nothing that should stay local, or still needs masking outside the credential-store files it's meant for, is about to leave the machine.
+    4. Re-verify visibility immediately before push — `gh repo view {org}/{repo} --json visibility` (or provider equivalent); only if `private`, run `git push`.
+    5. Re-verify visibility after every push; if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
 
 **Still hard — no exception, ever, even with a recorded grant:**
-- Git safety rules — destructive-op confirmation, `gitcommit`-only commit path, no unrequested force-push
+- Destructive-op confirmation and no unrequested force-push, everywhere, always — see the excluded-commands list above for what stays gated even in the zone
+- Outside the zone, `gitcommit` remains the only commit path — the raw-git exception above applies only under `~/Projects/local/system/**`
 - `systemctl mask`/`unmask`/`edit`/`set-property` and all other `security_conventions.md` rules
 - **Core OS paths are never a valid grant target, regardless of consent** — `/`, `/boot/**`, `/sys/**`, `/proc/**`, `/dev/**`, partition tables, and bootloader config. This is the "system dir" floor — infra config (`/etc/**`, service configs, other repos) is in scope; the kernel/boot/device layer is not.
 - All CI/CD, Makefile, language, and framework tooling conventions
-- **Repo privacy gate** — a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), `gitcommit` stays the only commit path, but only under this exact sequence — `gitcommit`'s normal auto-create-remote-and-push-immediately behavior is unsafe here because the zone routinely holds plaintext credentials:
-  1. **Remote must exist as private before any commit workflow runs** — if no remote exists yet, create it explicitly with `gh repo create --private` (or provider equivalent) first; never let `gitcommit` auto-create it — auto-create does not guarantee private visibility.
-  2. **Every zone commit runs with `.no_push` in place** — `touch {dir}/.no_push` before the first `gitcommit --dir {dir} all` call of the session, so commits land locally without an automatic push.
-  3. **Review the local diff for secrets/PII before pushing** — the zone's plaintext-credential exception means a diff can legitimately contain real tokens/passwords; confirm nothing that should stay local, or still needs masking outside the credential-store files it's meant for, is about to leave the machine.
-  4. **Re-verify visibility immediately before push** — `gh repo view {org}/{repo} --json visibility` (or provider equivalent); only if `private`, remove `.no_push` and run `gitcommit --dir {dir} push`.
-  5. **Re-verify visibility after every push** — if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
@@ -234,7 +236,7 @@ Key rules always in effect:
 - 3+ dependencies → document the resolved order at the top of TODO.AI.md or PLAN.AI.md
 
 ## Commit Workflow
-`git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted.
+`git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted. **Exception:** under `~/Projects/local/system/**`, see "Local System Management Zone" above — raw git commands are pre-authorized there instead.
 
 **Only valid invocation:** `gitcommit --dir {dir} all`
 - `{dir}` = absolute path to the project root · `all` is the only command · never use `-m`/`--message`
