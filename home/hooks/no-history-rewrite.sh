@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
 # @@Description      :  PreToolUse hook: blocks git clean -f*/rebase/branch -D/tag -d/filter-repo/filter-branch everywhere — a hook can only block, not interactively confirm.
-# @@Changelog        :  Initial version enforcing history-rewrite restrictions that were previously prose-only in CLAUDE.md.
+# @@Changelog        :  Narrowed git tag delete matching to -d/--delete only (was matching -D like branch delete); documented the git clean -fn dry-run carve-out.
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -107,15 +107,25 @@ def has_force_flag(tokens):
     return False
 
 
-def has_delete_flag(tokens):
+def has_tag_delete_flag(tokens):
+    # git tag has no -D form (only git branch does) — CLAUDE.md's
+    # Local System Management Zone names only `git tag -d`. Matching
+    # lowercase -d/--delete (and combined flags carrying lowercase d)
+    # only, mirroring the branch-delete matcher's exact-flag precision.
     for tok in tokens:
-        if tok in ("-d", "-D", "--delete"):
+        if tok in ("-d", "--delete"):
             return True
-        if re.match(r"^-[a-zA-Z]*[dD][a-zA-Z]*$", tok):
+        if re.match(r"^-[a-zA-Z]*d[a-zA-Z]*$", tok):
             return True
     return False
 
 
+# `git clean -fn`/`-f --dry-run` never deletes anything — it only lists what
+# would be removed — so it carries none of the irreversible-data-loss risk
+# CLAUDE.md's Verification & Safety section gates on; exempting it here is a
+# deliberate carve-out, not a gap in the "git clean -f* blocked everywhere"
+# rule (AI.md's no-history-rewrite.sh row, CLAUDE.md's Local System
+# Management Zone "Still hard" list).
 def is_dry_run(tokens):
     return any(tok in ("-n", "--dry-run") for tok in tokens)
 
@@ -174,7 +184,7 @@ def violation(clean_tokens):
         return None
 
     if sub == "tag":
-        if has_delete_flag(args):
+        if has_tag_delete_flag(args):
             return "git tag -d deletes a tag pointer"
         return None
 
