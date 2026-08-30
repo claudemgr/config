@@ -11,10 +11,17 @@
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records, per session and project, that a test-gate
 # @@Description      :  command (make test, go test, cargo test, pytest, npm test, bash -n) or a
-# @@Description      :  lint-gate command (script-lint, go-lint, rust-lint, make lint) exited 0 in this
-# @@Description      :  Bash call. Pairs with enforce-test-lint-gate.sh (PreToolUse on gitcommit),
-# @@Description      :  which checks the markers this writes.
+# @@Description      :  lint-gate command (script-lint, go-lint, rust-lint — CLAUDE.md's Commit
+# @@Description      :  Workflow Lint gate names exactly these three, never `make lint`) exited 0
+# @@Description      :  in this Bash call. Pairs with enforce-test-lint-gate.sh (PreToolUse on
+# @@Description      :  gitcommit), which checks the markers this writes.
 # @@Changelog        :  Initial version
+# @@Changelog        :  Removed `make lint` from the lint-gate detection regex — CLAUDE.md's Lint
+# @@Changelog        :  gate is defined as exactly script-lint/go-lint/rust-lint, and a project's
+# @@Changelog        :  own `make lint` target (makefile_conventions.md) runs generic tooling
+# @@Changelog        :  (golangci-lint/clippy/etc.), not the CasjaysDev-specific convention checks
+# @@Changelog        :  those three agents perform — accepting it as equivalent would let a commit
+# @@Changelog        :  through without the actual mandated lint gate ever running
 # @@TODO             :  None
 # @@Other            :  Only marks on exit_code == 0 and interrupted == false - a failed or
 # @@Other            :  timed-out test/lint run must never count as passing
@@ -35,7 +42,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-TEST_LINT_MARK_INPUT="$(cat)"
+TEST_LINT_MARK_INPUT="$(< /dev/stdin)"
 
 TEST_LINT_MARK_TOOL=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_name // ""')
 [ "$TEST_LINT_MARK_TOOL" = "Bash" ] || exit 0
@@ -53,9 +60,9 @@ TEST_LINT_MARK_SESSION_ID=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.sessio
 
 TEST_LINT_MARK_IS_TEST=0
 TEST_LINT_MARK_IS_LINT=0
-printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE '\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b|\bcargo[[:space:]]+test\b|\bpytest\b|\bnpm[[:space:]]+(run[[:space:]]+)?test\b|\bbash[[:space:]]+-n\b' \
+printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b|\bcargo[[:space:]]+test\b|\bpytest\b|\bnpm[[:space:]]+(run[[:space:]]+)?test\b|\bbash[[:space:]]+-n\b' \
   && TEST_LINT_MARK_IS_TEST=1
-printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE '\bscript-lint\b|\bgo-lint\b|\brust-lint\b|\bmake[[:space:]]+lint\b' \
+printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bscript-lint\b|\bgo-lint\b|\brust-lint\b' \
   && TEST_LINT_MARK_IS_LINT=1
 
 [ "$TEST_LINT_MARK_IS_TEST" = "1" ] || [ "$TEST_LINT_MARK_IS_LINT" = "1" ] || exit 0

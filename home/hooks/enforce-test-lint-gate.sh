@@ -46,7 +46,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-ENFORCE_TEST_LINT_GATE_INPUT="$(cat)"
+ENFORCE_TEST_LINT_GATE_INPUT="$(< /dev/stdin)"
 
 ENFORCE_TEST_LINT_GATE_HOOK_INPUT="$ENFORCE_TEST_LINT_GATE_INPUT" python3 - <<'PYEOF'
 import json
@@ -168,7 +168,7 @@ msg_lines.append("")
 msg_lines.append(
     "Run the project's test gate (make test / go test ./... / cargo test / pytest /\n"
     "npm test / bash -n for script-collection) and lint gate (script-lint / go-lint /\n"
-    "rust-lint / make lint) first, then retry gitcommit."
+    "rust-lint — run via the Agent tool, not `make lint`) first, then retry gitcommit."
 )
 msg = "\n".join(msg_lines)
 print(msg)
