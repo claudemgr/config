@@ -391,8 +391,6 @@
       "~/Projects"
     ],
     "deny": [
-      "Bash(git commit *)",
-      "Bash(git push *)",
       "Bash(git reset *)",
       "Bash(dd *)",
       "Bash(shred *)",
@@ -455,6 +453,11 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/bound-shell-lifetime.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/zone-git-commit-push.sh",
             "timeout": 10
           },
           {

@@ -215,7 +215,8 @@ exit 2
 | `block-host-toolchain.sh` | PreToolUse Bash | Blocks direct host toolchain invocations and suggests the Docker equivalent |
 | `enforce-docker-rm.sh` | PreToolUse Bash | Blocks `docker run` without `--rm`/`--name` and `incus launch`/`init` without an instance name (prevents orphaned/untargetable containers) |
 | `bound-shell-lifetime.sh` | PreToolUse Bash | Blocks unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization) |
-| `no-force-push.sh` | PreToolUse Bash | Blocks `git push --force`/`-f`/`+refspec` (`gitcommit` is the only sanctioned push path) |
+| `zone-git-commit-push.sh` | PreToolUse Bash | Blocks raw `git commit`/`git push` outside `~/Projects/local/system/**`; allows them inside the zone (cwd-scoped, see CLAUDE.md's Local System Management Zone). `settings.json`'s `permissions.deny` cannot be directory-scoped, so this hook is the actual enforcement point — `git reset` stays hard-denied everywhere via `permissions.deny` |
+| `no-force-push.sh` | PreToolUse Bash | Blocks `git push --force`/`-f`/`+refspec` everywhere, including inside the zone (`gitcommit` is the only sanctioned push path outside the zone; force-push is excluded from the zone's raw-git pre-authorization) |
 | `validate-workflows.sh` | PreToolUse Bash | Validates staged `.github/workflows` files with `act --list` before `gitcommit` |
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
 | `no-secrets.sh` | PreToolUse Write+Edit | Scans Write/Edit content for high-confidence secret patterns and blocks if found; exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
