@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607051350-git
+##@Version           :   202608301500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,6 +10,8 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
+# @@Description      :  --rm is exempt for detached (-d/--detach) containers so multi-container integration tests (e.g. server/client) can inspect a crashed container's logs before it is torn down; --name stays mandatory either way
+# @@Changelog        :  Exempt --rm for detached containers (integration testing needs post-mortem log/state inspection, which --rm prevents)
 # @@Changelog        :  See through alias-bypass backslashes and shell wrapper prefixes (\docker, command docker, timeout 60 docker run)
 # @@TODO             :  None
 # @@Other            :
@@ -17,7 +19,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607051350-git"
+VERSION="202608301500-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -194,6 +196,16 @@ for sub in sub_cmds:
     # Also accept --rm=true
     has_rm = any(t in ("--rm", "--rm=true") for t in clean[2:])
 
+    # Detached (-d/--detach) containers are exempt from --rm: multi-container
+    # integration testing (e.g. a server container a client container talks
+    # to) needs the server to survive past its own foreground lifetime so its
+    # logs/state can be inspected after a failure - --rm would wipe a crashed
+    # container before that inspection happens. --name stays mandatory either
+    # way, and anything launched without --rm must still be torn down
+    # explicitly before the task ends (see execution_hierarchy.md's Cleanup
+    # rules) - this exempts the flag, not the cleanup obligation.
+    is_detached = any(t in ("-d", "--detach", "--detach=true") for t in clean[2:])
+
     # Check for --name in the argument list
     # Accept both "--name value" and "--name=value" forms
     has_name = any(t == "--name" or t.startswith("--name=") for t in clean[2:])
@@ -205,7 +217,7 @@ for sub in sub_cmds:
         continue
 
     missing = []
-    if not has_rm:
+    if not has_rm and not is_detached:
         missing.append("--rm")
     if not has_name:
         missing.append("--name")
@@ -224,6 +236,11 @@ msg = (
     "--name {project_name}-XXXX; every incus/lxc instance must be launched with\n"
     "an explicit {project_name}-XXXX instance name (targeted cleanup by name).\n"
     "XXXX = random 8-char lowercase alphanumeric suffix.\n\n"
+    "--rm is only exempt for detached (-d/--detach) containers - e.g. a server\n"
+    "container a client container/test talks to, kept alive so its logs/state\n"
+    "can be inspected after a failure. --name is still mandatory, and anything\n"
+    "launched without --rm must still be explicitly `docker rm`'d before the\n"
+    "task ends (see execution_hierarchy.md's Cleanup rules).\n\n"
     "Violating command(s):\n"
 )
 for short, missing in violations:
@@ -232,6 +249,7 @@ for short, missing in violations:
 msg += (
     "\nFix patterns:\n"
     "  docker run --rm --name \"{project_name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" [OPTIONS] IMAGE [COMMAND]\n"
+    "  docker run -d --name \"{project_name}-$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" [OPTIONS] IMAGE [COMMAND]  # integration test, --rm optional\n"
     "  incus launch [OPTIONS] IMAGE \"$(basename \"$PWD\")-$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\"\n\n"
     "If this container must persist after the session (e.g. a user-requested dev environment),\n"
     "confirm with the user first and document the container name/ID."
