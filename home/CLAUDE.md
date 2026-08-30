@@ -78,15 +78,16 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 
 ### Local System Management Zone (`~/Projects/local/system/**`)
 
-Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. **Only the two exceptions below relax; every other rule in this file and its referenced memory files stays in full force**, including git safety, the `systemctl` gate, `security_conventions.md`, host-system-file protection, and all CI/CD, Makefile, language, and framework tooling conventions (test gates, lint gates, build rules).
+Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. **Only the three exceptions below relax; every other rule in this file and its referenced memory files stays in full force**, including git safety, `security_conventions.md`, host-system-file protection, and all CI/CD, Makefile, language, and framework tooling conventions (test gates, lint gates, build rules).
 
 **Relaxed here — nothing else:**
 - **Plaintext credentials allowed** — tokens/passwords/API keys may be stored in plaintext (inventories, `.env`-style credential stores) without the SHA-256 hashing/masking `sensitive_data.md` normally requires. Full condition: `~/.claude/memory/sensitive_data.md` → "The Only Exception".
 - **`LICENSE.md` not required** — every other `project_files.md` root-file requirement (`AI.md`, `IDEA.md`, `CLAUDE.md`, `README.md`, `Makefile`, `.gitignore`, etc.) still applies.
+- **systemctl lifecycle commands pre-authorized** — `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` run without per-call confirmation (see "Code & Files" → "systemctl gate" above for the exact list and rationale).
 
 **Still hard — no exception, ever:**
 - Git safety rules — destructive-op confirmation, `gitcommit`-only commit path, no unrequested force-push
-- `systemctl` gate and all `security_conventions.md` rules
+- `systemctl mask`/`unmask`/`edit`/`set-property` and all other `security_conventions.md` rules
 - Never touch host system files, shell rc files, systemd units, or other repos outside `{project_dir}`
 - All CI/CD, Makefile, language, and framework tooling conventions
 - **Repo privacy gate** — a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), but only while its visibility is confirmed **private**. Check visibility before the first push (`gh repo view {org}/{repo} --json visibility` or provider equivalent) and after every subsequent push; if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
@@ -148,7 +149,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, tell the user; only they decide whether to proceed
 - Verify APIs/flags exist before using them; run code before calling it done; iterate until verification passes
 - **kill scoping** — `kill $PID` only when `$PID` was captured at launch in the current task (`PID=$!`)
-- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask` on host services require user confirmation
+- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask` on host services require user confirmation. **Exception:** under `~/Projects/local/system/**` (see "Local System Management Zone" below), `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` are pre-authorized without per-call confirmation; `mask`/`unmask`/`edit`/`set-property` still require confirmation everywhere, including in the zone — they change persistent boot-time behavior other tooling relies on, a different risk class than a lifecycle toggle
 - Memory safety and security-by-design rules: `~/.claude/memory/security_conventions.md`
 
 ## Self-Validation
