@@ -225,6 +225,7 @@ exit 2
 | `enforce-gitcommit-shape.sh` | PreToolUse Bash | Blocks any `gitcommit` invocation that isn't exactly `gitcommit --dir <path> all` or the documented push-retry form `gitcommit push` — catches `-m`/`--message` and any other flag/argument shape, everywhere including inside the zone (`gitcommit` itself has no zone exception) |
 | `enforce-test-lint-gate.sh` | PreToolUse Bash | Blocks `gitcommit --dir <path> all` unless the test gate and lint gate actually ran and passed this session for that project (per the markers `test-lint-mark.sh` writes) — spec-collection projects (no Makefile/manifest/`*.sh`) substitute an AI.md/SPEC.md re-read this session instead, reusing `spec-guard.sh`'s marker |
 | `test-lint-mark.sh` | PostToolUse Bash | Records, per session and project, that a test-gate or lint-gate command exited 0 (and wasn't interrupted) — pairs with `enforce-test-lint-gate.sh` |
+| `lint-agent-mark.sh` | SubagentStop | Records the lint gate as satisfied when the `script-lint`/`go-lint`/`rust-lint` subagent finishes for this project and session — the lint gate is actually run via the Agent tool (a subagent), never as a host CLI command, so `test-lint-mark.sh`'s PostToolUse-on-Bash detection can never see it fire; writes the same marker `enforce-test-lint-gate.sh` checks |
 | `validate-workflows.sh` | PreToolUse Bash | Validates staged `.github/workflows` files with `act --list` before `gitcommit` |
 | `no-ai-attribution.sh` | PreToolUse Write+Edit | Blocks AI attribution phrases in file content |
 | `no-secrets.sh` | PreToolUse Write+Edit | Scans Write/Edit content for high-confidence secret patterns and blocks if found; exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
@@ -232,6 +233,7 @@ exit 2
 | `no-todo-comments.sh` | PreToolUse Write+Edit | Blocks `TODO`/`FIXME`/`HACK`/`XXX` markers at the start of a comment, and a narrow high-confidence commented-out-code heuristic — exempt for `TODO.AI.md`/`TODO.md`/`PLAN.AI.md`/`PLAN.md`/`COMMIT_MESS`; never matches the `@@TODO` header field (starts `@@`, not the bare word) |
 | `spec-guard.sh` | PreToolUse Write+Edit | Blocks Edit/Write on project files until AI.md/SPEC.md was read this session |
 | `spec-guard-mark.sh` | PostToolUse Read | Records that AI.md/SPEC.md was read this session, per project |
+| `trailing-newline-guard.sh` | PostToolUse Write+Edit | Read-only check that the file ends with exactly one trailing newline (file_ending_conventions.md); blocks with a remediation message rather than rewriting the file itself, per this section's "never write to files from a hook" rule — exempt for raw-value secret/token files, `VERSION`, lockfiles, and binary content |
 
 **Wiring hooks in settings.json:**
 
