@@ -91,7 +91,12 @@ Repos under this exact path are personal project/infra/fleet-management tooling 
 - `systemctl mask`/`unmask`/`edit`/`set-property` and all other `security_conventions.md` rules
 - **Core OS paths are never a valid grant target, regardless of consent** — `/`, `/boot/**`, `/sys/**`, `/proc/**`, `/dev/**`, partition tables, and bootloader config. This is the "system dir" floor — infra config (`/etc/**`, service configs, other repos) is in scope; the kernel/boot/device layer is not.
 - All CI/CD, Makefile, language, and framework tooling conventions
-- **Repo privacy gate** — a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), but only while its visibility is confirmed **private**. Check visibility before the first push (`gh repo view {org}/{repo} --json visibility` or provider equivalent) and after every subsequent push; if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
+- **Repo privacy gate** — a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), `gitcommit` stays the only commit path, but only under this exact sequence — `gitcommit`'s normal auto-create-remote-and-push-immediately behavior is unsafe here because the zone routinely holds plaintext credentials:
+  1. **Remote must exist as private before any commit workflow runs** — if no remote exists yet, create it explicitly with `gh repo create --private` (or provider equivalent) first; never let `gitcommit` auto-create it — auto-create does not guarantee private visibility.
+  2. **Every zone commit runs with `.no_push` in place** — `touch {dir}/.no_push` before the first `gitcommit --dir {dir} all` call of the session, so commits land locally without an automatic push.
+  3. **Review the local diff for secrets/PII before pushing** — the zone's plaintext-credential exception means a diff can legitimately contain real tokens/passwords; confirm nothing that should stay local, or still needs masking outside the credential-store files it's meant for, is about to leave the machine.
+  4. **Re-verify visibility immediately before push** — `gh repo view {org}/{repo} --json visibility` (or provider equivalent); only if `private`, remove `.no_push` and run `gitcommit --dir {dir} push`.
+  5. **Re-verify visibility after every push** — if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
