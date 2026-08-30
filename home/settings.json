@@ -429,6 +429,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/drift-guard-read.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-read-gitcommit.sh",
+            "timeout": 10
           }
         ]
       },
@@ -488,6 +493,11 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/enforce-gitcommit-shape.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-read-gitcommit.sh",
             "timeout": 10
           },
           {
