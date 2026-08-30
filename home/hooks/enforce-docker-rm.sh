@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
-# @@Changelog        :  Exempted --rm for detached containers and hardened first-word dispatch against alias/wrapper bypasses.
+# @@Changelog        :  Removed lxc from the launch/init naming enforcement — execution_hierarchy.md specifies Incus only.
 # @@TODO             :  None
 # @@Other            :  --rm is exempt for detached (-d/--detach) containers so tests can inspect a crashed container's logs before teardown; --name stays mandatory either way
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -99,9 +99,9 @@ def strip_heredoc_bodies(text):
 
 cmd = strip_heredoc_bodies(cmd)
 
-# Only inspect commands that contain docker run or incus/lxc launch|init
+# Only inspect commands that contain docker run or incus launch|init
 # (any whitespace: spaces, tabs, or backslash-newline continuations)
-if not re.search(r"docker\s+run|(incus|lxc)\s+(launch|init)", cmd):
+if not re.search(r"docker\s+run|incus\s+(launch|init)", cmd):
     sys.exit(0)
 
 # Tokenise with shlex; split on pipes/semicolons/&&/newlines first
@@ -150,13 +150,13 @@ for sub in sub_cmds:
         continue
 
     # Normalise: handle "docker  run" with extra spaces already split away
-    if clean[0] not in ("docker", "incus", "lxc"):
+    if clean[0] not in ("docker", "incus"):
         continue
 
-    # incus/lxc launch|init: an omitted instance name makes incus assign a
+    # incus launch|init: an omitted instance name makes incus assign a
     # random one — unscoped and untargetable. Require an explicit name so
     # every instance is project-scoped, same policy as docker --name.
-    if clean[0] in ("incus", "lxc"):
+    if clean[0] == "incus":
         if len(clean) < 2 or clean[1] not in ("launch", "init"):
             continue
         if any(t in ("--help", "-h") for t in clean[2:]):
@@ -231,7 +231,7 @@ if not violations:
 msg = (
     "BLOCKED: container/instance launch missing required naming.\n\n"
     "Every docker container must use --rm (self-remove on exit, no orphans) and\n"
-    "--name {project_name}-XXXX; every incus/lxc instance must be launched with\n"
+    "--name {project_name}-XXXX; every incus instance must be launched with\n"
     "an explicit {project_name}-XXXX instance name (targeted cleanup by name).\n"
     "XXXX = random 8-char lowercase alphanumeric suffix.\n\n"
     "--rm is only exempt for detached (-d/--detach) containers - e.g. a server\n"
