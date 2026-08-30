@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607201600-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  spec-guard.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard.sh
 # @@Description      :  PreToolUse hook: block Edit/Write on project files until AI.md/SPEC.md was read this session
-# @@Changelog        :  Added broken-bootstrap detection (CLAUDE.md loader present without AI.md/SPEC.md); AI.md may lack '# PART' headings
+# @@Changelog        :  Added broken-bootstrap detection for a CLAUDE.md loader present without AI.md/SPEC.md; fixed the license header field to WTFPL.
 # @@TODO             :
-# @@Other            :  Only fires inside a git repo whose root has AI.md or SPEC.md (a spec-governed project)
-# @@Other            :  A CLAUDE.md loader without AI.md/SPEC.md is treated as a broken bootstrap and blocked distinctly
-# @@Other            :  Meta/spec files themselves (AI.md, IDEA.md, SPEC.md, CLAUDE.md, TODO(.AI).md, PLAN(.AI).md, .claude/*, .git/*) are exempt
-# @@Other            :  Pairs with spec-guard-mark.sh (PostToolUse on Read), which writes the marker this checks
+# @@Other            :  Fires only in a git repo with AI.md/SPEC.md; a CLAUDE.md loader without either is a broken bootstrap, blocked distinctly; meta/spec files are exempt.
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607201600-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail

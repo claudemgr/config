@@ -4,23 +4,15 @@
 ##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  bash-content-scan.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 18:00 EDT
 # @@File             :  bash-content-scan.sh
-# @@Description      :  PreToolUse Bash hook: runs no-secrets.sh's secret patterns and
-# @@Description      :  no-ai-attribution.sh's attribution patterns against content a Bash command
-# @@Description      :  writes to disk (heredoc bodies, and echo/printf redirected with >/>>) - closing
-# @@Description      :  the gap where those two hooks only ever saw Write/Edit tool_input, so `cat <<EOF
-# @@Description      :  > file` or `echo "$SECRET" > file` bypassed both scanners entirely.
-# @@Changelog        :  Initial version - audit found secret/AI-attribution scanning had no Bash coverage
+# @@Description      :  PreToolUse Bash hook: scans no-secrets.sh/no-ai-attribution.sh patterns against heredoc or echo/printf redirects, which bypass Write/Edit tool_input.
+# @@Changelog        :  Added Bash heredoc/redirect secret-scanning coverage and fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Secret patterns respect the Local System Management Zone's plaintext-credential
-# @@Other            :  exemption (cwd-scoped, matches no-secrets.sh); AI-attribution patterns have no
-# @@Other            :  zone exemption (matches no-ai-attribution.sh)
-# @@Other            :  Container/VM-mediated heredocs (docker exec, incus exec, etc.) are exempt - the
-# @@Other            :  body runs inside the disposable guest, same policy as the other Bash hooks
+# @@Other            :  Secrets respect the zone's plaintext-credential exemption (cwd-scoped); AI-attribution has no exemption; container/VM-mediated heredocs are exempt.
 # @@Resource         :  home/hooks/no-secrets.sh, home/hooks/no-ai-attribution.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no

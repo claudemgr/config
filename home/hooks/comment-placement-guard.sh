@@ -1,34 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302300-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  comment-placement-guard.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
-# @@Description      :  PreToolUse Write+Edit hook: blocks (a) any comment syntax written into a
-# @@Description      :  .json file, and (b) inline trailing comments in common source files, enforcing
-# @@Description      :  comment_conventions.md's "comments always ABOVE, never inline" rule and its
-# @@Description      :  "JSON never has comments" rule, previously prose-only with no technical gate.
-# @@Changelog        :  Initial version - audit #9
+# @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
+# @@Changelog        :  Initial version from audit #9; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  JSON check is string-aware (tracks quote/escape state) so "//" or "/*" inside
-# @@Other            :  a JSON string value (e.g. a URL) is never flagged - only comment syntax outside
-# @@Other            :  of a string literal blocks.
-# @@Other            :  Inline-comment check only runs on a fixed extension list where "#" or "//" are
-# @@Other            :  real comment syntax (sh/bash/py/rb/yml/yaml/toml/ini for "#"; go/rs/js/ts/jsx/tsx/
-# @@Other            :  java/c/cpp/h/hpp for "//") and only flags the marker when preceded by whitespace,
-# @@Other            :  so "://" inside a URL string is never flagged - deliberately conservative,
-# @@Other            :  matching no-todo-comments.sh's narrow-heuristic approach, to avoid false positives
-# @@Other            :  on ordinary strings containing "#" or "//".
-# @@Other            :  Exempt inline: `# noqa`, `# type: ignore`, `// nolint` (tool-required directives,
-# @@Other            :  comment_conventions.md's own exception), and the CI SHA-pin annotation
-# @@Other            :  (`uses: ...@<40-hex-sha>  # vX.Y.Z`) inside .github/workflows/*.yml|*.yaml.
-# @@Other            :  Edit only sees new_string (not the full file), matching no-todo-comments.sh's
-# @@Other            :  same documented scope limitation.
+# @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -36,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302300-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

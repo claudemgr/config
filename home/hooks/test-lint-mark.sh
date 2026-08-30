@@ -1,40 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301735-git
+##@Version           :  202608301750-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  test-lint-mark.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
-# @@Description      :  PostToolUse Bash hook: records, per session and project, that a test-gate
-# @@Description      :  command (make test, go test, cargo test, pytest, npm test; bash -n only
-# @@Description      :  counts for a script-collection project — no Makefile/go.mod/Cargo.toml/
-# @@Description      :  package.json/pyproject.toml/setup.py) or a
-# @@Description      :  lint-gate command (script-lint, go-lint, rust-lint — CLAUDE.md's Commit
-# @@Description      :  Workflow Lint gate names exactly these three, never `make lint`) exited 0
-# @@Description      :  in this Bash call. Pairs with enforce-test-lint-gate.sh (PreToolUse on
-# @@Description      :  gitcommit), which checks the markers this writes.
-# @@Changelog        :  Initial version
-# @@Changelog        :  Removed `make lint` from the lint-gate detection regex — CLAUDE.md's Lint
-# @@Changelog        :  gate is defined as exactly script-lint/go-lint/rust-lint, and a project's
-# @@Changelog        :  own `make lint` target (makefile_conventions.md) runs generic tooling
-# @@Changelog        :  (golangci-lint/clippy/etc.), not the CasjaysDev-specific convention checks
-# @@Changelog        :  those three agents perform — accepting it as equivalent would let a commit
-# @@Changelog        :  through without the actual mandated lint gate ever running
-# @@Changelog        :  Fixed stdin read: `$(< /dev/stdin)` fails with ENXIO because hook stdin is
-# @@Changelog        :  a socket, not a real file — reported by the user hitting the actual error
-# @@Changelog        :  live ("/dev/stdin: No such device or address"); switched to `$(cat)`, matching
-# @@Changelog        :  the pattern already used by protect-host.sh/enforce-docker-rm.sh
-# @@Changelog        :  `bash -n` no longer satisfies the test gate for every project type —
-# @@Changelog        :  home/CLAUDE.md's Test gate scopes `bash -n` to script-collection projects
-# @@Changelog        :  only; a project with a real manifest (Makefile/go.mod/Cargo.toml/
-# @@Changelog        :  package.json/pyproject.toml/setup.py) now requires its actual test runner
+# @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
+# @@Changelog        :  Scoped the lint-gate regex to the three lint agents and fixed the ENXIO-prone /dev/stdin read.
 # @@TODO             :  None
-# @@Other            :  Only marks on exit_code == 0 and interrupted == false - a failed or
-# @@Other            :  timed-out test/lint run must never count as passing
+# @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -42,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301735-git"
+VERSION="202608301750-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -84,6 +62,11 @@ printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bscript-lint\b|\bgo-lint\b|\br
 TEST_LINT_MARK_PROJECT=$(git -C "${TEST_LINT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
   || TEST_LINT_MARK_PROJECT="$TEST_LINT_MARK_CWD"
 [ -z "$TEST_LINT_MARK_PROJECT" ] && exit 0
+# Normalize the same way enforce-test-lint-gate.sh's reader normalizes its
+# --dir lookup key (Python os.path.realpath) — without this, a marker
+# written under a symlinked/un-normalized path never matches the reader's
+# realpath'd key and the gate falsely reports the test/lint gate as unrun.
+TEST_LINT_MARK_PROJECT=$(realpath -- "$TEST_LINT_MARK_PROJECT" 2>/dev/null) || :
 
 # `bash -n` only satisfies the test gate for script-collection projects
 # (home/CLAUDE.md's Test gate line) — a project with a real test runner

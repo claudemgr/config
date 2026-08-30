@@ -1,39 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301726-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  enforce-test-lint-gate.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
-# @@Description      :  PreToolUse Bash hook: blocks `gitcommit --dir <path> all` unless the test gate
-# @@Description      :  and lint gate (CLAUDE.md's Commit Workflow) actually ran and passed this session
-# @@Description      :  for that project — closing the gap where "run make test first" was prose-only
-# @@Description      :  and nothing stopped a commit going through without either ever having run.
-# @@Changelog        :  Initial version - audit found the pre-commit test/lint gate was unenforced
-# @@Changelog        :  Clarified the block message for template repos (claudemgr/{lang|type}/) whose
-# @@Changelog        :  spec-collection re-read requirement is now satisfiable via spec-guard-mark.sh's
-# @@Changelog        :  root-level *.md fallback instead of literally AI.md/SPEC.md
-# @@Changelog        :  Fixed stdin read: `$(< /dev/stdin)` fails with ENXIO because hook stdin is
-# @@Changelog        :  a socket, not a real file — reported by the user hitting the actual error
-# @@Changelog        :  live ("/dev/stdin: No such device or address"); switched to `$(cat)`, matching
-# @@Changelog        :  the pattern already used by protect-host.sh/enforce-docker-rm.sh
+# @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
+# @@Changelog        :  Clarified the template-repo block message and fixed the ENXIO-prone /dev/stdin read to use $(cat).
 # @@TODO             :  None
-# @@Other            :  Pairs with test-lint-mark.sh (PostToolUse Bash), which writes the markers this
-# @@Other            :  checks, per session, in ${TMPDIR:-/tmp}/claude-test-lint-guard/<session_id>/
-# @@Other            :  Project-type heuristic (Makefile / go.mod / Cargo.toml / package.json /
-# @@Other            :  pyproject.toml / setup.py / any *.sh file under the repo, shallow scan) decides
-# @@Other            :  whether test+lint markers are required. A project with none of those (pure docs,
-# @@Other            :  i.e. spec-collection per project_type_conventions.md) has no runnable test, so
-# @@Other            :  CLAUDE.md's own substitute applies instead: re-reading AI.md/SPEC.md this
-# @@Other            :  session, reusing spec-guard.sh's existing read-marker. Template repos with
-# @@Other            :  neither AI.md nor SPEC.md (claudemgr/{go,rust,android,docker,mgr}) satisfy this
-# @@Other            :  via spec-guard-mark.sh's root-level *.md fallback instead.
-# @@Other            :  Applies everywhere including the zone - the zone only relaxes gitcommit's own
-# @@Other            :  commit path (raw git), not the test/lint gate itself.
+# @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -41,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301726-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

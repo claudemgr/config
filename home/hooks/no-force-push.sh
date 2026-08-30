@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301707-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-force-push.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  no-force-push.sh
 # @@Description      :  PreToolUse hook: block git push --force/-f/+refspec (gitcommit is the only sanctioned push path)
-# @@Changelog        :  Multi-line commands, +refspec, \git/command/env prefixes, combined -f flags, stderr output
-# @@Changelog        :  Added sudo/doas to the wrapper-strip list — sudo git push --force sailed
-# @@Changelog        :  past this hook entirely (matches enforce-gitcommit-shape.sh's superset)
+# @@Changelog        :  Added sudo/doas to the wrapper-strip list so wrapped force-pushes can't bypass detection, and fixed the license header field to WTFPL.
 # @@TODO             :  None
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301707-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

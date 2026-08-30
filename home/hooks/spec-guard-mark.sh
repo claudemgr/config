@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302300-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  spec-guard-mark.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard-mark.sh
 # @@Description      :  PostToolUse hook: record that AI.md/SPEC.md was read this session, per project
-# @@Changelog        :  Added template-repo fallback - projects with neither AI.md nor SPEC.md at
-# @@Changelog        :  their root (claudemgr/{lang|type}/ template repos, whose spec is a root-level
-# @@Changelog        :  *.md file like APPLICATION.md/COMPOSEMGR.md/SCRIPT.md) now mark on any such
-# @@Changelog        :  root-level *.md read, so enforce-test-lint-gate.sh's spec-collection re-read
-# @@Changelog        :  requirement is satisfiable for them
+# @@Changelog        :  Added the template-repo root-level *.md fallback for spec-collection projects without AI.md/SPEC.md.
 # @@TODO             :
-# @@Other            :  Pairs with spec-guard.sh (PreToolUse on Edit/Write), which checks the marker this writes
-# @@Other            :  Pairs with enforce-test-lint-gate.sh, whose spec-collection branch reuses this marker
+# @@Other              :  Pairs with spec-guard.sh (checks this marker) and enforce-test-lint-gate.sh (reuses it for the spec-collection branch).
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302300-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail

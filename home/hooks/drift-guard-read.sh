@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  drift-guard-read.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse hook: block reading ~/.claude/ deployed copies when home/ source exists
-# @@Changelog        :  Fail open with a stderr warning when jq is missing
+# @@Changelog        :  Fail open with a stderr warning when jq is missing; fixed the license header field to WTFPL.
 # @@TODO             :
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md)
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail

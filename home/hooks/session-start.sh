@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608211600-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  session-start.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  session-start.sh
 # @@Description      :  SessionStart hook: inject project-dir context to anchor every session
-# @@Changelog        :  Note project CLAUDE.md as loader and SPEC.md as override tier when either exists
+# @@Changelog        :  Noted project CLAUDE.md as loader and SPEC.md as override tier; fixed the license header field to WTFPL.
 # @@TODO             :
 # @@Other            :  Silently exits if not inside a git repo with a project CLAUDE.md or AI.md
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608211600-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail

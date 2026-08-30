@@ -96,7 +96,7 @@ Repos under this exact path are personal project/infra/fleet-management tooling 
 **Still hard — no exception, ever, even with a recorded grant:**
 - Destructive-op confirmation and no unrequested force-push, everywhere, always — see the excluded-commands list above for what stays gated even in the zone
 - Outside the zone, `gitcommit` remains the only commit path — the raw-git exception above applies only under `~/Projects/local/system/**`
-- `systemctl mask`/`unmask`/`edit`/`set-property` and all other `security_conventions.md` rules
+- `systemctl mask`/`unmask`/`edit`/`set-property`/`isolate`/`kill` and all other `security_conventions.md` rules
 - **Core OS paths are never a valid grant target, regardless of consent** — `/`, `/boot/**`, `/sys/**`, `/proc/**`, `/dev/**`, partition tables, and bootloader config. This is the "system dir" floor — infra config (`/etc/**`, service configs, other repos) is in scope; the kernel/boot/device layer is not.
 - All CI/CD, Makefile, language, and framework tooling conventions
 
@@ -152,12 +152,13 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 
 ## Verification & Safety
 - Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
+- **`dd`/`shred`/`mkfs*`/`wipefs`/`git reset` are hard-denied, not confirm-gated** — `settings.json`'s `permissions.deny` list blocks these outright with no confirm path, a stricter posture than the general "confirm before irreversible" rule above; `no-destructive-bypass.sh` enforces this deny list and correctly refuses these unconditionally rather than prompting
 - **Never run unrequested destructive ops, even to "fix"** — stop and ask
 - **A `git status` deletion is not automatically an error to fix** — `git restore`, `git checkout -- <path>`, and any additive-restore/deploy step (e.g. `install.sh` copying `home/` → `~/.claude/`) undo the user's own uncommitted change. Never run one of these on a file the user didn't ask to have restored just because it shows as deleted/modified — that deletion is more likely deliberate (e.g. manual cleanup pending regeneration via `bootstrap`) than damage. Ask first before reverting anything the user didn't report as broken. (This does not apply to the Session Start stash/pull/pop sequence — that flow's own `git stash pop` is separately pre-authorized.)
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, tell the user; only they decide whether to proceed
 - Verify APIs/flags exist before using them; run code before calling it done; iterate until verification passes
 - **kill scoping** — `kill $PID` only when `$PID` was captured at launch in the current task (`PID=$!`)
-- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask` on host services require user confirmation. **Exception:** under `~/Projects/local/system/**` (see "Local System Management Zone" below), `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` are pre-authorized without per-call confirmation; `mask`/`unmask`/`edit`/`set-property` still require confirmation everywhere, including in the zone — they change persistent boot-time behavior other tooling relies on, a different risk class than a lifecycle toggle
+- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask`/`isolate`/`kill` on host services require user confirmation — `isolate` tears down every unit outside the target's dependency tree, and `kill` signals a unit's processes directly, so both carry the same blast-radius risk as `restart`/`stop`. **Exception:** under `~/Projects/local/system/**` (see "Local System Management Zone" below), `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` are pre-authorized without per-call confirmation; `mask`/`unmask`/`edit`/`set-property`/`isolate`/`kill` still require confirmation everywhere, including in the zone — `isolate`/`kill` are as blast-radius-risky as the mask/unmask/edit/set-property group, not a routine lifecycle toggle
 - Memory safety and security-by-design rules: `~/.claude/memory/security_conventions.md`
 
 ## Self-Validation

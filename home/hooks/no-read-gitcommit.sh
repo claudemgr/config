@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302000-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-read-gitcommit.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
-# @@Description      :  PreToolUse Read+Bash hook: blocks reading the gitcommit script file, mirroring
-# @@Description      :  drift-guard-read.sh's pattern. CLAUDE.md's Commit Workflow says "Never read the
-# @@Description      :  gitcommit script file - it is pre-approved and trusted", but nothing previously
-# @@Description      :  enforced that technically - both the Read tool and a Bash cat/less/head/etc could
-# @@Description      :  read it freely.
-# @@Changelog        :  Initial version - audit found the "never read gitcommit" rule was prose-only
+# @@Description      :  PreToolUse Read+Bash hook: blocks reading the commit wrapper's script file (Read tool and cat/less/head/etc via Bash), a previously prose-only rule.
+# @@Changelog        :  Initial version enforcing the previously prose-only never-read-gitcommit rule; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Resolves the gitcommit symlink target (/usr/local/bin/gitcommit ->
-# @@Other            :  /usr/local/share/CasjaysDev/scripts/bin/gitcommit) so both paths are blocked
-# @@Other            :  No zone exception - the zone's raw-git pre-authorization never applies to
-# @@Other            :  gitcommit itself (see enforce-gitcommit-shape.sh's header for the same reasoning)
+# @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -27,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302000-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

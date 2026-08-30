@@ -1,30 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301555-git
+##@Version           :  202608301745-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-destructive-bypass.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 17:00 EDT
 # @@File             :  no-destructive-bypass.sh
-# @@Description      :  PreToolUse hook: hard-blocks git reset (any form), dd, shred, mkfs*, wipefs
-# @@Description      :  everywhere, with alias/wrapper-bypass hardening. settings.json's permissions.deny
-# @@Description      :  already lists these five as denied, but permissions.deny does raw glob matching on
-# @@Description      :  the literal command string, so \dd, command dd, env FOO=1 dd, or a wrapped/nested
-# @@Description      :  invocation slips past it untouched. This hook re-enforces the same policy with the
-# @@Description      :  shlex/wrapper-stripping approach already used by no-force-push.sh and
-# @@Description      :  no-history-rewrite.sh, closing the bypass gap without changing the underlying policy.
-# @@Changelog        :  Initial version - audit found permissions.deny's raw glob matching has no
-# @@Changelog        :  wrapper-bypass hardening for git reset/dd/shred/mkfs/wipefs
-# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass in the git-reset
-# @@Changelog        :  detection loop (same fix as zone-git-commit-push.sh)
+# @@Description      :  PreToolUse hook: hard-blocks git reset/dd/shred/mkfs*/wipefs everywhere, re-enforcing permissions.deny against alias/wrapper-bypass invocations.
+# @@Changelog        :  Initial version hardening permissions.deny against wrapper bypasses for git reset/dd/shred/mkfs/wipefs.
 # @@TODO             :  None
-# @@Other            :  Container/VM-mediated invocations (docker exec, incus exec, etc.) are NOT exempted
-# @@Other            :  here - unlike protect-host.sh's path-scoped rules, these five ops are denied
-# @@Other            :  unconditionally by settings.json regardless of target, so the guest-container
-# @@Other            :  exemption used elsewhere does not apply
+# @@Other              :  Container/VM-mediated invocations are NOT exempted — these five ops are denied unconditionally by settings.json regardless of target.
 # @@Resource         :  home/settings.json permissions.deny
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -32,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301555-git"
+VERSION="202608301745-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -115,19 +103,23 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
         tokens = sub_cmd.split()
 
     # Strip wrapper/alias-bypass prefixes and env assignments (any case):
-    # \dd, command dd, env [KEY=VAL...] dd, KEY=VAL dd
-    clean = []
-    skipping_prefix = True
-    for tok in tokens:
-        if skipping_prefix:
-            if tok in ("command", "env", "exec", "nohup", "time", "sudo", "doas"):
-                continue
-            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
-                continue
-            if tok.startswith("-"):
-                continue
-            skipping_prefix = False
-        clean.append(tok.lstrip("\\"))
+    # \dd, command dd, env [KEY=VAL...] dd, KEY=VAL dd, timeout 60 dd
+    wrappers = {"command", "builtin", "env", "exec", "nohup", "setsid", "nice",
+                "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
+    clean = [tok.lstrip("\\") for tok in tokens]
+    while clean:
+        head = clean[0]
+        if head in wrappers:
+            clean.pop(0)
+            # skip wrapper flags and duration/priority arguments (timeout 600)
+            while clean and (clean[0].startswith("-")
+                             or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", clean[0])):
+                clean.pop(0)
+            continue
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", head):
+            clean.pop(0)
+            continue
+        break
 
     if not clean:
         continue

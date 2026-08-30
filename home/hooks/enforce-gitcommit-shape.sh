@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301900-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  enforce-gitcommit-shape.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 19:00 EDT
 # @@File             :  enforce-gitcommit-shape.sh
-# @@Description      :  PreToolUse Bash hook: blocks any gitcommit invocation that is not exactly
-# @@Description      :  `gitcommit --dir <path> all` or the documented push-retry form `gitcommit push`.
-# @@Description      :  CLAUDE.md's Commit Workflow says "never use -m/--message" and documents only
-# @@Description      :  those two invocation shapes as valid, but nothing previously enforced that -
-# @@Description      :  gitcommit itself could silently accept -m/--message or other flags if ever
-# @@Description      :  invoked that way, bypassing the COMMIT_MESS-file-based message convention.
-# @@Changelog        :  Initial version - audit found gitcommit's own invocation shape was unvalidated
+# @@Description      :  PreToolUse Bash hook: blocks any commit-wrapper invocation not exactly `--dir <path> all` or the documented push-retry form (CLAUDE.md's Commit Workflow).
+# @@Changelog        :  Initial version validating gitcommit's own invocation shape; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Does not apply inside the Local System Management Zone's raw-git commands
-# @@Other            :  (git commit/git push) - those are a different binary entirely and are governed
-# @@Other            :  by zone-git-commit-push.sh instead. gitcommit itself has no zone exception -
-# @@Other            :  if invoked anywhere, including inside the zone, it must still be well-formed.
+# @@Other              :  Does not apply to raw git commit/push (governed by zone-git-commit-push.sh instead); the commit wrapper has no zone exception anywhere.
 # @@Resource         :  CLAUDE.md - Commit Workflow
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -28,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301900-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

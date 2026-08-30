@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  validate-workflows.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, May 17, 2026 00:00 EDT
 # @@File             :  validate-workflows.sh
 # @@Description      :  PreToolUse hook: validate staged .github/workflows files with act --list before gitcommit
-# @@Changelog        :  Add header block, timeout wrapping, setupmgr guard, --dir= parsing, dual-stream BLOCKED output
+# @@Changelog        :  Added the header block, timeout wrapping, setupmgr guard, --dir= parsing, and dual-stream BLOCKED output; fixed the license header field to WTFPL.
 # @@TODO             :
 # @@Other            :  Exit 0 = allow, exit 2 = block (message sent to Claude as context)
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

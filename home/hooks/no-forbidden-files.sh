@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202608302000-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-forbidden-files.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Deny wins over allow, case-insensitive basename/extension checks, python3 fail-open guard
+# @@Changelog        :  Reconciled against project_files.md's Forbidden Files/Directories tables and fixed deny/allow ordering.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607101200-git"
+VERSION="202608302000-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -55,6 +55,14 @@ if not file_path:
 
 basename = os.path.basename(file_path)
 norm_path = file_path.replace("\\", "/")
+
+# cwd is the project root the hook runs in; used to scope root-only
+# forbidden directories (config/, build/, lib/, ... — nested copies like
+# src/lib/ are acceptable and must not be flagged).
+hook_cwd = payload.get("cwd", "").replace("\\", "/").rstrip("/")
+root_rel_path = None
+if hook_cwd and norm_path.startswith(hook_cwd + "/"):
+    root_rel_path = norm_path[len(hook_cwd) + 1:]
 
 # ------------------------------------------------------------------
 # ALLOWLIST — toolchain-required files that are never blocked
@@ -142,18 +150,15 @@ ALWAYS_ALLOW_BASENAMES = {
     "shard.yml", "shard.lock",
     # Julia
     "Project.toml", "Manifest.toml",
-    # Docker / Container
-    "Dockerfile", "Containerfile",
-    "docker-compose.yml", "docker-compose.yaml",
-    "docker-compose.override.yml", "docker-compose.override.yaml",
-    ".dockerignore",
     # CI / CD
     ".travis.yml", "Jenkinsfile",
     "appveyor.yml",
     # Tooling dot-configs
     ".gitignore", ".gitattributes", ".gitmodules",
     ".editorconfig",
-    ".env.example", ".env.sample", ".env.template",
+    ".env.example", ".env.sample",
+    "app.env.example", "app.env.sample",
+    "default.env.example", "default.env.sample",
     # Nix
     "flake.nix", "flake.lock", "default.nix", "shell.nix",
     # Docs (project-standard names)
@@ -220,11 +225,23 @@ ALWAYS_ALLOW_PATH_PATTERNS = [
     r"\.cargo/",
     r"/gradle/wrapper/",
     r"/\.mvn/",
-    r"/vendor/",
-    r"/node_modules/",
     r"/__pycache__/",
     r"/\.git/",
 ]
+
+# Doc/config basenames that are only auto-allowed under one specific
+# directory (project_files.md's Forbidden Files table) — forbidden with a
+# confirmation prompt anywhere else, including repo root.
+LOCATION_RESTRICTED_DOC_BASENAMES = {
+    "contributing.md", "code_of_conduct.md",
+    "security.md", "pull_request_template.md",
+}
+LOCATION_RESTRICTED_DOCKER_BASENAMES = {
+    "dockerfile", "containerfile",
+    "docker-compose.yml", "docker-compose.yaml",
+    "docker-compose.override.yml", "docker-compose.override.yaml",
+    ".dockerignore",
+}
 
 def is_allowed(fp, bn):
     if bn in ALWAYS_ALLOW_BASENAMES:
@@ -251,16 +268,24 @@ FORBIDDEN_BASENAMES = {
     "credentials.json", "service-account.json", "service_account.json",
     "secrets.json", "secrets.yaml", "secrets.yml",
     "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
-    "id_rsa.pub", "id_ed25519.pub",
     ".ds_store", "thumbs.db", "desktop.ini",
 }
 
-# Doc files allowed under .github/ (auto-allowlisted by path pattern) but
-# requiring confirmation at repo root or anywhere else.
-# All entries lowercase — compared case-insensitively against basename.lower().
-LOCATION_RESTRICTED_BASENAMES = {
-    "contributing.md", "code_of_conduct.md",
-    "security.md", "pull_request_template.md",
+# Report-only / redundant doc basenames forbidden by project_files.md's
+# Forbidden Files table — AUDIT.md is exact-match only, so the explicit
+# AUDIT.AI.md exception it names is never caught by this set.
+FORBIDDEN_REPORT_BASENAMES = {
+    "summary.md", "compliance.md", "notes.md",
+    "audit.md", "report.md", "analysis.md",
+}
+
+# Root-only forbidden directories (project_files.md's Forbidden
+# Directories table) — checked relative to the hook's cwd, since lib/,
+# build/, etc. are only forbidden at repo root (nested, e.g. src/lib/,
+# is acceptable).
+FORBIDDEN_ROOT_DIRNAMES = {
+    "config", "data", "logs", "tmp", "temp", "test-data",
+    "build", "dist", "out", "lib", "libs", "utils", "common",
 }
 
 FORBIDDEN_EXTENSIONS = {
@@ -287,15 +312,18 @@ FORBIDDEN_PATH_PATTERNS = [
     (_ca + r".*(" + "|".join(_ai_tools) + r")", "AI attribution trailer in path"),
     (r"generated (with|by) (" + "|".join(_ai_tools) + r"|openai|anthropic)", "AI attribution phrase in path"),
     (r"/\.aws/credentials", "AWS credential file"),
-    (r"/\.aws/config", "AWS config file"),
-    (r"/\.ssh/id_", "SSH private key"),
+    (r"/\.ssh/id_(?!.*\.pub$)", "SSH private key"),
+    (r"(^|/)vendor/", "vendor/ directory is forbidden — use language module system"),
+    (r"(^|/)node_modules/", "node_modules/ is forbidden — never committed"),
 ]
 
-def is_forbidden(fp, bn):
+def is_forbidden(fp, bn, root_rel):
     # Basename and extension checks are case-insensitive (ID_RSA, cert.PEM, Secrets.json).
     bn_lower = bn.lower()
     if bn_lower in FORBIDDEN_BASENAMES:
         return bn, "credential/secrets/OS-detritus file"
+    if bn_lower in FORBIDDEN_REPORT_BASENAMES:
+        return bn, "report-only/redundant doc — fix issues directly, use AI.md/TODO.AI.md"
     _, ext = os.path.splitext(bn_lower)
     if ext in FORBIDDEN_EXTENSIONS:
         return bn, "private key or certificate file"
@@ -303,9 +331,13 @@ def is_forbidden(fp, bn):
     for pat, label in FORBIDDEN_PATH_PATTERNS:
         if re.search(pat, fp_lower):
             return fp, label
+    if root_rel is not None:
+        top = root_rel.split("/", 1)[0].lower()
+        if top in FORBIDDEN_ROOT_DIRNAMES:
+            return root_rel, f"{top}/ at repo root is a forbidden directory"
     return None, None
 
-matched_name, reason = is_forbidden(norm_path, basename)
+matched_name, reason = is_forbidden(norm_path, basename, root_rel_path)
 
 # Allowlist only rescues files NOT forbidden by name/extension/path — deny wins over allow.
 if matched_name is None and is_allowed(norm_path, basename):
@@ -313,9 +345,15 @@ if matched_name is None and is_allowed(norm_path, basename):
 
 # Location-restricted docs under allowlisted paths were rescued above; anywhere else they need confirmation.
 # Exception: paths under docs/ are MkDocs content pages (e.g. docs/security.md), not GitHub community-health files.
-if matched_name is None and basename.lower() in LOCATION_RESTRICTED_BASENAMES:
+if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOC_BASENAMES:
     if not re.search(r"(^|/)docs/", norm_path):
-        matched_name, reason = basename, "doc file only auto-allowed under .github/"
+        matched_name, reason = basename, "doc file only auto-allowed under .github/ or docs/"
+
+# Docker/Container files belong under docker/ (project_files.md) — anywhere
+# else, including repo root, needs confirmation.
+if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOCKER_BASENAMES:
+    if not re.search(r"(^|/)docker/", norm_path):
+        matched_name, reason = basename, "Dockerfile/compose file only allowed under docker/"
 
 if matched_name is None:
     sys.exit(0)

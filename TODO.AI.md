@@ -9,6 +9,27 @@ Dependency order: items 34 and 41 need a user decision before their own fix
 (and before anything that depends on the answer) can be implemented. All
 other items are independent and can be fixed in any order.
 
+## Environment bug, not fixable in this repo
+
+- [ ] 68 (OPEN, not a claudemgr/config code issue): live long-running
+      session (5b02732a-98bc-4e4b-86ff-94fff4d9ca97) has PreToolUse
+      hooks firing correctly (enforce-test-lint-gate.sh blocks as
+      designed) but PostToolUse hooks (test-lint-mark.sh) silently not
+      firing for real Bash tool calls — confirmed not a script bug via
+      direct simulation of the deployed hook with the real session_id,
+      cwd, and command, which wrote the marker correctly every time; no
+      project-local settings.json/settings.local.json override exists
+      to explain it. Likely the same class of stale-hook-registration
+      bug as the documented SessionStart-on-/clear issue
+      (anthropics/claude-code#34072), but for PostToolUse specifically,
+      and it does NOT clear on /clear per that same bug. Workaround used
+      this session: manually append the project path to
+      ${TMPDIR}/claude-test-lint-guard/<session_id>/{test,lint} once the
+      user reports a real passing test/lint run, matching exactly what
+      the hook would have written. No permanent fix available from
+      inside this repo — would need a fresh session (new process) to
+      re-register hooks, or an upstream Claude Code fix.
+
 ## Needs user decision first
 
 - [x] 34 (FIXED, user decision: "if there are scripts then lint, no
@@ -49,25 +70,34 @@ other items are independent and can be fixed in any order.
 
 ## Core-OS / destructive-op gaps (protect-host.sh)
 
-- [ ] 3: protect-host.sh:367 — `systemctl edit`/`set-property` not
+- [x] 3 (FIXED): protect-host.sh:367 — `systemctl edit`/`set-property` not
       blocked at all (home/CLAUDE.md:99,160 require confirmation
-      everywhere including the zone).
-- [ ] 4: protect-host.sh:361,364,367 — trailing `[[:space:]]` instead of
+      everywhere including the zone). Added to the always-confirm
+      alternation, deliberately excluded from the zone-bypass alternation.
+- [x] 4 (FIXED): protect-host.sh:361,364,367 — trailing `[[:space:]]` instead of
       `([[:space:]]|$)` lets argument-less `systemctl daemon-reload`
-      bypass the block outside the zone.
-- [ ] 6: protect-host.sh:284-287 — `/boot`,`/sys`,`/proc`,`/dev` subpaths
+      bypass the block outside the zone. All three alternations now use
+      `([[:space:]]|$)`.
+- [x] 6 (FIXED): protect-host.sh:284-287 — `/boot`,`/sys`,`/proc`,`/dev` subpaths
       not actually blocked (only the dir itself or its `/*` glob);
-      home/CLAUDE.md:100 uses `/boot/**` etc.
-- [ ] 7: protect-host.sh — partition tables / bootloader config
+      home/CLAUDE.md:100 uses `/boot/**` etc. Added Rule 4c blocking any
+      destructive verb on a subpath beneath these four dirs.
+- [x] 7 (FIXED): protect-host.sh — partition tables / bootloader config
       unenforced; no match for `sgdisk`/`parted`/`grub-install`/
-      `/etc/default/grub` (home/CLAUDE.md:100).
-- [ ] 8: no-destructive-bypass.sh:119 — wrapper-strip list missing
+      `/etc/default/grub` (home/CLAUDE.md:100). Added Rule 8b blocking
+      sgdisk/parted/fdisk/cfdisk/gdisk/grub-install/grub2-install and
+      writes/redirects to /etc/default/grub.
+- [x] 8 (FIXED): no-destructive-bypass.sh:119 — wrapper-strip list missing
       `builtin`/`nice`/`ionice`/`stdbuf`/`timeout`/`setsid` that its
-      sibling enforce-docker-rm.sh:135 already strips.
-- [ ] 9: bound-shell-lifetime.sh:200,202 — iteration-cap/bounded_before
+      sibling enforce-docker-rm.sh:135 already strips. Wrapper set now
+      matches, including skipping duration/priority arguments (timeout 60).
+- [x] 9 (FIXED): bound-shell-lifetime.sh:200,202 — iteration-cap/bounded_before
       escapes evaluate before the sentinel-poll block at :205, laundering
       a forbidden sentinel poll as merely "bounded" (shell_lifetime_
-      conventions.md:21 forbids sentinel polling unconditionally).
+      conventions.md:21 forbids sentinel polling unconditionally). Sentinel
+      check now runs first in the loop, and sub_scripts() no longer skips
+      recursing into `timeout N shell -c "..."` payloads (marks
+      outer_bounded instead, so only ordinary loops are exempted).
 
 ## no-forbidden-files.sh badly out of sync
 

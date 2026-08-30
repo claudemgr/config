@@ -50,6 +50,29 @@ The only exception: report-only files created by AI itself during the current se
 
 **`CHANGELOG.md` is allowed** at any path — root, `.github/`, or anywhere else. It is not a forbidden report-only doc; it is a release log distinct from GitHub/Gitea releases and may coexist with them.
 
+`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `PULL_REQUEST_TEMPLATE.md` are also allowed under `docs/` (MkDocs/static-site content pages, e.g. `docs/security.md`) in addition to `.github/` — a docs-site page with one of these names is not the GitHub community-health file it shares a name with.
+
+## Forbidden Basenames & Extensions (credentials / OS detritus)
+
+Writing any of these requires explicit user confirmation first, regardless of directory — deny wins over any allowlist above:
+
+| Basename (case-insensitive) | Reason |
+|------|--------|
+| `.netrc` | Plaintext credential store |
+| `credentials.json`, `service-account.json`, `service_account.json` | Cloud provider credential files |
+| `secrets.json`, `secrets.yaml`, `secrets.yml` | Generic secrets files |
+| `id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa` | SSH private keys. **Not** their `.pub` counterparts — public keys are not secrets and are always allowed |
+| `.ds_store`, `thumbs.db`, `desktop.ini` | OS detritus — belongs in `.gitignore` (`gitignore_conventions.md`), and is also blocked at write-time here as defense in depth |
+
+| Extension (case-insensitive) | Reason |
+|------|--------|
+| `.pem`, `.key`, `.p12`, `.pfx`, `.jks`, `.p8`, `.ppk` | Private key / certificate bundle formats |
+
+| Path pattern | Reason |
+|------|--------|
+| `.aws/credentials` | AWS credential file |
+| `.ssh/id_*` (excluding `.pub`) | SSH private key by path |
+
 ## Forbidden Directories
 
 | Directory | Reason |

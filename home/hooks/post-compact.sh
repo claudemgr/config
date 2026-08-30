@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607241700-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  post-compact.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  post-compact.sh
 # @@Description      :  SessionStart(compact) hook: re-inject project-dir and global context after compaction
-# @@Changelog        :  Registered as SessionStart matcher=compact; emit additionalContext so the model sees it
-# @@Changelog        :  Clear spec-guard marker on compaction so AI.md/SPEC.md must be re-read (spec-guard.sh)
-# @@Changelog        :  Message no longer mandates bulk file re-reads (was causing autocompact thrashing); now on-demand only
+# @@Changelog        :  Registered as the SessionStart compact matcher and cleared the spec-guard marker on compaction.
 # @@TODO             :
-# @@Other            :  Compaction drops old context — this hook re-anchors Claude to the project
-# @@Other            :  Message intentionally avoids ordering a full re-read of AI.md/CLAUDE.md/MEMORY.md — that refilled context fast enough to re-trigger compaction in a loop
+# @@Other            :  Compaction drops old context; this re-anchors Claude to the project without a full re-read, which previously re-triggered compaction in a loop.
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607241700-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail

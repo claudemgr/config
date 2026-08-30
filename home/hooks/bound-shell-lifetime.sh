@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301725-git
+##@Version           :  202608301746-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  bound-shell-lifetime.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, Jul 03, 2026 12:30 EDT
 # @@File             :  bound-shell-lifetime.sh
 # @@Description      :  Claude Code PreToolUse hook — block unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization)
-# @@Changelog        :  Initial release — quote-aware scan, sh -c recursion, timeout/docker exemptions, sentinel-poll detection
-# @@Changelog        :  Fixed block message's printed timeout tiers (<=30s/<=120s/<=600s) to
-# @@Changelog        :  match the actual source-of-truth tiers in home/CLAUDE.md/shell_lifetime_conventions.md
-# @@Changelog        :  (lookups/status <=60s | network/package ops <=300s | builds/tests <=600s)
+# @@Changelog        :  Added quote-aware sh -c recursion, sentinel-poll detection, and fixed timeout-tier wording to match CLAUDE.md.
 # @@TODO             :  None
-# @@Other            :  Commands wrapped in `timeout N` are always exempt. Container-mediated payloads (docker/podman/kubectl/incus) are exempt at this layer.
-# @@Other            :  Bounded loops (iteration counters, seq, {1..N}, SECONDS, arithmetic conditions) are allowed.
+# @@Other            :  `timeout N`-wrapped and container-mediated commands are exempt; bounded loops (counters, seq, {1..N}, SECONDS) are allowed.
 # @@Resource         :  ~/.claude/memory/execution_hierarchy.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -24,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301725-git"
+VERSION="202608301746-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -143,7 +139,12 @@ def mask_quotes(text):
 
 
 def sub_scripts(text):
-    # return -c payloads of shell interpreters so quoted loops cannot hide; skip timeout-bounded and container-mediated invocations
+    # returns script and outer_bounded pairs for -c payloads of shell interpreters,
+    # so quoted loops cannot hide. Container-mediated invocations are skipped entirely
+    # (the guest owns that lifetime, not the host). A timeout prefix does NOT skip
+    # recursion here — sentinel polling is forbidden unconditionally, even when
+    # timeout- or iteration-capped, per shell_lifetime_conventions.md — it only marks
+    # outer_bounded so an ordinary (non-sentinel) loop inside is recognized as bounded.
     try:
         tokens = shlex.split(text)
     except ValueError:
@@ -154,10 +155,9 @@ def sub_scripts(text):
         if base not in SHELLS:
             continue
         prior = [t.rsplit("/", 1)[-1] for t in tokens[:i]]
-        if "timeout" in prior:
-            continue
         if any(t in CONTAINER_TOOLS for t in prior):
             continue
+        outer_bounded = "timeout" in prior
         j = i + 1
         script = None
         while j < len(tokens):
@@ -169,7 +169,7 @@ def sub_scripts(text):
                 break
             j += 1
         if script:
-            found.append(script)
+            found.append((script, outer_bounded))
     return found
 
 
@@ -192,7 +192,7 @@ def bounded_before(masked, pos):
 violations = []
 
 
-def check(text, depth=0):
+def check(text, depth=0, outer_bounded=False):
     masked = mask_quotes(re.sub(r"\\\n\s*", " ", text))
 
     # rule A: unbounded while/until loop that sleeps — the classic forever-poll
@@ -200,21 +200,25 @@ def check(text, depth=0):
         cond, body = m.group(2), m.group(3)
         if not re.search(r"\bsleep\b", body):
             continue
-        if re.search(r"-lt\b|-le\b|-ge\b|-gt\b|\bseq\b|\{1\.\.|\bSECONDS\b|\(\(", cond + body):
-            continue
-        if bounded_before(masked, m.start()):
-            continue
-        snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
+        # Sentinel polling is forbidden unconditionally (shell_lifetime_conventions.md) —
+        # check it BEFORE the iteration-cap/timeout "bounded" escapes below, so a capped
+        # or timeout-wrapped sentinel poll still gets flagged instead of laundered as OK.
         if re.search(r"\.done\b|\.output\b|/tasks/", cond):
+            snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
             violations.append(("sentinel-poll", snippet,
                 "Never poll for subagent/background-task completion — the harness sends a task-notification when tracked work finishes. Drop the loop entirely."))
-        else:
-            violations.append(("unbounded-loop", snippet,
-                "Wrap in `timeout <seconds>` sized to the operation, or add an iteration cap (e.g. `i=0; until <cond> || [ $i -ge 60 ]; do i=$((i+1)); sleep 5; done`)."))
+            continue
+        if re.search(r"-lt\b|-le\b|-ge\b|-gt\b|\bseq\b|\{1\.\.|\bSECONDS\b|\(\(", cond + body):
+            continue
+        if outer_bounded or bounded_before(masked, m.start()):
+            continue
+        snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
+        violations.append(("unbounded-loop", snippet,
+            "Wrap in `timeout <seconds>` sized to the operation, or add an iteration cap (e.g. `i=0; until <cond> || [ $i -ge 60 ]; do i=$((i+1)); sleep 5; done`)."))
 
     # rule A2: for ((;;)) infinite loop with sleep
     for m in re.finditer(r"\bfor\s*\(\(\s*;;\s*\)\)(.{0,2000}?)\bdone\b", masked, re.S):
-        if re.search(r"\bsleep\b", m.group(1)) and not bounded_before(masked, m.start()):
+        if re.search(r"\bsleep\b", m.group(1)) and not (outer_bounded or bounded_before(masked, m.start())):
             snippet = re.sub(r"\s+", " ", text[m.start():m.end()])[:120]
             violations.append(("unbounded-loop", snippet,
                 "Wrap in `timeout <seconds>` or add an iteration cap."))
@@ -261,8 +265,8 @@ def check(text, depth=0):
 
     # recurse into sh -c payloads so quoted loops cannot hide (depth-limited)
     if depth < 2:
-        for script in sub_scripts(text):
-            check(script, depth + 1)
+        for script, script_bounded in sub_scripts(text):
+            check(script, depth + 1, outer_bounded=script_bounded)
 
 
 check(cmd)

@@ -1,30 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301707-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-history-rewrite.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
-# @@Description      :  PreToolUse hook: block git clean -f*, rebase, branch -D, tag -d, filter-repo/filter-branch
-# @@Description      :  everywhere, including the Local System Management Zone - these discard commits/work or
-# @@Description      :  rewrite history, so CLAUDE.md requires user confirmation before ever running them, even
-# @@Description      :  where the zone otherwise pre-authorizes raw git. A hook can only allow or block, not
-# @@Description      :  interactively confirm, so - same pattern as no-force-push.sh - this hard-blocks and tells
-# @@Description      :  the user to run the command manually once they have actually confirmed it.
-# @@Changelog        :  Initial version - audit found these history-rewriting ops had zero technical enforcement,
-# @@Changelog        :  only prose in CLAUDE.md's zone exclusion list
-# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass in the subcommand
-# @@Changelog        :  scan (same fix as zone-git-commit-push.sh)
-# @@Changelog        :  Added sudo/doas to the wrapper-strip list — sudo git rebase sailed
-# @@Changelog        :  past this hook entirely (matches enforce-gitcommit-shape.sh's superset)
+# @@Description      :  PreToolUse hook: blocks git clean -f*/rebase/branch -D/tag -d/filter-repo/filter-branch everywhere — a hook can only block, not interactively confirm.
+# @@Changelog        :  Initial version enforcing history-rewrite restrictions that were previously prose-only in CLAUDE.md.
 # @@TODO             :  None
-# @@Other            :  git rebase --abort/--continue/--skip are exempt - they resolve an already-started rebase
-# @@Other            :  rather than starting a new history rewrite, and blocking them would trap the user with
-# @@Other            :  no way out except manual intervention
+# @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -32,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301707-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

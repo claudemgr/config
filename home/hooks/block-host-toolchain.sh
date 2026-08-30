@@ -1,30 +1,26 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202607051350-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  block-host-toolchain.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Wednesday, May 14, 2026 00:00 EDT
 # @@File             :  block-host-toolchain.sh
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
-# @@Changelog        :  See through alias-bypass backslashes and shell wrapper prefixes (\go, command go, timeout 600 go) in first-word dispatch
+# @@Changelog        :  Hardened first-word dispatch against alias-bypass backslashes and shell wrapper prefixes; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Commands already mediated by docker/incus/podman/kubectl are exempted.
-# @@Other            :  Pure POSIX / system tools (make, ninja, curl, wget, jq, grep, git, ssh, …) are never blocked.
-# @@Other            :  perl and lua are NOT blocked (system scripting); only their package managers are.
-# @@Other            :  python/python3 are NOT blocked (used internally and as scripting tools); only build/pkg tools are.
-# @@Resource         :  ~/.claude/memory/go_conventions.md, ~/.claude/memory/rust_conventions.md
-# @@Resource         :  ~/.claude/memory/tempdir_conventions.md, ~/.claude/memory/execution_hierarchy.md
+# @@Other            :  Commands mediated by docker/incus/podman/kubectl are exempt; POSIX tools, perl/lua, python/python3 are never blocked, only their package managers.
+# @@Resource         :  ~/.claude/memory/go_conventions.md, rust_conventions.md, tempdir_conventions.md, execution_hierarchy.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607051350-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -

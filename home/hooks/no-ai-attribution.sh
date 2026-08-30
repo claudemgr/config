@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202607031500-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-ai-attribution.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Tuesday, May 13, 2026 00:00 EDT
 # @@File             :  no-ai-attribution.sh
 # @@Description      :  Claude Code PreToolUse hook - block AI attribution phrases in written content
-# @@Changelog        :  Broaden detection: using/Built/Made/Assisted variants, U+2011 hyphen trailers, split-string pattern assembly
+# @@Changelog        :  Broadened detection to more verbs and Unicode hyphen trailers via split-string pattern assembly.
 # @@TODO             :  See project issues
 # @@Other            :  Fires on Write and Edit tool use; blocks attribution trailers/comments only
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202607031500-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -48,7 +48,11 @@ _ai='(claude|anthropic|an? ai\b)'
 _hyph='(-|‑)'
 _ca="co${_hyph}authored${_hyph}by"
 _gen='generated'
-ATTRIBUTION_PATTERN="${_verbs}[[:space:]]+${_conn}[[:space:]]+${_ai}|${_ca}:[[:space:]]*(claude|anthropic)|co_authored_by:[[:space:]]*(claude|anthropic)|\bai[- ]${_gen}\b|🤖[[:space:]]*${_verbs}|(this[[:space:]]+file[[:space:]]+(was|is)[[:space:]]+(${_gen}|written|created)[[:space:]]+by[[:space:]]+(claude|anthropic|ai\b))"
+ATTRIBUTION_PATTERN="${_verbs}[[:space:]]+${_conn}[[:space:]]+${_ai}"
+ATTRIBUTION_PATTERN="${ATTRIBUTION_PATTERN}|${_ca}:[[:space:]]*(claude|anthropic)"
+ATTRIBUTION_PATTERN="${ATTRIBUTION_PATTERN}|co_authored_by:[[:space:]]*(claude|anthropic)"
+ATTRIBUTION_PATTERN="${ATTRIBUTION_PATTERN}|\bai[- ]${_gen}\b|🤖[[:space:]]*${_verbs}"
+ATTRIBUTION_PATTERN="${ATTRIBUTION_PATTERN}|(this[[:space:]]+file[[:space:]]+(was|is)[[:space:]]+(${_gen}|written|created)[[:space:]]+by[[:space:]]+(claude|anthropic|ai\b))"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

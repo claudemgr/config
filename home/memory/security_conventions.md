@@ -262,6 +262,20 @@ Security is first-class from day one — never bolted on after. It must also be 
 
 ---
 
+## Protected Host Paths
+
+Beyond the Core OS paths floor (`~/.claude/CLAUDE.md`'s "Working Directory & Path Resolution": `/`, `/boot/**`, `/sys/**`, `/proc/**`, `/dev/**`, partition tables, bootloader config), the following also require user confirmation before any write/destructive Bash op — enforced by `protect-host.sh`:
+
+- **Auth-critical files** — `/etc/passwd`, `/etc/shadow`, `/etc/sudoers` (and `/etc/sudoers.d/*`, `/etc/pam.d/*`, `/etc/group`) — corrupting or overwriting these locks out or compromises the host, not just the current project
+- **Top-level system directories** — the standard FHS set (`/bin`, `/boot`, `/dev`, `/etc`, `/lib`, `/lib32`, `/lib64`, `/opt`, `/proc`, `/root`, `/run`, `/sbin`, `/srv`, `/sys`, `/usr`, `/var`) — a destructive op (`rm -rf`, `mkfs`, etc.) targeting one of these directly, or any subpath under `/boot`, `/dev`, `/proc`, `/sys` specifically, is never legitimate project work
+- **`/sbin`, `/usr/sbin` deletion** — write access to these paths is already established (`project_files.md:37`'s `Dockerfile`-in-root-forbidden table references standard FHS layout); deletion carries the identical host-breaking risk as write and is gated the same way
+- **Shell redirects to auth-critical/system-binary paths** — `>`/`>>` targeting any of the paths above is equivalent to a destructive write and gated identically; `/dev/null`, `/dev/std{in,out,err}`, `/dev/tty`, `/dev/fd/N`, `/dev/pts/N` are always safe and exempt
+- **`find -delete` / `find -exec rm`** — a `find` invocation whose action deletes matched files is a destructive op regardless of the starting path; gated the same as a direct `rm`
+
+These formalize `protect-host.sh`'s existing enforcement — they are not new restrictions, but the written source of truth the hook implements.
+
+---
+
 ## Memory Safety
 
 These apply to every line of code in every language:

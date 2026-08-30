@@ -1,40 +1,26 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302200-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  lint-agent-mark.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  lint-agent-mark.sh
-# @@Description      :  SubagentStop hook: records the lint gate as satisfied when the
-# @@Description      :  script-lint / go-lint / rust-lint subagent finishes for this project
-# @@Description      :  and session. CLAUDE.md's lint gate (script-lint/go-lint/rust-lint) is
-# @@Description      :  actually run via the Agent tool (a subagent), never as a host CLI
-# @@Description      :  command, so test-lint-mark.sh's PostToolUse-on-Bash detection can never
-# @@Description      :  see it fire — this hook closes that gap using the field Claude Code
-# @@Description      :  actually exposes for subagent completion (SubagentStop's agent_type),
-# @@Description      :  since PostToolUse-on-Task carries no structured pass/fail signal.
-# @@Changelog        :  Initial version - closes a gap found while enforcing audit #7
+# @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint finishes, since it never runs as a host command.
+# @@Changelog        :  Initial version closing an audit #7 enforcement gap; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Claude Code exposes no structured success/failure field for a finished
-# @@Other            :  subagent (only free-text last_assistant_message) - completion itself is
-# @@Other            :  treated as "lint gate satisfied", matching how these lint agents are
-# @@Other            :  documented to work (fix violations directly, report back).
-# @@Other            :  Writes to the same marker enforce-test-lint-gate.sh already checks:
-# @@Other            :  ${TMPDIR:-/tmp}/claude-test-lint-guard/<session_id>/lint
-# @@Other            :  Applies everywhere including the zone - no zone exception documented.
-# @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh,
-# @@Resource         :  home/hooks/enforce-test-lint-gate.sh
+# @@Other            :  No pass/fail field exists for a finished subagent, so completion itself counts as satisfied; writes the same marker enforce-test-lint-gate.sh checks.
+# @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh, home/hooks/enforce-test-lint-gate.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302200-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608291500-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-secrets.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Local System Management Zone exception — plaintext credentials allowed (cwd-scoped)
+# @@Changelog        :  Added the cwd-scoped Local System Management Zone plaintext-credential exception; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Applies to Write (new_content) and Edit (new_string) tool calls.
-# @@Other            :  Template/example env files (.env.example, .env.sample, etc.) are exempted.
-# @@Other            :  Matches containing placeholder text (changeme, your_key_here, <TOKEN>, {SECRET}, etc.) inside the matched value are skipped.
+# @@Other            :  Applies to Write (content) and Edit (new_string); .env.example/.sample templates and placeholder-text matches (changeme, your_key_here) are skipped.
 # @@Resource         :  ~/.claude/memory/sensitive_data.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -22,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608291500-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -

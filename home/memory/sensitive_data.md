@@ -33,6 +33,7 @@ type: user
 
 - A **personal dotfiles repo explicitly designated as private and intended to hold credentials** (env files, SSH keys, global env vars) may contain credentials. Context determines this — do not assume; if unclear, do not add and ask instead.
 - **Repos under `~/Projects/local/system/**`** (see `CLAUDE.md` → "Local System Management Zone") — personal project/infra/fleet-management tooling. Plaintext tokens/passwords/API keys are allowed there without hashing or masking, **conditioned on the repo's visibility being confirmed private** (see the Repo privacy gate in that section). If visibility is ever unconfirmed or found public, treat the repo as fully public until fixed — the exception does not apply until privacy is restored.
+  - **This precondition is enforced procedurally, not by a hook** — `no-secrets.sh`/`bash-content-scan.sh` exempt this zone by cwd path only, because AI.md's hook rules forbid network I/O in any hook, and a live visibility check (`gh repo view --json visibility`) is network I/O. Actually confirming and maintaining private visibility is the Repo privacy gate's job (steps 1-5 in CLAUDE.md's zone section), run at repo-creation and after every push — the hook's cwd scoping is a necessary but not sufficient condition; the human/workflow step is what makes the exception actually safe to rely on.
 
 ## Masking Format
 

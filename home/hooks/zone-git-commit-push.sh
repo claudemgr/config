@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301707-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  zone-git-commit-push.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Saturday, August 29, 2026 00:00 EDT
 # @@File             :  zone-git-commit-push.sh
-# @@Description      :  PreToolUse hook: allow raw `git commit`/`git push` only under ~/Projects/local/system/**, block elsewhere
-# @@Description      :  Outside the zone, gitcommit remains the only sanctioned commit+push path
-# @@Changelog        :  Initial version — permissions.deny cannot be directory-scoped, so the zone exception is enforced here
-# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass — the subcommand
-# @@Changelog        :  scan mistook a flag's value for the subcommand and stopped early
-# @@Changelog        :  Added sudo/doas to the wrapper-strip list — sudo git push --force sailed
-# @@Changelog        :  past this hook entirely (matches enforce-gitcommit-shape.sh's superset)
+# @@Description      :  PreToolUse hook: allows raw git commit/push only under the Local System Management Zone, blocks elsewhere — the commit wrapper is the only path outside it.
+# @@Changelog        :  Fixed the git global-flag-value bypass in subcommand detection and added sudo/doas to the wrapper-strip list; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  git reset stays hard-denied everywhere via settings.json (excluded from the zone pre-authorization)
-# @@Other            :  force-push stays blocked everywhere via no-force-push.sh, including inside the zone
+# @@Other            :  git reset stays hard-denied via settings.json; force-push stays blocked everywhere via no-force-push.sh, including inside the zone.
 # @@Resource         :  CLAUDE.md - Local System Management Zone
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -26,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301707-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302200-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  trailing-newline-guard.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  trailing-newline-guard.sh
-# @@Description      :  PostToolUse Write+Edit hook: enforces "every text file ends with a
-# @@Description      :  single trailing newline" (CLAUDE.md, file_ending_conventions.md).
-# @@Description      :  Read-only — inspects the file's actual last bytes after the tool wrote
-# @@Description      :  it and blocks with a remediation message if wrong, rather than rewriting
-# @@Description      :  the file itself, per Part 6's "never write to files from a hook" rule.
-# @@Changelog        :  Initial version - audit found the trailing-newline rule was unenforced
+# @@Description      :  PostToolUse Write+Edit hook: enforces the trailing-newline rule read-only, blocking with a remediation message instead of rewriting the file.
+# @@Changelog        :  Initial version enforcing the previously unenforced trailing-newline rule; fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :  Skips files matching file_ending_conventions.md's documented exceptions:
-# @@Other            :  raw-value secret/token files, verbatim-interpolated files (VERSION),
-# @@Other            :  lockfiles owned by tooling, and any file that looks binary (null byte
-# @@Other            :  in the first 8000 bytes). Skips empty files and nonexistent paths.
-# @@Other            :  Applies everywhere, including the zone - no zone exception documented.
+# @@Other            :  Skips secret/token files, VERSION, lockfiles, binary content, empty files, nonexistent paths; applies everywhere.
 # @@Resource         :  file_ending_conventions.md, CLAUDE.md - Code & Files
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -28,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302200-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 

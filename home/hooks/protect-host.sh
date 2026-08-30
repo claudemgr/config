@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202608291500-git
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608301751-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
 # @@ReadME           :  protect-host.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Local System Management Zone exception for systemctl lifecycle commands (cwd-scoped)
+# @@Changelog        :  Added the systemctl zone exception and kernel-subpath/partition-table/bootloader mutation blocking.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
 # @@Terminal App     :  no
 # @@sudo/root        :  no
-# @@Template         :  bash/simple
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608291500-git"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+VERSION="202608301751-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -285,6 +287,15 @@ PROTECT_HOST_SYSTEM_DIRS='(/bin|/boot|/dev|/etc|/lib|/lib32|/lib64|/opt|/proc|/r
 if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_SYSTEM_DIRS}(/\*?)?([[:space:]]|\$)"; then
   __block "destructive op targeting a top-level system directory (/etc, /usr, /var, ...) itself"
 fi
+# Rule 4c: destructive verb on ANY subpath beneath /boot, /dev, /proc, /sys —
+# kernel/boot/device paths (home/CLAUDE.md's Core OS paths floor: /boot/**,
+# /sys/**, /proc/**, /dev/**). Unlike /etc, /var, etc., a scoped delete
+# beneath these is never legitimate sysadmin work, so the whole subtree is
+# blocked, not just the dir itself or its top-level /* glob.
+PROTECT_HOST_KERNEL_DIRS='(/boot|/dev|/proc|/sys)'
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+${PROTECT_HOST_KERNEL_DIRS}/[^[:space:]]+"; then
+  __block "destructive op targeting a subpath under /boot, /dev, /proc, or /sys — kernel/boot/device paths are never a valid target, even scoped"
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 5: shell redirect (> or >>) to auth-critical files or core binary paths.
 # /dev/null, /dev/std{in,out,err}, /dev/tty, /dev/fd/N, /dev/pts/N are always safe.
@@ -342,6 +353,17 @@ if __match "${PROTECT_HOST_WORD_START}(dd|mkfs[^[:space:]]*)[[:space:]].*((of|of
   __block "raw disk writer targeting host device"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Rule 8b: partition table / bootloader mutation — irreversible boot-critical ops.
+if __match "${PROTECT_HOST_WORD_START}(sgdisk|parted|fdisk|cfdisk|gdisk|grub-install|grub2-install)${PROTECT_HOST_TOKEN_GAP}[[:space:]]"; then
+  __block "partition-table/bootloader-install command — irreversible, always blocked"
+fi
+if __match "${PROTECT_HOST_WORD_START}(${PROTECT_HOST_WRITE_VERBS}|${PROTECT_HOST_DESTRUCTIVE_VERBS})${PROTECT_HOST_TOKEN_GAP}[[:space:]]+/etc/default/grub([[:space:]]|\$)"; then
+  __block "write/destructive op targeting bootloader config (/etc/default/grub)"
+fi
+if __match "(^|[[:space:];|&\`(])[0-9]?>>?[[:space:]]*[\"']?/etc/default/grub([[:space:]\"']|\$)"; then
+  __block "shell redirect to bootloader config (/etc/default/grub)"
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 9: pkill/killall/kill-by-pgrep — process termination must use tracked PIDs.
 if __match "${PROTECT_HOST_WORD_START}(pkill|killall)[[:space:]]"; then
   __block "pkill/killall targets processes by name — use kill \$TRACKED_PID (a PID captured at launch) instead"
@@ -358,13 +380,13 @@ if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
   if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
     # user-scoped — always OK
     :
-  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)[[:space:]]"; then
+  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"; then
     # read-only — always OK
     :
-  elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)[[:space:]]"; then
+  elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"; then
     # zone-scoped lifecycle command — pre-authorized, no confirmation needed
     :
-  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload)[[:space:]]"; then
+  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
   fi
 fi

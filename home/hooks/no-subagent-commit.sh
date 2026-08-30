@@ -1,27 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301707-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  no-subagent-commit.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 12:00 EDT
 # @@File             :  no-subagent-commit.sh
-# @@Description      :  PreToolUse hook: block gitcommit/git commit/git push when tool_input.agent_id
-# @@Description      :  is present — that field is only set on subagent tool calls, so this closes the
-# @@Description      :  gap the "agents never commit" rule left as prose-only with no technical gate.
-# @@Changelog        :  Initial version — a fork/subagent committed and pushed unrequested; the rule
-# @@Changelog        :  existed in CLAUDE.md/AI.md but nothing actually enforced it
-# @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass (same fix as
-# @@Changelog        :  zone-git-commit-push.sh); restored the missing executable bit
-# @@Changelog        :  Added sudo/doas to the wrapper-strip list — sudo gitcommit sailed
-# @@Changelog        :  past this hook entirely (matches enforce-gitcommit-shape.sh's superset)
+# @@Description      :  PreToolUse hook: blocks the commit wrapper/git commit/git push when tool_input.agent_id is present, enforcing the "agents never commit" rule.
+# @@Changelog        :  Initial version enforcing the previously unenforced no-subagent-commit rule; restored the executable bit.
 # @@TODO             :  None
-# @@Other            :  Applies everywhere, including the Local System Management Zone — the zone's
-# @@Other            :  raw-git exception is about bypassing gitcommit for the main session, never
-# @@Other            :  about letting a subagent commit on its own authority
+# @@Other            :  Applies everywhere including the zone — the zone's raw-git exception bypasses the commit wrapper for the main session, not a subagent's own authority.
 # @@Resource         :  CLAUDE.md - Agent Usage - "Agents never commit"
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -29,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301707-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -

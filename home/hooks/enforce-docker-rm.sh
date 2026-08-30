@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :   202608301500-git
+##@Version           :  202608301800-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
-# @@License          :  MIT or LICENSE.md
+# @@License          :  WTFPL
 # @@ReadME           :  enforce-docker-rm.sh --help
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
-# @@Description      :  --rm is exempt for detached (-d/--detach) containers so multi-container integration tests (e.g. server/client) can inspect a crashed container's logs before it is torn down; --name stays mandatory either way
-# @@Changelog        :  Exempt --rm for detached containers (integration testing needs post-mortem log/state inspection, which --rm prevents)
-# @@Changelog        :  See through alias-bypass backslashes and shell wrapper prefixes (\docker, command docker, timeout 60 docker run)
+# @@Changelog        :  Exempted --rm for detached containers and hardened first-word dispatch against alias/wrapper bypasses.
 # @@TODO             :  None
-# @@Other            :
+# @@Other            :  --rm is exempt for detached (-d/--detach) containers so tests can inspect a crashed container's logs before teardown; --name stays mandatory either way
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301500-git"
+VERSION="202608301800-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
