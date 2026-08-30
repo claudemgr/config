@@ -7,22 +7,29 @@ Nothing has been fixed yet — this is the raw record. Status: OPEN.
 
 ## Priority 0 — live security bypasses (fix first, no judgment call needed)
 
-- [ ] D1: `no-destructive-bypass.sh:107` splits on `[|&]` before quote
-      handling — a `|` inside a quoted string (e.g. a `grep` pattern) causes
-      false-positive blocks. Fix: mask quoted strings before splitting, same
-      as `bound-shell-lifetime.sh:110-141` already does.
-- [ ] D2: `no-destructive-bypass.sh` has four real bypasses of the exact
-      class it exists to close: subshell `(dd if=… of=…)`, `xargs -I{} dd`,
-      `bash -c 'dd …'` (no `-c` recursion), and `/bin/dd`/`/usr/bin/git`
-      (no basename normalization, unlike `enforce-docker-rm.sh:139`).
-- [ ] D3: `protect-host.sh:100-103` exempts `chroot`/`nsenter`/`virsh` as
-      "container prefixes" — these are host-namespace-entering or
-      host-side tools, not guest isolation. `chroot /mnt rm -rf /etc` and
-      `nsenter -t 1 -m rm -rf /etc` are currently allowed. Remove from the
-      exemption list.
-- [ ] D4: `protect-host.sh:410,422` sweep escape valve matches
-      `--filter|name=|label=` against the whole raw command string, so any
-      unrelated `name=` substring anywhere in the command defeats it.
+- [x] D1 (FIXED): `no-destructive-bypass.sh` now masks quoted strings
+      (same technique as `bound-shell-lifetime.sh`'s `mask_quotes`) before
+      splitting on separators, then slices the original text by the masked
+      match positions — a `|` inside a quoted string (e.g. a `grep`
+      pattern) no longer causes a false-positive split/block.
+- [x] D2 (FIXED): `no-destructive-bypass.sh` now peels a wrapping
+      subshell/command-substitution `(dd …)`/`$(dd …)`/`` `dd …` ``
+      before tokenizing, recurses into `xargs`'s trailing command (after
+      skipping xargs's own flags), recurses into `bash -c '…'`/`sh -c
+      "…"` payloads (re-splitting and re-scanning them), and normalizes
+      the command basename (`/bin/dd` → `dd`, `/usr/bin/git` → `git`)
+      before comparison — closing all four bypasses.
+- [x] D3 (FIXED): `protect-host.sh` removed `chroot`/`nsenter`/`virsh`
+      from the container-prefix exemption list — these are
+      host-namespace-entering or host-side tools, not guest isolation,
+      so `chroot /mnt rm -rf /etc` and `nsenter -t 1 -m rm -rf /etc` are
+      now blocked like any other destructive host command.
+- [x] D4 (FIXED): `protect-host.sh`'s sweep escape valve now extracts
+      just the `ps`/`ls`/`list` segment of the command (up to the next
+      `;`/`&`/`|`) and checks `--filter`/`name=`/`label=` only within
+      that segment, instead of against the whole raw command string — an
+      unrelated `name=` substring elsewhere in the pipeline (e.g. inside
+      the kill/stop/rm target list) no longer satisfies the check.
 
 ## Priority 1 — needs a decision (delete the rule vs. add the missing spec line)
 

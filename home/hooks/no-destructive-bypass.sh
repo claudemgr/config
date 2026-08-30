@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301745-git
+##@Version           :  202608302309-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 17:00 EDT
 # @@File             :  no-destructive-bypass.sh
 # @@Description      :  PreToolUse hook: hard-blocks git reset/dd/shred/mkfs*/wipefs everywhere, re-enforcing permissions.deny against alias/wrapper-bypass invocations.
-# @@Changelog        :  Initial version hardening permissions.deny against wrapper bypasses for git reset/dd/shred/mkfs/wipefs.
+# @@Changelog        :  Masked quoted strings before splitting (D1) and closed subshell/xargs/bash-c/basename-path bypasses (D2).
 # @@TODO             :  None
 # @@Other              :  Container/VM-mediated invocations are NOT exempted — these five ops are denied unconditionally by settings.json regardless of target.
 # @@Resource         :  home/settings.json permissions.deny
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301745-git"
+VERSION="202608302309-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -90,28 +90,65 @@ if not re.search(r"\bgit\b|\bdd\b|\bshred\b|\bmkfs|\bwipefs\b", cmd):
     sys.exit(0)
 
 GIT_GLOBAL_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+WRAPPERS = {"command", "builtin", "env", "exec", "nohup", "setsid", "nice",
+            "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
 
-violations = []
 
-for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
-    sub_cmd = sub_cmd.strip()
-    if not sub_cmd:
-        continue
-    try:
-        tokens = shlex.split(sub_cmd)
-    except ValueError:
-        tokens = sub_cmd.split()
+def mask_quotes(text):
+    # Replace quoted content and escaped chars with spaces (same length) so a
+    # separator regex only ever matches LIVE shell syntax — a `|` inside a
+    # quoted grep pattern must never be treated as a pipe (D1).
+    out = []
+    quote = None
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if quote is not None:
+            if quote == '"' and c == "\\" and i + 1 < n:
+                out.append("  ")
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+                out.append(c)
+            else:
+                out.append("\n" if c == "\n" else " ")
+            i += 1
+            continue
+        if c in ("'", '"'):
+            quote = c
+            out.append(c)
+            i += 1
+            continue
+        if c == "\\" and i + 1 < n:
+            out.append("  ")
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
+
+def split_subcmds(text):
+    # Split on masked positions but slice the ORIGINAL text (same length,
+    # so offsets line up) — separators inside quotes are never split on.
+    masked = mask_quotes(text)
+    last = 0
+    for m in re.finditer(r"[\n;]|&&|\|\||[|&]", masked):
+        yield text[last:m.start()]
+        last = m.end()
+    yield text[last:]
+
+
+def strip_wrappers(tokens):
     # Strip wrapper/alias-bypass prefixes and env assignments (any case):
     # \dd, command dd, env [KEY=VAL...] dd, KEY=VAL dd, timeout 60 dd
-    wrappers = {"command", "builtin", "env", "exec", "nohup", "setsid", "nice",
-                "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
     clean = [tok.lstrip("\\") for tok in tokens]
     while clean:
         head = clean[0]
-        if head in wrappers:
+        if head in WRAPPERS:
             clean.pop(0)
-            # skip wrapper flags and duration/priority arguments (timeout 600)
             while clean and (clean[0].startswith("-")
                              or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", clean[0])):
                 clean.pop(0)
@@ -120,27 +157,38 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
             clean.pop(0)
             continue
         break
+    return clean
 
-    if not clean:
-        continue
 
-    head = clean[0]
+def basename_of(tok):
+    # /bin/dd, /usr/bin/git -> dd, git — a full path must not dodge detection.
+    return tok.rsplit("/", 1)[-1]
+
+
+violations = []
+seen_subshell_recursion = set()
+
+
+def scan_tokens(clean, sub_cmd, depth=0):
+    if depth > 5 or not clean:
+        return
+    head = basename_of(clean[0])
 
     if head == "dd":
         violations.append((sub_cmd, "dd"))
-        continue
+        return
 
     if head == "shred":
         violations.append((sub_cmd, "shred"))
-        continue
+        return
 
     if head == "wipefs":
         violations.append((sub_cmd, "wipefs"))
-        continue
+        return
 
     if head.startswith("mkfs"):
         violations.append((sub_cmd, "mkfs*"))
-        continue
+        return
 
     if head == "git":
         rest = clean[1:]
@@ -156,6 +204,66 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
             if tok == "reset":
                 violations.append((sub_cmd, "git reset"))
             break
+        return
+
+    # xargs -I{} dd ... / xargs dd ... — xargs invokes its trailing command
+    # directly, so the real target is whatever follows xargs's own options.
+    if head == "xargs":
+        rest = clean[1:]
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            # -I{} and -n1 etc. take no separate value token in common usage;
+            # -a file / -d delim / -P n / -L n / -s n take one.
+            if re.fullmatch(r"-[adPLs]", rest[i]) and i + 1 < len(rest):
+                i += 2
+            else:
+                i += 1
+        if i < len(rest):
+            scan_tokens(rest[i:], sub_cmd, depth + 1)
+        return
+
+    # bash -c '...' / sh -c "..." — recurse into the quoted payload so a
+    # destructive command hidden behind an explicit sub-shell -c is caught.
+    if head in ("bash", "sh", "zsh", "dash", "ksh", "mksh", "ash") and id(clean) not in seen_subshell_recursion:
+        rest = clean[1:]
+        for i, tok in enumerate(rest):
+            if tok == "-c" and i + 1 < len(rest):
+                seen_subshell_recursion.add(id(clean))
+                for nested in split_subcmds(rest[i + 1]):
+                    nested = nested.strip()
+                    if not nested:
+                        continue
+                    try:
+                        nested_tokens = shlex.split(nested)
+                    except ValueError:
+                        nested_tokens = nested.split()
+                    scan_tokens(strip_wrappers(nested_tokens), nested, depth + 1)
+                return
+
+
+for sub_cmd in split_subcmds(cmd):
+    sub_cmd = sub_cmd.strip()
+    if not sub_cmd:
+        continue
+
+    # Peel a wrapping subshell/command-substitution: (dd if=x of=y),
+    # $(dd if=x of=y), `dd if=x of=y` — the parens/backticks are shell
+    # syntax, not part of the command name (D2).
+    inner = sub_cmd
+    m = re.match(r"^\$?\(([\s\S]*)\)$", inner) or re.match(r"^`([\s\S]*)`$", inner)
+    if m:
+        inner = m.group(1).strip()
+
+    try:
+        tokens = shlex.split(inner)
+    except ValueError:
+        tokens = inner.split()
+
+    clean = strip_wrappers(tokens)
+    if not clean:
+        continue
+
+    scan_tokens(clean, sub_cmd)
 
 if not violations:
     sys.exit(0)
