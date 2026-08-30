@@ -76,6 +76,21 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **Project files override global** — if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it supersedes this file
 - **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. **A problem inside the project is never sufficient justification on its own** — never edit host system files, shell rc files, systemd units, other repos, or global tool configs to work around a build/test/tool issue; fix the project's own code/config instead
 
+### Local System Management Zone (`~/Projects/local/system/**`)
+
+Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. **Only the two exceptions below relax; every other rule in this file and its referenced memory files stays in full force**, including git safety, the `systemctl` gate, `security_conventions.md`, host-system-file protection, and all CI/CD, Makefile, language, and framework tooling conventions (test gates, lint gates, build rules).
+
+**Relaxed here — nothing else:**
+- **Plaintext credentials allowed** — tokens/passwords/API keys may be stored in plaintext (inventories, `.env`-style credential stores) without the SHA-256 hashing/masking `sensitive_data.md` normally requires. Full condition: `~/.claude/memory/sensitive_data.md` → "The Only Exception".
+- **`LICENSE.md` not required** — every other `project_files.md` root-file requirement (`AI.md`, `IDEA.md`, `CLAUDE.md`, `README.md`, `Makefile`, `.gitignore`, etc.) still applies.
+
+**Still hard — no exception, ever:**
+- Git safety rules — destructive-op confirmation, `gitcommit`-only commit path, no unrequested force-push
+- `systemctl` gate and all `security_conventions.md` rules
+- Never touch host system files, shell rc files, systemd units, or other repos outside `{project_dir}`
+- All CI/CD, Makefile, language, and framework tooling conventions
+- **Repo privacy gate** — a repo here may have a remote and be pushed (overriding the general `local` provider's "no remote" default, for this named path only), but only while its visibility is confirmed **private**. Check visibility before the first push (`gh repo view {org}/{repo} --json visibility` or provider equivalent) and after every subsequent push; if a repo is ever found public, switch it to private immediately (`gh repo edit --visibility private` or provider equivalent) before continuing any other work.
+
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
 - **`\command` prefix only for alias-prone external binaries** (`ls`, `grep`, `rm`, `cp`, `mv`, `cat`, `sed`, `diff`, `curl`, …; `command cmd` in fish) — never on shell keywords (`time`, `if`, `while`, `[[` — breaks semantics), never on builtins (no-op), and never on the first word of an allowlisted/pre-authorized or hook-governed command (`gitcommit`, `git`, `make`, `docker`, `incus`, `podman`, `qemu-*`, `virsh`, `systemctl` — breaks permission prefix-matching and PreToolUse hook pattern-matching; container/VM aliases like `docker`→`podman` are deliberate environment config, not noise)

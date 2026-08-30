@@ -29,9 +29,10 @@ type: user
 - Database credentials, connection strings with passwords
 - PII: names, emails, phone numbers, addresses, SSNs, card numbers
 
-## The Only Exception
+## The Only Exceptions
 
-A **personal dotfiles repo explicitly designated as private and intended to hold credentials** (env files, SSH keys, global env vars) may contain credentials. Context determines this — do not assume; if unclear, do not add and ask instead.
+- A **personal dotfiles repo explicitly designated as private and intended to hold credentials** (env files, SSH keys, global env vars) may contain credentials. Context determines this — do not assume; if unclear, do not add and ask instead.
+- **Repos under `~/Projects/local/system/**`** (see `CLAUDE.md` → "Local System Management Zone") — personal project/infra/fleet-management tooling. Plaintext tokens/passwords/API keys are allowed there without hashing or masking, **conditioned on the repo's visibility being confirmed private** (see the Repo privacy gate in that section). If visibility is ever unconfirmed or found public, treat the repo as fully public until fixed — the exception does not apply until privacy is restored.
 
 ## Masking Format
 
