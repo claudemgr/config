@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302100-git
+##@Version           :  202608301735-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -9,11 +9,14 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 21:00 EDT
 # @@File             :  no-todo-comments.sh
-# @@Description      :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK/XXX markers written at the
+# @@Description      :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK markers written at the
 # @@Description      :  start of a comment, and a narrow set of high-confidence commented-out-code
 # @@Description      :  signatures, enforcing CLAUDE.md's "No TODO/FIXME/HACK in committed code" and
 # @@Description      :  "No commented-out code" rules, previously prose-only with no technical gate.
 # @@Changelog        :  Initial version - audit found the TODO/commented-code rules were unenforced
+# @@Changelog        :  Removed `XXX` from the blocked-marker set — home/CLAUDE.md's "No
+# @@Changelog        :  TODO/FIXME/HACK in committed code" rule names exactly those three markers;
+# @@Changelog        :  `XXX` was an invented addition not in the source rule
 # @@TODO             :  None
 # @@Other            :  Marker detection requires the word immediately after the comment prefix (e.g.
 # @@Other            :  `# TODO: ...`) so it never matches the house header field `# @@TODO : None`
@@ -32,7 +35,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302100-git"
+VERSION="202608301735-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -72,7 +75,7 @@ if os.path.basename(file_path) in EXEMPT_BASENAMES:
 COMMENT_PREFIX = r"^\s*(?:#|//|/\*|\*|--|;|<!--)\s*"
 
 MARKER_RE = re.compile(
-    COMMENT_PREFIX + r"(TODO|FIXME|HACK|XXX)\b",
+    COMMENT_PREFIX + r"(TODO|FIXME|HACK)\b",
 )
 
 CODE_KEYWORDS = (

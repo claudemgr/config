@@ -38,11 +38,14 @@ other items are independent and can be fixed in any order.
       tiers (<=30s/<=120s/<=600s) vs actual <=60s/<=300s/<=600s
       (home/CLAUDE.md:149, shell_lifetime_conventions.md:11). Fixed the printed
       tiers to <=60s/<=300s/<=600s.
-- [ ] 2: test-lint-mark.sh:63 — `bash -n` satisfies the test gate for
+- [x] 2 (FIXED): test-lint-mark.sh:63 — `bash -n` satisfies the test gate for
       every project type; home/CLAUDE.md:255 scopes it to
-      script-collection only.
-- [ ] 5: no-todo-comments.sh:75 — `XXX` is an invented marker not in
-      CLAUDE.md's "No TODO/FIXME/HACK" (home/CLAUDE.md:114).
+      script-collection only. Fixed: `bash -n` now only marks the test gate
+      when the project has no Makefile/go.mod/Cargo.toml/package.json/
+      pyproject.toml/setup.py (script-collection heuristic).
+- [x] 5 (FIXED): no-todo-comments.sh:75 — `XXX` is an invented marker not in
+      CLAUDE.md's "No TODO/FIXME/HACK" (home/CLAUDE.md:114). Removed XXX
+      from the blocked-marker regex.
 
 ## Core-OS / destructive-op gaps (protect-host.sh)
 

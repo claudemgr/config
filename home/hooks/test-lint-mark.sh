@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301726-git
+##@Version           :  202608301735-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -10,7 +10,9 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records, per session and project, that a test-gate
-# @@Description      :  command (make test, go test, cargo test, pytest, npm test, bash -n) or a
+# @@Description      :  command (make test, go test, cargo test, pytest, npm test; bash -n only
+# @@Description      :  counts for a script-collection project — no Makefile/go.mod/Cargo.toml/
+# @@Description      :  package.json/pyproject.toml/setup.py) or a
 # @@Description      :  lint-gate command (script-lint, go-lint, rust-lint — CLAUDE.md's Commit
 # @@Description      :  Workflow Lint gate names exactly these three, never `make lint`) exited 0
 # @@Description      :  in this Bash call. Pairs with enforce-test-lint-gate.sh (PreToolUse on
@@ -26,6 +28,10 @@
 # @@Changelog        :  a socket, not a real file — reported by the user hitting the actual error
 # @@Changelog        :  live ("/dev/stdin: No such device or address"); switched to `$(cat)`, matching
 # @@Changelog        :  the pattern already used by protect-host.sh/enforce-docker-rm.sh
+# @@Changelog        :  `bash -n` no longer satisfies the test gate for every project type —
+# @@Changelog        :  home/CLAUDE.md's Test gate scopes `bash -n` to script-collection projects
+# @@Changelog        :  only; a project with a real manifest (Makefile/go.mod/Cargo.toml/
+# @@Changelog        :  package.json/pyproject.toml/setup.py) now requires its actual test runner
 # @@TODO             :  None
 # @@Other            :  Only marks on exit_code == 0 and interrupted == false - a failed or
 # @@Other            :  timed-out test/lint run must never count as passing
@@ -36,7 +42,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301726-git"
+VERSION="202608301735-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -65,16 +71,34 @@ TEST_LINT_MARK_SESSION_ID=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.sessio
 
 TEST_LINT_MARK_IS_TEST=0
 TEST_LINT_MARK_IS_LINT=0
-printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b|\bcargo[[:space:]]+test\b|\bpytest\b|\bnpm[[:space:]]+(run[[:space:]]+)?test\b|\bbash[[:space:]]+-n\b' \
+TEST_LINT_MARK_IS_BASHN=0
+printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b|\bcargo[[:space:]]+test\b|\bpytest\b|\bnpm[[:space:]]+(run[[:space:]]+)?test\b' \
   && TEST_LINT_MARK_IS_TEST=1
+printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bbash[[:space:]]+-n\b' \
+  && TEST_LINT_MARK_IS_BASHN=1
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bscript-lint\b|\bgo-lint\b|\brust-lint\b' \
   && TEST_LINT_MARK_IS_LINT=1
 
-[ "$TEST_LINT_MARK_IS_TEST" = "1" ] || [ "$TEST_LINT_MARK_IS_LINT" = "1" ] || exit 0
+[ "$TEST_LINT_MARK_IS_TEST" = "1" ] || [ "$TEST_LINT_MARK_IS_BASHN" = "1" ] || [ "$TEST_LINT_MARK_IS_LINT" = "1" ] || exit 0
 
 TEST_LINT_MARK_PROJECT=$(git -C "${TEST_LINT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
   || TEST_LINT_MARK_PROJECT="$TEST_LINT_MARK_CWD"
 [ -z "$TEST_LINT_MARK_PROJECT" ] && exit 0
+
+# `bash -n` only satisfies the test gate for script-collection projects
+# (home/CLAUDE.md's Test gate line) — a project with a real test runner
+# (Makefile/go.mod/Cargo.toml/package.json/pyproject.toml/setup.py) must
+# not have its test gate satisfied by syntax-checking an unrelated script.
+if [ "$TEST_LINT_MARK_IS_BASHN" = "1" ] && [ "$TEST_LINT_MARK_IS_TEST" != "1" ]; then
+  TEST_LINT_MARK_IS_SCRIPT_COLLECTION=1
+  for TEST_LINT_MARK_MANIFEST in Makefile go.mod Cargo.toml package.json pyproject.toml setup.py; do
+    [ -f "$TEST_LINT_MARK_PROJECT/$TEST_LINT_MARK_MANIFEST" ] && TEST_LINT_MARK_IS_SCRIPT_COLLECTION=0 && break
+  done
+  if [ "$TEST_LINT_MARK_IS_SCRIPT_COLLECTION" = "1" ]; then
+    TEST_LINT_MARK_IS_TEST=1
+  fi
+fi
+[ "$TEST_LINT_MARK_IS_TEST" = "1" ] || [ "$TEST_LINT_MARK_IS_LINT" = "1" ] || exit 0
 
 TEST_LINT_MARK_DIR="${TMPDIR:-/tmp}/claude-test-lint-guard/${TEST_LINT_MARK_SESSION_ID}"
 mkdir -p "$TEST_LINT_MARK_DIR"
