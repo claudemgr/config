@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301751-git
+##@Version           :  202608302309-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Added the systemctl zone exception and kernel-subpath/partition-table/bootloader mutation blocking.
+# @@Changelog        :  Removed chroot/nsenter/virsh from the container-prefix exemption (D3, host-side not guest-isolation tools) and scoped the sweep escape valve's filter check to the ps/list segment only (D4).
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301751-git"
+VERSION="202608302309-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -94,10 +94,7 @@ multipass exec
 multipass shell
 distrobox enter
 toolbox run
-virsh
-qemu-system-
-nsenter
-chroot"
+qemu-system-"
 export PROTECT_HOST_CONTAINER_PREFIXES
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Helpers
@@ -404,7 +401,11 @@ __match_raw() {
 }
 if __match_raw "${PROTECT_HOST_WORD_START}(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_CONTAINER_LIST}" ||
   __match_raw "${PROTECT_HOST_CONTAINER_LIST}[^|]*\|.*(docker|podman)[[:space:]]+${PROTECT_HOST_CONTAINER_SWEEP_VERBS}"; then
-  if ! __match_raw '(--filter|name=|label=)'; then
+  # Scope the filter check to the ps/ls segment itself, not the whole raw
+  # command — otherwise an unrelated name=/label= substring elsewhere in the
+  # pipeline (e.g. inside the kill/stop/rm target list) falsely satisfies it.
+  PROTECT_HOST_CONTAINER_LIST_SEG=$(printf '%s' "$PROTECT_HOST_RAW_CMD" | \grep -oE -- "${PROTECT_HOST_CONTAINER_LIST}[^;&|]*" | head -n 1)
+  if ! printf '%s' "$PROTECT_HOST_CONTAINER_LIST_SEG" | \grep -qE -- '(--filter|name=|label=)'; then
     __block "unscoped container sweep — an unfiltered 'docker ps' feeding kill/stop/rm hits EVERY container on the host; \
 target project containers by name or add --filter name={project_name}-"
   fi
@@ -416,7 +417,9 @@ PROTECT_HOST_INCUS_SWEEP_VERBS='(stop|delete|rm|restart|pause)'
 PROTECT_HOST_INCUS_LIST='(incus|lxc)[[:space:]]+(list|ls)'
 if __match_raw "${PROTECT_HOST_WORD_START}(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}[^;&]*[\$\`]\(?${PROTECT_HOST_INCUS_LIST}" ||
   __match_raw "${PROTECT_HOST_INCUS_LIST}[^|]*\|.*(incus|lxc)[[:space:]]+${PROTECT_HOST_INCUS_SWEEP_VERBS}"; then
-  if ! __match_raw '(--filter|name=|label=|--project)'; then
+  # Scoped to the list segment itself — same rationale as the docker/podman check above.
+  PROTECT_HOST_INCUS_LIST_SEG=$(printf '%s' "$PROTECT_HOST_RAW_CMD" | \grep -oE -- "${PROTECT_HOST_INCUS_LIST}[^;&|]*" | head -n 1)
+  if ! printf '%s' "$PROTECT_HOST_INCUS_LIST_SEG" | \grep -qE -- '(--filter|name=|label=|--project)'; then
     __block "unscoped instance sweep — an unfiltered 'incus list' feeding stop/delete hits EVERY instance on the host; \
 target project instances by name or add a name={project_name}- filter"
   fi
