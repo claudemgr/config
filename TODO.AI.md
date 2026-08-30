@@ -315,14 +315,20 @@ wiring (AI.md:214).
       gate while the identical command *with* `--force` is correctly
       blocked by no-force-push.sh. Confirms item 52 needs the shared
       helper fix, not a per-hook patch.
-- [ ] 64: wrapper-strip list missing `sudo`/`doas` in three of four git
-      hooks — zone-git-commit-push.sh:92, no-force-push.sh:137,
-      no-history-rewrite.sh:204 use `("command","env","exec","nohup",
-      "time")`, while enforce-gitcommit-shape.sh:82 and
-      no-read-gitcommit.sh:107 already use the correct superset adding
-      `sudo`/`doas`. `sudo git push --force` bypasses the three
-      under-scoped hooks. Same bug class as item 8
-      (no-destructive-bypass.sh:119).
+- [x] 64 (FIXED): wrapper-strip list missing `sudo`/`doas` in four git
+      hooks — zone-git-commit-push.sh, no-force-push.sh,
+      no-history-rewrite.sh, and no-subagent-commit.sh (a fourth
+      instance found by direct grep, beyond the three originally
+      flagged) used `("command","env","exec","nohup","time")`, while
+      enforce-gitcommit-shape.sh:82 and no-read-gitcommit.sh:107 already
+      use the correct superset adding `sudo`/`doas`. `sudo git push
+      --force`, `sudo git rebase`, `sudo gitcommit` bypassed these four
+      hooks entirely. Fixed: added `sudo`/`doas` to all four tuples to
+      match the sibling hooks; verified with bash -n and live
+      BLOCKED-exit-2 tests. Item 8 (no-destructive-bypass.sh missing
+      builtin/nice/ionice/stdbuf/timeout/setsid) is a related but
+      distinct gap in a hook that already has sudo/doas — not touched
+      by this fix.
 - [ ] 65: no-read-gitcommit.sh:66 has a dead third clause —
       `path in P or resolved in P or (basename==\"gitcommit\" and
       resolved in P)` — the third conjunct requires `resolved in P`,

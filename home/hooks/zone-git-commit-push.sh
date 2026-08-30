@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301555-git
+##@Version           :  202608301707-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  MIT or LICENSE.md
@@ -14,6 +14,8 @@
 # @@Changelog        :  Initial version — permissions.deny cannot be directory-scoped, so the zone exception is enforced here
 # @@Changelog        :  Fixed git -C/-c/--git-dir/etc. global-flag-value bypass — the subcommand
 # @@Changelog        :  scan mistook a flag's value for the subcommand and stopped early
+# @@Changelog        :  Added sudo/doas to the wrapper-strip list — sudo git push --force sailed
+# @@Changelog        :  past this hook entirely (matches enforce-gitcommit-shape.sh's superset)
 # @@TODO             :  None
 # @@Other            :  git reset stays hard-denied everywhere via settings.json (excluded from the zone pre-authorization)
 # @@Other            :  force-push stays blocked everywhere via no-force-push.sh, including inside the zone
@@ -24,7 +26,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301555-git"
+VERSION="202608301707-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -105,7 +107,7 @@ for sub in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     skipping_prefix = True
     for tok in tokens:
         if skipping_prefix:
-            if tok in ("command", "env", "exec", "nohup", "time"):
+            if tok in ("command", "env", "exec", "nohup", "time", "sudo", "doas"):
                 continue
             if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
                 continue
