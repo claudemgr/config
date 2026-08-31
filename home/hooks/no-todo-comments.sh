@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302420-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 21:00 EDT
 # @@File             :  no-todo-comments.sh
 # @@Description        :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK markers and a narrow commented-out-code heuristic, enforcing previously prose-only CLAUDE.md rules.
-# @@Changelog        :  Initial version enforcing TODO/commented-code rules; removed the invented XXX marker not in the source rule.
+# @@Changelog        :  Scoped comment-prefix matching to HTML comments only for .md files — Markdown headings/bullets aren't comment syntax.
 # @@TODO             :  None
 # @@Other            :  Never matches `# @@TODO : None` or mid-sentence mentions; TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md are exempt; commented-code detection is conservative.
 # @@Resource         :  CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302420-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -57,7 +57,12 @@ EXEMPT_BASENAMES = {"TODO.AI.md", "TODO.md", "PLAN.AI.md", "PLAN.md", "COMMIT_ME
 if os.path.basename(file_path) in EXEMPT_BASENAMES:
     sys.exit(0)
 
-COMMENT_PREFIX = r"^\s*(?:#|//|/\*|\*|--|;|<!--)\s*"
+# Markdown uses `#` for headings and `*`/`-` for list bullets, not comment
+# syntax — the only real comment form it has is an HTML `<!--` block. Using
+# the full code-comment prefix set here false-positived a Markdown "# TODO"
+# heading as a marker and a "* key = value" bullet as commented-out code.
+is_markdown = os.path.splitext(file_path)[1].lower() == ".md"
+COMMENT_PREFIX = r"^\s*(?:<!--)\s*" if is_markdown else r"^\s*(?:#|//|/\*|\*|--|;|<!--)\s*"
 
 MARKER_RE = re.compile(
     COMMENT_PREFIX + r"(TODO|FIXME|HACK)\b",
@@ -81,7 +86,9 @@ for lineno, line in enumerate(content.split("\n"), start=1):
     if m:
         findings.append(f"line {lineno}: {m.group(1)} marker: {line.strip()[:80]}")
         continue
-    if CODE_SHAPE_RE.match(line):
+    # Commented-out-code detection is meaningless for Markdown — `*`/`-`
+    # bullets and `key = value`-shaped prose lines are normal there, not code.
+    if not is_markdown and CODE_SHAPE_RE.match(line):
         findings.append(f"line {lineno}: looks like commented-out code: {line.strip()[:80]}")
 
 if not findings:
