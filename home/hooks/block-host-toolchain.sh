@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302345-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,17 +10,37 @@
 # @@Created          :  Wednesday, May 14, 2026 00:00 EDT
 # @@File             :  block-host-toolchain.sh
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
-# @@Changelog        :  Hardened first-word dispatch against alias-bypass backslashes and shell wrapper prefixes; fixed the license header field to WTFPL.
+# @@Changelog        :  TODO.AI.md items 23 through 32 fixed in one pass: resource limits added to every suggested
+#                        docker run; gradle/gradlew and the Android SDK tools now dispatch to
+#                        casjaysdev/android:latest; suggested commands now honor the toolchain-image decision tree
+#                        (project-declared image, then docker/Dockerfile.build, then the language default); the
+#                        forbidden Ubuntu and Debian latest bases were replaced with a Debian slim base; the
+#                        missing Node and Python cache mounts were added; the Rust template gained its sccache
+#                        wrapper env flag; virsh, vagrant, distrobox, and nsenter are now exempt from Docker
+#                        redirection; a script-collection and spec-collection exemption was added; the printed
+#                        tempdir snippet now includes the parent directory creation step; and the suggested
+#                        --name now derives from the git toplevel directory instead of the raw working directory.
+#                        Post-implementation review caught a severe regression in the item-30 exemption: its
+#                        fallback treated "no manifest at project root" alone as sufficient, exempting Ruby,
+#                        Java/Gradle, and any other non-Go/Rust/Node/Python project (and manifest-in-subdirectory
+#                        monorepos) from Docker-only enforcement entirely. Replaced with the actual structural
+#                        signals from project_type_conventions.md (bin/ + root install.sh for script-collection;
+#                        root holds only Markdown/metadata with no other *.sh/*.bash in the tree for
+#                        spec-collection); also dropped an AI.md substring-match shortcut that produced a false
+#                        positive on this repo's own AI.md (which names itself the disqualifying example for
+#                        spec-collection in prose); also fixed two unescaped apostrophes in code comments that
+#                        broke out of the surrounding bash single-quoted python3 -c string and would have made
+#                        the hook fail to parse entirely.
 # @@TODO             :  None
-# @@Other            :  Commands mediated by docker/incus/podman/kubectl are exempt; POSIX tools, perl/lua, python/python3 are never blocked, only their package managers.
-# @@Resource         :  ~/.claude/memory/go_conventions.md, rust_conventions.md, tempdir_conventions.md, execution_hierarchy.md
+# @@Other            :  Commands mediated by docker/incus/podman/kubectl/virsh/vagrant/distrobox/nsenter are exempt; POSIX tools, perl/lua, python/python3 are never blocked, only their package managers; script-collection and spec-collection projects are exempt entirely.
+# @@Resource         :  ~/.claude/memory/go_conventions.md, rust_conventions.md, tempdir_conventions.md, execution_hierarchy.md, dockerfile_conventions.md, node_typescript_conventions.md, python_conventions.md, project_type_conventions.md
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302345-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -100,6 +120,7 @@ ${docker_cmd}
 
 Temp directory reminder: any build output or test artifacts must be written
 to a temp volume, never into the project tree. Use the pattern:
+  mkdir -p \"\${TMPDIR:-/tmp}/{project_org}\"
   \$(mktemp -d \"\${TMPDIR:-/tmp}/{project_org}/{internal_name}-XXXXXX\")
 and mount it as an additional -v flag. See ~/.claude/memory/tempdir_conventions.md
 "
@@ -117,6 +138,155 @@ Convention: ${ref}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __require_cmd python3
 # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# Resource limits applied to every suggested docker run (execution_hierarchy.md).
+BLOCK_HOST_TOOLCHAIN_DOCKER_MEM="${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM:-4g}"
+BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS="${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS:-2}"
+
+# __extract_cwd — read the JSON payload on stdin, return the tool_input cwd.
+__extract_cwd() {
+  python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("cwd", ""))
+except Exception:
+    print("")
+'
+}
+
+# __toolchain_image <default_image> <project_dir> — resolve the toolchain
+# image per dockerfile_conventions.md's decision tree: (1) an image declared
+# by the project in AI.md/IDEA.md/SPEC.md, (2) project docker/Dockerfile.build
+# if it exists, (3) the given language-default image.
+__toolchain_image() {
+  python3 -c '
+import os, re, sys
+default_image, project_dir = sys.argv[1], sys.argv[2]
+declared = None
+for name in ("AI.md", "IDEA.md", "SPEC.md"):
+    path = os.path.join(project_dir, name)
+    if not os.path.isfile(path):
+        continue
+    try:
+        with open(path, "r", errors="ignore") as f:
+            text = f.read()
+    except OSError:
+        continue
+    m = re.search(r"(?im)^\s*(?:toolchain[_ -]?image|build[_ -]?image)\s*[:=]\s*(\S+)", text)
+    if m:
+        declared = m.group(1).strip("`\"'"'"'")
+        break
+if declared:
+    print(declared)
+elif os.path.isfile(os.path.join(project_dir, "docker", "Dockerfile.build")):
+    root = project_dir.rstrip("/") or project_dir
+    org = os.path.basename(os.path.dirname(root))
+    name = os.path.basename(root)
+    print(f"{org}/{name}:build")
+else:
+    print(default_image)
+' "$1" "$2"
+}
+
+# __project_type_exempt <project_dir> — true (exit 0) when the project is a
+# script-collection or spec-collection per project_type_conventions.md, both
+# of which home/CLAUDE.md's Build & Execution section exempts from the
+# Docker-only requirement this hook otherwise enforces.
+__project_type_exempt() {
+  python3 -c '
+import os, sys
+project_dir = sys.argv[1]
+
+manifests = ("go.mod", "Cargo.toml", "package.json", "pyproject.toml")
+if any(os.path.isfile(os.path.join(project_dir, m)) for m in manifests):
+    sys.exit(1)
+
+# Absence of a manifest is necessary but not sufficient for either type —
+# project_type_conventions.md requires an actual structural signal too, not
+# just "no manifest found" (that would wrongly exempt Ruby/Java/PHP/etc.
+# projects, or a Go/Rust/Node/Python monorepo with its manifest in a
+# subdirectory rather than at the git toplevel). A text search for the
+# words "script-collection"/"spec-collection" in AI.md was deliberately
+# rejected here — the AI.md Type sections use both words in prose that
+# describes what does NOT qualify (see the AI.md in this very repo, which
+# names itself as the disqualifying example for spec-collection), so a
+# substring match produces false positives on the exact file meant to rule
+# it out. Structural signals only, below.
+
+# script-collection detection signals (project_type_conventions.md): a bin/
+# directory of standalone entrypoints, driven by a root install.sh — the
+# defining structural pair, not merely "no manifest".
+has_bin = os.path.isdir(os.path.join(project_dir, "bin"))
+has_install_sh = os.path.isfile(os.path.join(project_dir, "install.sh"))
+if has_bin and has_install_sh:
+    sys.exit(0)
+
+# spec-collection detection signals: the project root holds only Markdown
+# plus standard repo metadata (no src/bin/cmd/lib, no manifest — already
+# ruled out above), and the only script anywhere in the tree, if any, is a
+# deploy-only root install.sh. Any other *.sh/*.bash disqualifies it (that
+# repo needs the test/lint gate for those scripts instead).
+disqualifying_dirs = ("src", "bin", "cmd", "lib")
+has_disqualifying_dir = any(
+    os.path.isdir(os.path.join(project_dir, d)) for d in disqualifying_dirs
+)
+only_root_md_and_metadata = True
+saw_md_file = False
+allowed_root_files = {"install.sh"}
+allowed_root_dirs = {".git", ".github"}
+try:
+    for entry in os.listdir(project_dir):
+        full = os.path.join(project_dir, entry)
+        if os.path.isdir(full):
+            if entry in allowed_root_dirs:
+                continue
+            only_root_md_and_metadata = False
+            break
+        if entry.lower().endswith(".md"):
+            saw_md_file = True
+            continue
+        if entry in allowed_root_files:
+            continue
+        if entry in (".gitignore", ".gitattributes"):
+            continue
+        only_root_md_and_metadata = False
+        break
+except OSError:
+    only_root_md_and_metadata = False
+
+# An empty (or metadata-only, no .md) directory is not positive evidence of
+# spec-collection — it is the absence of information, not a structural
+# signal per project_type_conventions.md, which requires the root to hold
+# only .md files (a directory holding zero files satisfies that vacuously).
+if not saw_md_file:
+    only_root_md_and_metadata = False
+
+has_other_script = False
+if only_root_md_and_metadata and not has_disqualifying_dir:
+    for root, dirs, files in os.walk(project_dir):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for f in files:
+            if not (f.endswith(".sh") or f.endswith(".bash")):
+                continue
+            if root == project_dir and f == "install.sh":
+                continue
+            has_other_script = True
+            break
+        if has_other_script:
+            break
+
+is_spec_collection = (
+    only_root_md_and_metadata
+    and not has_disqualifying_dir
+    and not has_other_script
+)
+if is_spec_collection:
+    sys.exit(0)
+
+sys.exit(1)
+' "$1"
+}
 
 # __split_subcommands <cmd> — emit each sub-command NUL-terminated, splitting
 # on ; & && || | and newlines so container-runtime exemptions apply per
@@ -222,18 +392,39 @@ BLOCK_HOST_TOOLCHAIN_INPUT="$(cat)"
 BLOCK_HOST_TOOLCHAIN_FULL_CMD="$(printf '%s' "$BLOCK_HOST_TOOLCHAIN_INPUT" | __extract_command)"
 [[ -z "$BLOCK_HOST_TOOLCHAIN_FULL_CMD" ]] && exit 0
 
+# Resolve the project root from the tool_input cwd (fall back to $PWD), so
+# --name and the toolchain-image lookup use the git toplevel basename, never
+# a raw $PWD basename that changes with the invoking subdirectory.
+BLOCK_HOST_TOOLCHAIN_CWD="$(printf '%s' "$BLOCK_HOST_TOOLCHAIN_INPUT" | __extract_cwd)"
+[[ -z "$BLOCK_HOST_TOOLCHAIN_CWD" ]] && BLOCK_HOST_TOOLCHAIN_CWD="$PWD"
+BLOCK_HOST_TOOLCHAIN_PROJECT_DIR="$(cd "$BLOCK_HOST_TOOLCHAIN_CWD" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)"
+[[ -z "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR" ]] && BLOCK_HOST_TOOLCHAIN_PROJECT_DIR="$BLOCK_HOST_TOOLCHAIN_CWD"
+BLOCK_HOST_TOOLCHAIN_PROJECT_NAME="$(basename "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR")"
+
+# script-collection / spec-collection projects are exempt from the
+# Docker-only Build & Execution requirement entirely (home/CLAUDE.md); skip
+# all toolchain-blocking logic for them.
+if __project_type_exempt "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR"; then
+  exit 0
+fi
+
 # Inspect every sub-command independently; __block exits 2 on the first violation.
 # -d '' consumes NUL-delimited subs so a quoted multi-line payload (docker run ... sh -c with
 # literal newlines) arrives as ONE sub-command instead of being re-split line by line
 while IFS= read -r -d '' CMD; do
 
-# Sub-commands already mediated by a container runtime are exempt at this layer.
+# Sub-commands already mediated by a container/VM runtime are exempt at this
+# layer. virsh/vagrant/distrobox/nsenter are exempt on any invocation, not
+# just exec/run/shell subcommands — the whole command is already at or above
+# the Docker tier in execution_hierarchy.md's QEMU/KVM > Incus > Docker > host
+# order, matching the container-prefix recognition in __split_subcommands.
 case "$CMD" in
   docker\ exec\ *|docker\ run\ *|docker\ compose\ exec\ *|docker\ compose\ run\ *|\
   docker-compose\ exec\ *|docker-compose\ run\ *|\
   incus\ exec\ *|incus\ shell\ *|lxc\ exec\ *|\
   podman\ exec\ *|podman\ run\ *|\
-  kubectl\ exec\ *)
+  kubectl\ exec\ *|\
+  virsh\ *|vagrant\ *|distrobox\ *|nsenter\ *)
     continue
     ;;
 esac
@@ -263,14 +454,15 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Go ────────────────────────────────────────────────────────────────────
   go|gofmt|goimports|golangci-lint|gopls|godoc)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -v \"\${GO_CACHE:-\${HOME}/go/pkg/mod}\":/usr/local/share/go/pkg/mod \\
     -v \"\${GO_BUILD:-\${HOME}/.cache/go-build/\$(basename \"\$PWD\")}\":/usr/local/share/go/cache \\
     -w /app \\
     -e CGO_ENABLED=0 \\
     -e GOFLAGS=-buildvcs=false \\
-    casjaysdev/go:latest \\
+    $(__toolchain_image "casjaysdev/go:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/go_conventions.md"
     ;;
@@ -278,27 +470,36 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Rust ──────────────────────────────────────────────────────────────────
   cargo|rustc|rustup|rustfmt|wasm-pack)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -v \"\${CARGO_CACHE:-\${HOME}/.cargo}\":/usr/local/share/cargo \\
     -v \"\${RUSTUP_CACHE:-\${HOME}/.rustup}\":/usr/local/share/rustup \\
     -v \"\${SCCACHE_CACHE:-\${HOME}/.cache/sccache}\":/root/.cache/sccache \\
     -v \"\${CARGO_TARGET:-\${HOME}/.cache/cargo-target/\$(basename \"\$PWD\")}\":/app/target \\
     -w /app \\
-    casjaysdev/rust:latest \\
+    -e RUSTC_WRAPPER=sccache \\
+    $(__toolchain_image "casjaysdev/rust:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/rust_conventions.md"
     ;;
 
   # ── Node / JavaScript / TypeScript runtime & package managers ─────────────
+  # Mount target matches the Go/Rust arms' /app for internal consistency.
+  # makefile_conventions.md documents /app as the project mount point while
+  # node_typescript_conventions.md/python_conventions.md's own Docker Build
+  # Pattern examples show /build - that source-doc mismatch is a separate,
+  # unresolved documentation inconsistency; not fixed here, only not made worse.
   node|npm|npx|yarn|pnpm|corepack)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
+    -v \"\${NPM_CACHE:-\${HOME}/.npm}\":/root/.npm \\
     -w /app \\
-    node:alpine \\
+    $(__toolchain_image "node:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
-    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/node_typescript_conventions.md"
     ;;
 
   # ── TypeScript compiler and JS build / lint tools ─────────────────────────
@@ -307,31 +508,35 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   turbo|turborepo|eslint|prettier|biome|oxlint|jshint|standard|xo|\
   swc|tsup|unbuild|pkgroll)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
+    -v \"\${NPM_CACHE:-\${HOME}/.npm}\":/root/.npm \\
     -w /app \\
-    node:alpine \\
+    $(__toolchain_image "node:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'npm install --prefer-offline && ${CMD}'"
-    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/node_typescript_conventions.md"
     ;;
 
   # ── Alt JS runtimes ───────────────────────────────────────────────────────
   bun)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    oven/bun:alpine \\
+    $(__toolchain_image "oven/bun:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "bun" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   deno)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    denoland/deno:alpine \\
+    $(__toolchain_image "denoland/deno:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "deno" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -341,10 +546,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # via npm; use node:alpine and install the toolchain inside the container.
   elm|spago|purs|rescript|coffee|asc)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    node:alpine \\
+    $(__toolchain_image "node:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'npm install --prefer-offline && npx ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -356,34 +562,56 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   pip|pip3|pip3.[0-9]*|uv|poetry|pipenv|hatch|pdm|tox|nox|flit|twine|\
   pyproject-build|setuptools|conda|mamba|micromamba)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
+    -v \"\${PIP_CACHE:-\${HOME}/.cache/pip}\":/root/.cache/pip \\
+    -v \"\${UV_CACHE:-\${HOME}/.cache/uv}\":/root/.cache/uv \\
     -w /app \\
-    python:alpine \\
+    $(__toolchain_image "python:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
-    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/python_conventions.md"
     ;;
 
   # ── Ruby ──────────────────────────────────────────────────────────────────
   gem|bundle|bundler|rake|rspec|rubocop|standardrb|sorbet|srb)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    ruby:alpine \\
+    $(__toolchain_image "ruby:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
-  # ── JVM build tools (Gradle / Maven / Ant) ───────────────────────────────
-  gradle|gradlew|mvn|mvnw|ant)
+  # ── Android (Gradle wrapper + SDK command-line tools) ────────────────────
+  # Routed to casjaysdev/android:latest, never gradle:alpine — the Android SDK
+  # tools require the Android toolchain image, not a bare JVM/Gradle image.
+  # Source is mounted at /workspace, never over /opt/android-sdk (the image's
+  # own SDK install path).
+  gradle|gradlew|adb|sdkmanager|apksigner|zipalign|d8|r8|aapt2)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.gradle\":/root/.gradle \\
+    -e GRADLE_USER_HOME=/workspace/.gradle \\
+    -w /workspace \\
+    $(__toolchain_image "casjaysdev/android:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
+    ${CMD}"
+    __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" "~/.claude/memory/dockerfile_conventions.md"
+    ;;
+
+  # ── JVM build tools (Maven / Ant) ────────────────────────────────────────
+  mvn|mvnw|ant)
+    BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
+    -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.m2\":/root/.m2 \\
     -w /workspace \\
-    gradle:alpine \\
+    $(__toolchain_image "gradle:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -392,10 +620,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   java|javac|jar|javap|jshell|jlink|jpackage|javadoc|javaws|\
   jmap|jstack|jinfo|jcmd|jps|jstat|jfr|jdb)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    eclipse-temurin:alpine \\
+    $(__toolchain_image "eclipse-temurin:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -403,10 +632,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── GraalVM native-image ──────────────────────────────────────────────────
   native-image|gu)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    ghcr.io/graalvm/native-image:latest \\
+    $(__toolchain_image "ghcr.io/graalvm/native-image:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -414,10 +644,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Kotlin ────────────────────────────────────────────────────────────────
   kotlin|kotlinc|kotlinc-jvm|kotlinc-js)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    eclipse-temurin:alpine \\
+    $(__toolchain_image "eclipse-temurin:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache kotlin && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -425,12 +656,13 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Scala / SBT ───────────────────────────────────────────────────────────
   scala|scalac|scala3|scalac3|sbt)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.ivy2\":/root/.ivy2 \\
     -v \"\${HOME}/.sbt\":/root/.sbt \\
     -w /workspace \\
-    eclipse-temurin:alpine \\
+    $(__toolchain_image "eclipse-temurin:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache scala && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -438,11 +670,12 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Clojure / Leiningen ───────────────────────────────────────────────────
   lein|clojure|clj|clj-kondo)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.m2\":/root/.m2 \\
     -w /workspace \\
-    clojure:tools-alpine \\
+    $(__toolchain_image "clojure:tools-alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -450,10 +683,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Groovy ────────────────────────────────────────────────────────────────
   groovy|groovyc|groovysh)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    groovy:alpine \\
+    $(__toolchain_image "groovy:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -461,10 +695,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── PHP ───────────────────────────────────────────────────────────────────
   php|php[0-9]*|composer|phpunit|phpcs|phpmd|phpstan|psalm|phpbrew|phive)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    php:alpine \\
+    $(__toolchain_image "php:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -472,10 +707,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── .NET / C# / F# / VB ──────────────────────────────────────────────────
   dotnet|msbuild|nuget|csc|fsc|vbc|dotnet-script|dotnet-ef)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    mcr.microsoft.com/dotnet/sdk:alpine \\
+    $(__toolchain_image "mcr.microsoft.com/dotnet/sdk:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -483,10 +719,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Elixir / Erlang ───────────────────────────────────────────────────────
   mix|elixir|elixirc|erl|erlc|escript|rebar3|dialyzer)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    elixir:alpine \\
+    $(__toolchain_image "elixir:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -494,10 +731,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Gleam (BEAM / Erlang VM language) ────────────────────────────────────
   gleam)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    ghcr.io/gleam-lang/gleam:latest \\
+    $(__toolchain_image "ghcr.io/gleam-lang/gleam:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "gleam" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -506,10 +744,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   ghc|ghci|runghc|runhaskell|cabal|stack|haddock|hoogle)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    haskell:latest \\
+    $(__toolchain_image "haskell:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -518,10 +757,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No official Alpine image — uses Ubuntu-based :latest.
   swift|swiftc|swift-package|swift-build|swift-test|swift-run)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    swift:latest \\
+    $(__toolchain_image "swift:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -530,10 +770,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   dart|flutter|pub)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    dart:latest \\
+    $(__toolchain_image "dart:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -542,10 +783,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # Zig is in Alpine edge; no separate official Docker image.
   zig)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine:edge \\
+    $(__toolchain_image "alpine:edge" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache zig && ${CMD}'"
     __block "zig" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -553,10 +795,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Crystal ───────────────────────────────────────────────────────────────
   crystal|shards)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    crystallang/crystal:latest-alpine \\
+    $(__toolchain_image "crystallang/crystal:latest-alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -564,10 +807,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── OCaml / OPAM / Dune ───────────────────────────────────────────────────
   ocaml|ocamlopt|ocamlfind|ocamlbuild|opam|dune)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    ocaml/opam:alpine \\
+    $(__toolchain_image "ocaml/opam:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -575,10 +819,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── D language ────────────────────────────────────────────────────────────
   dmd|dub|ldc|ldc2|gdc|rdmd)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    dlangcommunity/docker-dmd:latest \\
+    $(__toolchain_image "dlangcommunity/docker-dmd:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -587,11 +832,12 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   julia)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.julia\":/root/.julia \\
     -w /workspace \\
-    julia:latest \\
+    $(__toolchain_image "julia:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "julia" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -600,10 +846,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No official Alpine image — uses Debian-based :latest.
   R|Rscript|renv)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    r-base:latest \\
+    $(__toolchain_image "r-base:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -611,10 +858,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Nim ───────────────────────────────────────────────────────────────────
   nim|nimble|nimgrep|nimpretty|testament)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    nimlang/nim:alpine \\
+    $(__toolchain_image "nimlang/nim:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -623,22 +871,25 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # Bare "v" is not blocked — it collides with a common shell alias name.
   vpm)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    vlang/vlang:latest \\
+    $(__toolchain_image "vlang/vlang:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Odin ──────────────────────────────────────────────────────────────────
-  # No official Docker image — install from GitHub release inside Ubuntu.
+  # No official Docker image and no Alpine package — install from a Debian
+  # slim base (never a :latest Ubuntu/Debian image, per dockerfile_conventions.md).
   odin)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    ubuntu:latest \\
+    $(__toolchain_image "debian:bookworm-slim" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apt-get update && apt-get install -y odin && ${CMD}'"
     __block "odin" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -647,10 +898,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # lua itself is a common system scripting tool and is NOT blocked.
   luarocks|luac)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -658,10 +910,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Janet (small Lisp/C hybrid, in Alpine repos) ─────────────────────────
   janet|jpm)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine:latest \\
+    $(__toolchain_image "alpine:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache janet && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -669,10 +922,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Fennel (Lisp dialect for Lua, in Alpine repos) ───────────────────────
   fennel)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine:latest \\
+    $(__toolchain_image "alpine:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache lua5.4 fennel && ${CMD}'"
     __block "fennel" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -681,10 +935,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # perl itself is a system scripting tool and is NOT blocked.
   cpan|cpanm|cpm|carton|prove|plackup|morbo)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -w /app \\
-    perl:alpine \\
+    $(__toolchain_image "perl:alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -692,10 +947,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Fortran ───────────────────────────────────────────────────────────────
   gfortran|flang|ifort|ifx|f77|f95|fort77)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache gfortran && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -703,10 +959,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── COBOL ─────────────────────────────────────────────────────────────────
   cobc|cobcrun|cob-config)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache gnucobol && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -714,10 +971,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Ada / GNAT ────────────────────────────────────────────────────────────
   gnat|gnatmake|gprbuild|gnatclean|gnatbind|gnatlink|gnatfind|gnatxref)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache gcc-gnat gnat && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -725,22 +983,24 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # ── Emscripten — C / C++ to WebAssembly ──────────────────────────────────
   emcc|em++|emcmake|emmake|emar|emranlib|emstrip|emrun|emdump|emsize)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    emscripten/emsdk:latest \\
+    $(__toolchain_image "emscripten/emsdk:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Common Lisp ───────────────────────────────────────────────────────────
-  # No Alpine image; use Debian-based :latest.
+  # No Alpine image; use a Debian slim base, never :latest.
   sbcl|clisp|ecl|abcl|gcl|ccl|acl)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    debian:latest \\
+    $(__toolchain_image "debian:bookworm-slim" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apt-get update && apt-get install -y sbcl && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -749,24 +1009,26 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No Alpine image; official image is Debian-based.
   racket|raco)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    racket/racket:latest \\
+    $(__toolchain_image "racket/racket:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Scheme (Guile, Chicken, MIT, Chibi) ──────────────────────────────────
-  # No Alpine image for most; use Debian-based :latest.
+  # No Alpine image for most; use a Debian slim base, never :latest.
   # Note: csi = Chicken Scheme Interpreter (csc conflicts with C# compiler).
   guile|chicken|chicken-install|chicken-status|csi|\
   mit-scheme|chibi-scheme|chezscheme|chez|petite-chez)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    debian:latest \\
+    $(__toolchain_image "debian:bookworm-slim" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apt-get update && apt-get install -y guile-3.0 && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -775,22 +1037,25 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # No Alpine image; official SWI-Prolog image is Debian-based.
   swipl|swipl-ld|gprolog|yap|xsb|clingo|spass)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    swipl:latest \\
+    $(__toolchain_image "swipl:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     ${CMD}"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
 
   # ── Bazel / Bazelisk ──────────────────────────────────────────────────────
+  # No Alpine image; use a Debian slim base, never :latest.
   bazel|bazelisk|ibazel)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -v \"\${HOME}/.cache/bazel\":/root/.cache/bazel \\
     -w /workspace \\
-    ubuntu:latest \\
+    $(__toolchain_image "debian:bookworm-slim" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apt-get update && apt-get install -y bazel && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -802,10 +1067,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   arm-linux-gnueabihf-gcc|arm-linux-gnueabihf-g++|\
   riscv64-linux-gnu-gcc|riscv64-linux-gnu-g++)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache build-base && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -815,10 +1081,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # and make drives Docker-based builds in this project.
   cmake|meson|autoconf|automake|autoreconf|configure)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache build-base cmake && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;
@@ -827,10 +1094,11 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
   # strip is not blocked — settings.json allowlists it and it is used on non-C artifacts.
   as|ld|ar|ranlib|objcopy)
     BLOCK_HOST_TOOLCHAIN_DOCKER_CMD="  docker run --rm \\
-    --name \"\$(basename \"\$PWD\")-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --name \"${BLOCK_HOST_TOOLCHAIN_PROJECT_NAME}-\$(tr -dc 'a-z0-9' </dev/urandom | head -c8)\" \\
+    --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/workspace \\
     -w /workspace \\
-    alpine \\
+    $(__toolchain_image "alpine" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\
     sh -c 'apk add --no-cache build-base binutils && ${CMD}'"
     __block "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" "$BLOCK_HOST_TOOLCHAIN_DOCKER_CMD" ""
     ;;

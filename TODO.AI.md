@@ -212,36 +212,93 @@ other items are independent and can be fixed in any order.
 
 ## block-host-toolchain.sh (worst offender, 846 lines)
 
-- [ ] 23: all ~48 suggested `docker run` commands omit `--memory`/
+- [x] 23: all ~48 suggested `docker run` commands omit `--memory`/
       `--cpus` (execution_hierarchy.md:126).
-- [ ] 24: no Android dispatch; gradle/gradlew maps to `gradle:alpine`
+      Fixed: `--memory="${DOCKER_MEM}" --cpus="${DOCKER_CPUS}"` (defaults
+      `4g`/`2`) added to all `docker run` templates. Verified via live
+      JSON-payload hook invocations (go build, prove) showing the flags
+      in the suggested command.
+- [x] 24: no Android dispatch; gradle/gradlew maps to `gradle:alpine`
       instead of `casjaysdev/android:latest` (home/CLAUDE.md:171,
       dockerfile_conventions.md:42); adb/sdkmanager/apksigner/zipalign/
       d8/r8/aapt2 not blocked at all.
-- [ ] 25: ignores steps 1-2 of toolchain precedence (project-declared
+      Fixed: new Android block routing gradle/gradlew/adb/sdkmanager/
+      apksigner/zipalign/d8/r8/aapt2 to `casjaysdev/android:latest` with
+      `GRADLE_USER_HOME=/workspace/.gradle`, split out from the
+      remaining mvn/mvnw/ant block. Verified via live JSON-payload hook
+      invocation (gradle build).
+- [x] 25: ignores steps 1-2 of toolchain precedence (project-declared
       image, Dockerfile.build) — only ever emits the language-default
       step (dockerfile_conventions.md:29-32).
-- [ ] 26: suggests `ubuntu:latest`/`debian:latest` at :645,747,773,797
+      Fixed: new `__toolchain_image()` helper implements project-
+      declared → `Dockerfile.build` → language-default precedence,
+      applied at every image-selection site. Verified via `bash -n` and
+      live hook invocations confirming the language-default fallback
+      still fires correctly when neither override is present.
+- [x] 26: suggests `ubuntu:latest`/`debian:latest` at :645,747,773,797
       (dockerfile_conventions.md:45 forbids).
-- [ ] 27: Node/Python arms omit required cache mounts (:299-367) that
+      Fixed: all occurrences replaced with `debian:bookworm-slim`.
+      Verified via `grep -n "ubuntu:latest\|debian:latest"` returning no
+      matches post-fix.
+- [x] 27: Node/Python arms omit required cache mounts (:299-367) that
       Go/Rust arms have (node_typescript_conventions.md:114,
       python_conventions.md:114). Also note: makefile_conventions.md:150
       says `/app` mount, node/python conventions say `/build` — hook
       can't satisfy both without a resolved convention.
-- [ ] 28: Rust arm :284-293 mounts sccache dir but drops
+      Fixed: `NPM_CACHE` mount added to Node/TS block, `PIP_CACHE`/
+      `UV_CACHE` mounts added to Python block, matching Go/Rust's
+      `${VAR:-default}:container_path` mount shape. The `/app` vs
+      `/build` doc mismatch is flagged with a comment in the script but
+      deliberately left unresolved — it requires a convention-file
+      decision outside this hook's scope.
+- [x] 28: Rust arm :284-293 mounts sccache dir but drops
       `-e RUSTC_WRAPPER=sccache` (rust_conventions.md:84), making the
       mount inert.
-- [ ] 29: container-runtime exemption list (:236-240) misses virsh/
+      Fixed: `-e RUSTC_WRAPPER=sccache` added to the Rust template
+      alongside its existing `SCCACHE_CACHE` mount.
+- [x] 29: container-runtime exemption list (:236-240) misses virsh/
       vagrant/distrobox/nsenter that the hook's own :147-150 recognizes,
       so a higher-tier runtime gets wrongly redirected to Docker.
-- [ ] 30: no script-collection/spec-collection exemption despite
+      Fixed: virsh/vagrant/distrobox/nsenter added to the container-
+      runtime exemption `case` statement. Verified via live JSON-payload
+      hook invocation (`virsh list` → exempted, exit 0).
+- [x] 30: no script-collection/spec-collection exemption despite
       home/CLAUDE.md:177 exempting both from Build & Execution; blocks
       `prove` at :686 despite it being part of script-collection's gate.
-- [ ] 31: :107 tempdir snippet omits the parent `mkdir -p` required by
+      Fixed via new `__project_type_exempt()` function using structural
+      signals from project_type_conventions.md (manifest absence,
+      bin/+install.sh pair for script-collection, root-Markdown-only
+      plus no disqualifying dir/script for spec-collection) — NOT a
+      naive "no manifest = exempt" check. An initial implementation used
+      exactly that naive check and was caught as a severe regression by
+      an independent code-reviewer agent (it wrongly exempted any
+      non-manifest project — Ruby, Java/Gradle, PHP, etc.); replaced
+      with the structural-signal version above. Two further bugs found
+      during my own re-testing were also fixed: an empty directory
+      vacuously satisfying "only .md files present" (fixed by requiring
+      at least one real .md file as positive evidence), and an AI.md
+      substring-match false positive on this very repo's own AI.md
+      (fixed by dropping the AI.md text-match shortcut entirely in favor
+      of pure structural detection). Verified via a 7-case synthetic
+      directory matrix (Ruby, Java/Gradle, empty dir, generic-AI.md dir,
+      script-collection dir, spec-collection dir, Go-manifest-in-
+      subdir) plus this repo's own directory (correctly exit 1, matching
+      AI.md's explicit self-declaration as the spec-collection
+      disqualifying example), and live end-to-end hook invocations for
+      `prove` both exempted (synthetic script-collection dir) and
+      blocked (this repo).
+- [x] 31: :107 tempdir snippet omits the parent `mkdir -p` required by
       tempdir_conventions.md:41-42 — printed command fails first use.
-- [ ] 32: :270 etc. — `--name` derived from `$PWD` not `{project_name}`,
+      Fixed: block message's tempdir snippet now includes
+      `mkdir -p "${TMPDIR:-/tmp}/{project_org}"` before the `mktemp -d`
+      line.
+- [x] 32: :270 etc. — `--name` derived from `$PWD` not `{project_name}`,
       breaking the `docker ps --filter name={project_name}-` cleanup
       convention when run from a subdir.
+      Fixed: `--name` now derives from `git rev-parse --show-toplevel`
+      on the hook's `cwd` input, falling back to raw cwd/`$PWD` without
+      crashing when not in a git repo. Verified via live hook invocation
+      from a non-git-repo dir showing the fallback path works.
 
 ## Gate/marker hooks
 
