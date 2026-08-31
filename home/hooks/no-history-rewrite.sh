@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302319-git
+##@Version           :  202608302345-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
 # @@Description      :  PreToolUse hook: blocks git clean -f*/rebase/branch -D/tag -d/filter-repo/filter-branch everywhere — a hook can only block, not interactively confirm.
-# @@Changelog        :  Narrowed git tag delete matching to -d/--delete only (was matching -D like branch delete); documented the git clean -fn dry-run carve-out.
+# @@Changelog        :  is_dry_run() now also matches combined short flags like -fn/-nf, not just standalone -n/--dry-run, so git clean -fn is correctly exempted as documented.
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302319-git"
+VERSION="202608302345-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -127,7 +127,12 @@ def has_tag_delete_flag(tokens):
 # rule (AI.md's no-history-rewrite.sh row, CLAUDE.md's Local System
 # Management Zone "Still hard" list).
 def is_dry_run(tokens):
-    return any(tok in ("-n", "--dry-run") for tok in tokens)
+    for tok in tokens:
+        if tok in ("-n", "--dry-run"):
+            return True
+        if re.match(r"^-[a-zA-Z]*n[a-zA-Z]*$", tok):
+            return True
+    return False
 
 
 GIT_GLOBAL_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
