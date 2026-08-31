@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302319-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Tuesday, May 13, 2026 00:00 EDT
 # @@File             :  no-ai-attribution.sh
 # @@Description      :  Claude Code PreToolUse hook - block AI attribution phrases in written content
-# @@Changelog        :  Broadened detection to more verbs and Unicode hyphen trailers via split-string pattern assembly.
+# @@Changelog        :  Anchored matching to line-start after stripping comment/quote leaders, so prose discussing the phrase no longer false-positives as a trailer.
 # @@TODO             :  See project issues
 # @@Other            :  Fires on Write and Edit tool use; blocks attribution trailers/comments only
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302319-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -81,10 +81,21 @@ CONTENT="$(printf '%s' "$INPUT" | __extract_content)"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 [ -z "$CONTENT" ] && exit 0
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-if printf '%s' "$CONTENT" | grep -qiE -- "$ATTRIBUTION_PATTERN"; then
-  printf 'BLOCKED: AI attribution phrase detected in file content.\n' >&2
-  printf 'Remove lines like "Generated %s Claude", "Co%sAuthored%sBy: Claude", or "AI%sgenerated".\n' 'by' '-' '-' '-' >&2
-  exit 2
-fi
+# CLAUDE.md's Output section scopes this rule to trailers/footers ("no
+# Co-Authored-By:, AI-tool trailers, or 'Generated with X' footers") — not
+# to any file that merely discusses the phrase as a topic. A bare substring
+# match anywhere in the content also flags prose ABOUT the rule (this file's
+# own header needed rewording once to dodge that). Anchor the match to the
+# start of each line, after stripping common comment/quote/blockquote
+# leaders, so a genuine standalone trailer line still blocks but a
+# mid-sentence mention or quoted example does not.
+while IFS= read -r LINE; do
+  STRIPPED="$(printf '%s' "$LINE" | sed -E 's/^[[:space:]]*(#|\/\/|<!--|\*|-|>)+[[:space:]]*//; s/^[[:space:]]*["'"'"'`]+//')"
+  if printf '%s' "$STRIPPED" | grep -qiE -- "^(${ATTRIBUTION_PATTERN})"; then
+    printf 'BLOCKED: AI attribution phrase detected in file content.\n' >&2
+    printf 'Remove lines like "Generated %s Claude", "Co%sAuthored%sBy: Claude", or "AI%sgenerated".\n' 'by' '-' '-' '-' >&2
+    exit 2
+  fi
+done <<<"$CONTENT"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 exit 0
