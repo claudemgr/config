@@ -12,8 +12,11 @@
 # @@Description      :  PreToolUse hook: block git push --force/-f/+refspec (gitcommit is the only sanctioned push path)
 # @@Changelog        :  Added sudo/doas to the wrapper-strip list so wrapped force-pushes can't bypass detection, and fixed the license header field to WTFPL.
 # @@TODO             :  None
-# @@Other            :
-# @@Resource         :
+# @@Other            :  Blocks everywhere, including the zone — force-push has no zone exception.
+# @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
+# @@Terminal App     :  no
+# @@sudo/root        :  no
+# @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -71,7 +74,13 @@ def strip_heredoc_bodies(text):
             line = lines[i]
             out.append(line)
             delims = []
+            # A pipe, command substitution, or backtick on the line can route
+            # a "data" heredoc body into a shell downstream of a non-shell
+            # head (e.g. `cat <<EOF | bash`) - never elide on such lines.
+            risky_line = bool(re.search(r"\||\$\(|`", line))
             for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                if risky_line:
+                    continue
                 head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
                 if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
                     delims.append(m.group(2))
@@ -105,7 +114,13 @@ def is_force_push(tokens):
     except ValueError:
         return False
     for tok in tokens[push_idx + 1:]:
-        # Long forms: --force, --force=..., --force-with-lease, --force-if-includes
+        # Long forms: --force, --force=..., --force-with-lease*. Excludes
+        # --force-if-includes: a safety constraint that only takes effect
+        # combined with --force/--force-with-lease (already caught above),
+        # not a force operation on its own — CLAUDE.md names only
+        # `--force*`/`--force-with-lease` literally, not this flag.
+        if tok == "--force-if-includes":
+            continue
         if tok == "--force" or tok.startswith("--force"):
             return True
         # Combined short flags: -f, -fu, -uf, etc. (not --long, not a refspec)
