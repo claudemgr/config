@@ -182,9 +182,10 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       Fixed: for `.md` files, comment-prefix matching now scoped to `<!--`
       only, and the commented-out-code heuristic is skipped entirely —
       Markdown headings/bullets aren't comment syntax.
-- [ ] `comment-placement-guard.sh:137` — SHA-pin exemption limited to
+- [x] `comment-placement-guard.sh:137` — SHA-pin exemption limited to
       `.github/workflows/`; spec also covers `.gitea/workflows/` and
       `.forgejo/workflows/`.
+      Fixed: `IS_WORKFLOW` now checks all three workflow directories.
 - [ ] `lint-agent-mark.sh:50-72` — marks lint gate satisfied on subagent
       completion with no pass/fail signal; spec requires "never commit
       with violations". Also derives project from hook's own cwd, not the
