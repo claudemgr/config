@@ -225,7 +225,7 @@ Key rules always in effect:
 ## Agent Usage
 - **Model routing** — route each task to the cheapest capable model; full tier table in `~/.claude/memory/model_routing.md`. Largest single lever on weekly-cap consumption
 - **Haiku for trivial tasks** — renames, format conversions, single-line edits, simple lookups, mechanical refactors
-- **Agents never commit** — agents edit and report back; main instance reviews the diff, writes `COMMIT_MESS`, runs `gitcommit`
+- **Agents never commit — hard rule, no exceptions.** Every agent/subagent type, including forked agents, edits and reports back only; only the main session reviews the full diff, writes `COMMIT_MESS`, and runs `gitcommit`. Mechanically enforced by `no-subagent-commit.sh`; not a judgment call an agent can override
 
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
@@ -251,7 +251,7 @@ Key rules always in effect:
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
 6. Run `gitcommit --dir {dir} all`
 
-**Message format, emoji map, no-bare-`@` rule, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets; one logical change per commit. **Findings-based work (audits, reviews, numbered fix-lists) defaults to one commit per finding — never batch distinct findings into one commit just because they share a file or session.** Exception: when multiple findings from the same audit pass are pure doc/template-alignment fixes (no logic or behavior change) in the same repo, they may be batched into one commit, each described as its own bullet — this exception never applies to security findings, logic bugs, or anything that might independently need reverting; those always get their own commit. **Feature work is the opposite — one commit for the whole feature, never split per part. Unrelated bugs found mid-feature go to `TODO.AI.md`, except app-breaking bugs, which must be fixed immediately.**
+**Message format, emoji map, no-bare-`@` rule, grouping decision order, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets. **Grouping is decided in this order, first match wins:** (1) user says or implies "single commit" → everything for that request in one commit, overriding every rule below it; (2) ad hoc "fix X and anything else you find" → one commit for the whole request; (3) multi-file bug fixes → one commit per independently-fixable coupling group, split when files are unrelated; (4) findings-based work (audits, reviews, numbered fix-lists) → one commit per finding by default, batched only when genuinely inseparable; (5) feature work → one commit for the entire feature plus directly-related bugs, never split per part. Unrelated bugs found mid-feature go to `TODO.AI.md`, except app-breaking bugs, which must be fixed immediately. **Only the main session ever commits or pushes — agents/subagents never do, no exceptions, mechanically enforced by `no-subagent-commit.sh`.**
 
 **Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` + `script-lint` instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
 
