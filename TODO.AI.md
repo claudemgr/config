@@ -126,11 +126,16 @@ other items are independent and can be fixed in any order.
 
 ## Trailing-newline / comment guards
 
-- [ ] 14: trailing-newline-guard.sh:69 exempts `.pem`, which
-      file_ending_conventions.md:12 explicitly covers (memory file's
-      exception is narrower than the hook's).
-- [ ] 15: same file :63-75 — mid-line-fragment and project-tooling-wins
-      exceptions (file_ending_conventions.md:25,28-30) unimplemented.
+- [x] 14 (FIXED: found already correct on inspection): `.pem`/`.key`/
+      `.crt` were already dropped from EXEMPT_EXT in a prior session
+      (see the script's own changelog entry) — not in EXEMPT_EXT.
+- [x] 15 (FIXED): mid-line-fragment and project-tooling-wins
+      (file_ending_conventions.md:25,28-30) can't be auto-detected from
+      a file path/extension alone — they require human judgment about
+      how the file is consumed. The BLOCKED message now names both
+      exceptions explicitly so a human reviewer knows to check before
+      blindly adding a newline, rather than the hook silently omitting
+      them from its own guidance.
 - [ ] 16: comment-placement-guard.sh:84 — only `.json` checked; `.env`
       KEY=VALUE and CSV/TSV comment-forbidden formats unenforced
       (comment_conventions.md:15-20, home/CLAUDE.md:115).

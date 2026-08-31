@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302410-git
+##@Version           :  202608302137-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  trailing-newline-guard.sh
 # @@Description      :  PostToolUse Write+Edit hook: enforces the trailing-newline rule read-only, blocking with a remediation message instead of rewriting the file.
-# @@Changelog        :  Dropped .pem/.key/.crt from the binary exemption list — they're text/PEM-armored, not binary.
+# @@Changelog        :  BLOCKED message now names the mid-line-fragment and project-tooling-wins exceptions this hook cannot auto-detect.
 # @@TODO             :  None
 # @@Other            :  Skips secret/token files, VERSION, lockfiles, binary content, empty files, nonexistent paths; applies everywhere.
 # @@Resource         :  file_ending_conventions.md, CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302410-git"
+VERSION="202608302137-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -97,7 +97,12 @@ else:
 msg = (
     f"BLOCKED: trailing-newline-guard — {path} {reason}.\n"
     "file_ending_conventions.md: every text file ends with a single trailing\n"
-    "newline. Fix with a small Edit/Write to this file before continuing."
+    "newline. Fix with a small Edit/Write to this file before continuing.\n"
+    "Two exceptions this hook cannot auto-detect: a fragment file spliced\n"
+    "mid-line into another file, or a filetype where the project's own\n"
+    "formatter/linter/generator enforces a different ending — in either\n"
+    "case the file is legitimately exempt and this block should be waived\n"
+    "by a human, not auto-fixed."
 )
 print(msg)
 sys.stderr.write(msg + "\n")
