@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302000-git
+##@Version           :  202608311123-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Reconciled against project_files.md's Forbidden Files/Directories tables and fixed deny/allow ordering.
+# @@Changelog        :  Reconciled against project_files.md's tables, fixed deny/allow ordering, and scoped root-dir checks to the file's own git root.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
@@ -56,10 +56,29 @@ if not file_path:
 basename = os.path.basename(file_path)
 norm_path = file_path.replace("\\", "/")
 
-# cwd is the project root the hook runs in; used to scope root-only
-# forbidden directories (config/, build/, lib/, ... — nested copies like
-# src/lib/ are acceptable and must not be flagged).
-hook_cwd = payload.get("cwd", "").replace("\\", "/").rstrip("/")
+# Root-only forbidden directories must be scoped to the target file's OWN
+# git repo root, never the session's process cwd — payload["cwd"] can be a
+# parent directory (e.g. a manager repo cwd'd one level above the project),
+# which misidentifies the project's own root-level directory name (e.g. a
+# repo literally named "config", like claudemgr/config) as the forbidden
+# config/ root dir. Resolve via `git -C <file_dir> rev-parse --show-toplevel`
+# first; fall back to payload["cwd"] only when the file isn't inside a git
+# repo (e.g. a not-yet-initialized project).
+import subprocess
+
+file_dir = os.path.dirname(file_path) or "."
+repo_root = ""
+try:
+    result = subprocess.run(
+        ["git", "-C", file_dir, "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, timeout=5,
+    )
+    if result.returncode == 0:
+        repo_root = result.stdout.strip()
+except Exception:
+    repo_root = ""
+
+hook_cwd = (repo_root or payload.get("cwd", "")).replace("\\", "/").rstrip("/")
 root_rel_path = None
 if hook_cwd and norm_path.startswith(hook_cwd + "/"):
     root_rel_path = norm_path[len(hook_cwd) + 1:]
