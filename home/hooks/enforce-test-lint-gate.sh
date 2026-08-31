@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311430-git
+##@Version           :  202608311600-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Fixed AttributeError crash in transcript_pass() when a transcript entry's "message"/"content" is null or non-list.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311430-git"
+VERSION="202608311600-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -140,11 +140,24 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                     entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if not isinstance(entry, dict):
+                    continue
                 etype = entry.get("type")
+                # "message" (and its "content") can legitimately be null or a
+                # non-list in some transcript entries (e.g. summary/system
+                # lines) - .get()'s default only covers a MISSING key, not a
+                # present null, so each level is defensively re-checked
+                # rather than trusting the transcript's shape (reproduced
+                # AttributeError: 'NoneType' object has no attribute 'get').
                 if etype == "assistant":
-                    for c in entry.get("message", {}).get("content", []) or []:
+                    msg = entry.get("message")
+                    content = msg.get("content") if isinstance(msg, dict) else None
+                    for c in content or []:
+                        if not isinstance(c, dict):
+                            continue
                         if c.get("type") == "tool_use" and c.get("name") == "Bash":
-                            cmd_ = c.get("input", {}).get("command", "")
+                            inp = c.get("input")
+                            cmd_ = inp.get("command", "") if isinstance(inp, dict) else ""
                             if cmd_:
                                 tool_use_cmds[c.get("id")] = cmd_
                 elif etype == "user":
@@ -155,10 +168,16 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                         entry_project = ""
                     if entry_project != project:
                         continue
-                    tur = entry.get("toolUseResult", {}) or {}
+                    tur = entry.get("toolUseResult") or {}
+                    if not isinstance(tur, dict):
+                        tur = {}
                     if tur.get("interrupted"):
                         continue
-                    for c in entry.get("message", {}).get("content", []) or []:
+                    msg = entry.get("message")
+                    content = msg.get("content") if isinstance(msg, dict) else None
+                    for c in content or []:
+                        if not isinstance(c, dict):
+                            continue
                         if c.get("type") != "tool_result" or c.get("is_error"):
                             continue
                         cmd_ = tool_use_cmds.get(c.get("tool_use_id"))
