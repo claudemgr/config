@@ -136,9 +136,12 @@ other items are independent and can be fixed in any order.
       exceptions explicitly so a human reviewer knows to check before
       blindly adding a newline, rather than the hook silently omitting
       them from its own guidance.
-- [ ] 16: comment-placement-guard.sh:84 — only `.json` checked; `.env`
-      KEY=VALUE and CSV/TSV comment-forbidden formats unenforced
-      (comment_conventions.md:15-20, home/CLAUDE.md:115).
+- [x] 16 (FIXED): added a check for `.env`/`app.env`/`default.env`
+      basenames and `.csv`/`.tsv` extensions that blocks any `#`-led
+      comment line, matching comment_conventions.md:15-20's forbidden-
+      format list. Verified live: `.env` and `.csv` with a leading `#`
+      comment both block with exit 2; a bare `.env` with no comment
+      still passes with exit 0.
 - [ ] 17: comment-placement-guard.sh — the <=180-char comment limit is
       never enforced (home/CLAUDE.md:115, comment_conventions.md:9).
 - [ ] 18: comment-placement-guard.sh:135,139 — `INLINE_EXEMPT_RE`

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302430-git
+##@Version           :  202608302140-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
-# @@Changelog        :  Extended the SHA-pin exemption to .gitea/workflows/ and .forgejo/workflows/, not just .github/workflows/.
+# @@Changelog        :  Added .env/app.env/default.env and .csv/.tsv comment-forbidden checks (comment_conventions.md:15-20 was unenforced for these formats).
 # @@TODO             :  None
 # @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302430-git"
+VERSION="202608302140-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -100,6 +100,32 @@ if ext == ".json":
         lines.append(
             "comment_conventions.md: JSON has no comment syntax - comments break\n"
             "parsers and validators. Use a separate doc file instead."
+        )
+        msg = "\n".join(lines)
+        print(msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(2)
+    sys.exit(0)
+
+ENV_BASENAMES = {".env", "app.env", "default.env"}
+NO_COMMENT_EXT = {".csv", ".tsv"}
+
+if basename in ENV_BASENAMES or ext in NO_COMMENT_EXT:
+    kind = "KEY=VALUE" if basename in ENV_BASENAMES else "CSV/TSV"
+    for lineno, line in enumerate(content.split("\n"), start=1):
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            findings.append(f"line {lineno}: comment line in a {kind} file: {stripped[:80]}")
+
+    if findings:
+        lines = [f"BLOCKED: comment syntax found in a {kind} file.\n"]
+        for f in findings[:20]:
+            lines.append(f"  - {f}")
+        lines.append("")
+        lines.append(
+            "comment_conventions.md: .env/app.env/default.env KEY=VALUE files and\n"
+            "CSV/TSV are pure data formats — comments are never valid there, even\n"
+            "though some parsers tolerate a leading '#'. Remove the comment line."
         )
         msg = "\n".join(lines)
         print(msg)
