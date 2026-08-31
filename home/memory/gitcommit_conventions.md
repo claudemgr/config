@@ -36,9 +36,9 @@ Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat`
 
 ## Cadence
 
-One logical change per commit. Unrelated subsystems → split. Mid-task inconsistent state → do NOT commit.
+**One commit per "logical change" — but "logical change" means the resolved scope from the grouping decision order below, never "one fix" or "one file" by default.** Do not commit after each individual fix as you go; finish resolving the full scope the decision order below assigns to one commit, then commit once. Mid-task inconsistent state → do NOT commit.
 
-**Grouping decision order — evaluate top to bottom; the first rule that matches decides, the rest never get consulted:**
+**Grouping decision order — evaluate top to bottom; the first rule that matches decides and sets the commit's scope; the rest never get consulted. Determine the scope BEFORE fixing anything, so you know upfront whether you're building toward one commit or several — never commit reflexively after each individual fix lands:**
 
 1. **User single-commit override.** If the user's request states or implies a single commit — "one commit", "commit it all together", "single commit for this", or equivalent — every change made to satisfy that request goes into exactly one commit, full stop. This overrides every rule below, including the findings-based one-per-finding default and the coupled/independent split test. It never overrides the test gate, the lint gate, or "never commit a broken/inconsistent state" — those still apply before the single commit is made.
 2. **Ad hoc "fix X, and fix anything else you find" requests** (not a numbered findings list, not an audit/review output): fix everything found for that request, then make **one commit** covering the primary fix plus whatever related issues were fixed alongside it. This is not a findings-based fix-list (rule 4) even though multiple issues are involved — it is one user request with one scope.
