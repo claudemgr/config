@@ -162,11 +162,15 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       spec (`gitcommit_conventions.md:7`) forbids this exact pattern
       verbatim, using that path as its own counter-example. Fixed:
       resolved dynamically via shutil.which("gitcommit").
-- [ ] Marker temp paths (`test-lint-mark.sh:109`, `lint-agent-mark.sh:63`,
+- [x] Marker temp paths (`test-lint-mark.sh:109`, `lint-agent-mark.sh:63`,
       `enforce-test-lint-gate.sh:112-113`) use
       `${TMPDIR}/claude-test-lint-guard/…`, not the mandated
       `${TMPDIR}/{project_org}/{internal_name}-XXXXXX/` shape
       (`tempdir_conventions.md:16,30,32` names this exact shape FORBIDDEN).
+      Fixed: moved to `${TMPDIR}/claudemgr/config/test-lint-guard/${session_id}`
+      — session_id takes the -XXXXXX uniqueness role since the marker must
+      stay reconstructable by session_id alone; org/internal_name namespacing
+      now matches the mandated shape.
 - [ ] `trailing-newline-guard.sh:70` — exempts `.pem`/`.key`/`.crt`/`.der`;
       spec requires trailing newline on PEM keys specifically.
 - [ ] `no-todo-comments.sh:76-92` — runs on every file type, not just
