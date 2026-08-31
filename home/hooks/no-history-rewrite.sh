@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
-# @@Description      :  PreToolUse hook: blocks git clean -f*/rebase/branch -D/tag -d/filter-repo/filter-branch everywhere — a hook can only block, not interactively confirm.
-# @@Changelog        :  is_dry_run() now also matches combined short flags like -fn/-nf, not just standalone -n/--dry-run, so git clean -fn is correctly exempted as documented.
+# @@Description      :  PreToolUse hook: blocks destructive/history-rewriting git ops everywhere — a hook can only block, not interactively confirm.
+# @@Changelog        :  Added commit --amend, stash drop/clear, push --delete, update-ref -d, reflog expire, gc --prune (CLAUDE.md's discard/rewrite catch-all).
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
@@ -74,7 +74,13 @@ def strip_heredoc_bodies(text):
             line = lines[i]
             out.append(line)
             delims = []
+            # A pipe, command substitution, or backtick on the line can route
+            # a "data" heredoc body into a shell downstream of a non-shell
+            # head (e.g. `cat <<EOF | bash`) - never elide on such lines.
+            risky_line = bool(re.search(r"\||\$\(|`", line))
             for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                if risky_line:
+                    continue
                 head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
                 if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
                     delims.append(m.group(2))
@@ -109,13 +115,12 @@ def has_force_flag(tokens):
 
 def has_tag_delete_flag(tokens):
     # git tag has no -D form (only git branch does) — CLAUDE.md's
-    # Local System Management Zone names only `git tag -d`. Matching
-    # lowercase -d/--delete (and combined flags carrying lowercase d)
-    # only, mirroring the branch-delete matcher's exact-flag precision.
+    # Local System Management Zone names only `git tag -d`. Exact-flag
+    # match only (-d/--delete), matching the branch-delete matcher's
+    # precision — a combined-flag regex here would also false-match any
+    # unrelated short flag that merely contains the letter d.
     for tok in tokens:
         if tok in ("-d", "--delete"):
-            return True
-        if re.match(r"^-[a-zA-Z]*d[a-zA-Z]*$", tok):
             return True
     return False
 
@@ -199,6 +204,37 @@ def violation(clean_tokens):
     if sub == "filter-repo":
         return "filter-repo rewrites every commit in history"
 
+    if sub == "commit":
+        if "--amend" in args:
+            return "git commit --amend rewrites the previous commit"
+        return None
+
+    if sub == "stash":
+        if args and args[0] in ("drop", "clear"):
+            return f"git stash {args[0]} discards stashed work irreversibly"
+        return None
+
+    if sub == "push":
+        for a in args:
+            if a == "--delete" or a == "-d":
+                return "git push --delete discards a remote ref"
+        return None
+
+    if sub == "update-ref":
+        if args and args[0] == "-d":
+            return "git update-ref -d discards a ref"
+        return None
+
+    if sub == "reflog":
+        if args and args[0] == "expire":
+            return "git reflog expire discards unreachable commit history"
+        return None
+
+    if sub == "gc":
+        if any(a == "--prune" or a.startswith("--prune=") for a in args):
+            return "git gc --prune permanently deletes unreachable objects"
+        return None
+
     return None
 
 
@@ -233,10 +269,14 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
         msg = (
             f"BLOCKED: history-rewriting/destructive git operation ({reason}).\n\n"
             "git clean -f*, git rebase, git branch -D, git tag -d, git filter-repo,\n"
-            "and git filter-branch all discard commits/work or rewrite history, so\n"
-            "they require explicit user confirmation before ever running - even\n"
-            "inside the Local System Management Zone, where raw git is otherwise\n"
-            "pre-authorized (see CLAUDE.md's zone section, \"Still hard\" list).\n\n"
+            "git filter-branch, git commit --amend, git stash drop/clear, git push\n"
+            "--delete, git update-ref -d, git reflog expire, and git gc --prune all\n"
+            "discard commits/work or rewrite history, so they require explicit user\n"
+            "confirmation before ever running - even inside the Local System\n"
+            "Management Zone, where raw git is otherwise pre-authorized (see\n"
+            "CLAUDE.md's zone section, \"Still hard\" list, and its catch-all: \"any\n"
+            "other command that discards commits, discards uncommitted work, or\n"
+            "rewrites history\").\n\n"
             "Ask the user to confirm, then have them run the command manually -\n"
             "this hook cannot grant a one-time exception."
         )
