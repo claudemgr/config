@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302140-git
+##@Version           :  202608302142-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
-# @@Changelog        :  Added .env/app.env/default.env and .csv/.tsv comment-forbidden checks (comment_conventions.md:15-20 was unenforced for these formats).
+# @@Changelog        :  Enforces the <=180-char comment length limit on own-line comments; the limit was previously never checked.
 # @@TODO             :  None
 # @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302140-git"
+VERSION="202608302142-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -155,9 +155,15 @@ SHA_PIN_RE = re.compile(r"^\s*(-\s*)?uses:\s*\S+@[0-9a-f]{40}\s*#\s*v\S+\s*$")
 HASH_INLINE_RE = re.compile(r"\S.*\s#(?!!)")
 SLASH_INLINE_RE = re.compile(r"\S.*\s//")
 
+MAX_COMMENT_LEN = 180
+
 for lineno, line in enumerate(content.split("\n"), start=1):
     stripped = line.lstrip()
-    if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+    if not stripped:
+        continue
+    if stripped.startswith("#") or stripped.startswith("//"):
+        if len(line) > MAX_COMMENT_LEN:
+            findings.append(f"line {lineno}: comment exceeds {MAX_COMMENT_LEN} chars ({len(line)}): {line.strip()[:80]}...")
         continue
     if INLINE_EXEMPT_RE.search(line):
         continue
@@ -173,15 +179,17 @@ for lineno, line in enumerate(content.split("\n"), start=1):
 if not findings:
     sys.exit(0)
 
-lines = ["BLOCKED: inline trailing comment detected.\n"]
+lines = ["BLOCKED: comment placement/length violation detected.\n"]
 for f in findings[:20]:
     lines.append(f"  - {f}")
 lines.append("")
 lines.append(
     "comment_conventions.md: comments always go ABOVE the code they describe,\n"
-    "never appended to the end of a code line. Move the comment to its own\n"
-    "line above, or use one of the documented inline exceptions (# noqa,\n"
-    "# type: ignore, // nolint, or a CI workflow SHA-pin annotation)."
+    "never appended to the end of a code line, and must be a single line of\n"
+    f"{MAX_COMMENT_LEN} characters or fewer. Move an inline comment to its own\n"
+    "line above (or use a documented exception: # noqa, # type: ignore,\n"
+    "// nolint, a CI workflow SHA-pin annotation), or split/shorten an\n"
+    "over-length comment."
 )
 msg = "\n".join(lines)
 print(msg)

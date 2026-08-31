@@ -142,8 +142,9 @@ other items are independent and can be fixed in any order.
       format list. Verified live: `.env` and `.csv` with a leading `#`
       comment both block with exit 2; a bare `.env` with no comment
       still passes with exit 0.
-- [ ] 17: comment-placement-guard.sh — the <=180-char comment limit is
-      never enforced (home/CLAUDE.md:115, comment_conventions.md:9).
+- [x] 17 (FIXED): own-line comments (`#`/`//`-led lines) now blocked
+      when they exceed 180 chars. Verified live: a 202-char comment
+      blocks with exit 2; a short comment still passes with exit 0.
 - [ ] 18: comment-placement-guard.sh:135,139 — `INLINE_EXEMPT_RE`
       searched against the whole line (bypass vector via string
       contents); also fires on `#` inside quoted strings.
