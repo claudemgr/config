@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  no-force-push.sh
 # @@Description      :  PreToolUse hook: block git push --force/-f/+refspec (gitcommit is the only sanctioned push path)
-# @@Changelog        :  Added sudo/doas to the wrapper-strip list so wrapped force-pushes can't bypass detection, and fixed the license header field to WTFPL.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Blocks everywhere, including the zone — force-push has no zone exception.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -32,14 +32,19 @@ fi
 
 NO_FORCE_PUSH_INPUT="$(cat)"
 
-NO_FORCE_PUSH_HOOK_INPUT="$NO_FORCE_PUSH_INPUT" python3 - <<'PYEOF'
+NO_FORCE_PUSH_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$NO_FORCE_PUSH_INPUT_TMPFILE"' EXIT
+printf '%s' "$NO_FORCE_PUSH_INPUT" > "$NO_FORCE_PUSH_INPUT_TMPFILE"
+
+python3 - "$NO_FORCE_PUSH_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("NO_FORCE_PUSH_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

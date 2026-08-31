@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302235-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 18:00 EDT
 # @@File             :  bash-content-scan.sh
 # @@Description      :  PreToolUse Bash hook: scans no-secrets.sh/no-ai-attribution.sh patterns against heredoc or echo/printf redirects, which bypass Write/Edit tool_input.
-# @@Changelog        :  Added ALLOWED_TEMPLATES mirroring for heredoc/redirect target filenames (TODO.AI.md item 21) and documented the zone exemption's necessary-but-not-sufficient caveat (item 20).
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Secrets respect the zone's plaintext-credential exemption (cwd-scoped); AI-attribution has no exemption; container/VM-mediated heredocs are exempt.
 # @@Resource         :  home/hooks/no-secrets.sh, home/hooks/no-ai-attribution.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302235-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -31,13 +31,18 @@ fi
 
 BASH_CONTENT_SCAN_INPUT="$(cat)"
 
-BASH_CONTENT_SCAN_HOOK_INPUT="$BASH_CONTENT_SCAN_INPUT" python3 - <<'PYEOF'
+BASH_CONTENT_SCAN_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$BASH_CONTENT_SCAN_INPUT_TMPFILE"' EXIT
+printf '%s' "$BASH_CONTENT_SCAN_INPUT" > "$BASH_CONTENT_SCAN_INPUT_TMPFILE"
+
+python3 - "$BASH_CONTENT_SCAN_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import sys
 
-raw = os.environ.get("BASH_CONTENT_SCAN_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

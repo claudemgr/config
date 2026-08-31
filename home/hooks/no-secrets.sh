@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302230-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Documented that the zone's cwd-path exemption is necessary but not sufficient — a live visibility check is forbidden network I/O in a hook, so the Repo privacy gate is the actual enforcement mechanism (TODO.AI.md item 20).
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Applies to Write (content) and Edit (new_string); .env.example/.sample templates and placeholder-text matches (changeme, your_key_here) are skipped.
 # @@Resource         :  ~/.claude/memory/sensitive_data.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302230-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -34,7 +34,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
+INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$INPUT_TMPFILE"' EXIT
+printf '%s' "$INPUT" > "$INPUT_TMPFILE"
+
+python3 - "$INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
@@ -42,7 +46,9 @@ import sys
 
 # Fail-open on malformed payloads — a broken hook must never block every Write/Edit call.
 try:
-    d = json.loads(os.environ.get("HOOK_INPUT", "{}"))
+    with open(sys.argv[1], "r") as _f:
+        raw = _f.read()
+    d = json.loads(raw)
 except json.JSONDecodeError:
     sys.exit(0)
 

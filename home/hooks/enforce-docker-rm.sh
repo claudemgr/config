@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302319-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
-# @@Changelog        :  Removed lxc from the launch/init naming enforcement — execution_hierarchy.md specifies Incus only.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  --rm is exempt for detached (-d/--detach) containers so tests can inspect a crashed container's logs before teardown; --name stays mandatory either way
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302319-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -35,14 +35,19 @@ __require_cmd python3
 # $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
 ENFORCE_DOCKER_RM_INPUT="$(cat)"
 
-ENFORCE_DOCKER_RM_HOOK_INPUT="$ENFORCE_DOCKER_RM_INPUT" python3 - <<'PYEOF'
+ENFORCE_DOCKER_RM_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$ENFORCE_DOCKER_RM_INPUT_TMPFILE"' EXIT
+printf '%s' "$ENFORCE_DOCKER_RM_INPUT" > "$ENFORCE_DOCKER_RM_INPUT_TMPFILE"
+
+python3 - "$ENFORCE_DOCKER_RM_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("ENFORCE_DOCKER_RM_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 # strict=False accepts raw control characters (tabs/newlines) inside strings
 # so a payload with an embedded tab cannot bypass the hook via a parse failure
 try:

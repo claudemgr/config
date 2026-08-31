@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302309-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 17:00 EDT
 # @@File             :  no-destructive-bypass.sh
 # @@Description      :  PreToolUse hook: hard-blocks git reset/dd/shred/mkfs*/wipefs everywhere, re-enforcing permissions.deny against alias/wrapper-bypass invocations.
-# @@Changelog        :  Masked quoted strings before splitting (D1) and closed subshell/xargs/bash-c/basename-path bypasses (D2).
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other              :  Container/VM-mediated invocations are NOT exempted — these five ops are denied unconditionally by settings.json regardless of target.
 # @@Resource         :  home/settings.json permissions.deny
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302309-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -32,14 +32,19 @@ fi
 
 NO_DESTRUCTIVE_BYPASS_INPUT="$(cat)"
 
-NO_DESTRUCTIVE_BYPASS_HOOK_INPUT="$NO_DESTRUCTIVE_BYPASS_INPUT" python3 - <<'PYEOF'
+NO_DESTRUCTIVE_BYPASS_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$NO_DESTRUCTIVE_BYPASS_INPUT_TMPFILE"' EXIT
+printf '%s' "$NO_DESTRUCTIVE_BYPASS_INPUT" > "$NO_DESTRUCTIVE_BYPASS_INPUT_TMPFILE"
+
+python3 - "$NO_DESTRUCTIVE_BYPASS_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("NO_DESTRUCTIVE_BYPASS_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

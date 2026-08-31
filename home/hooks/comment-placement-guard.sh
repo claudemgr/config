@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302147-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
-# @@Changelog        :  Quote-aware comment-marker scan replaces whole-line regex; closes the INLINE_EXEMPT_RE bypass-via-string-contents vector and the quoted-# false-positive bug.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302147-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -31,13 +31,18 @@ fi
 
 COMMENT_PLACEMENT_GUARD_INPUT="$(cat)"
 
-COMMENT_PLACEMENT_GUARD_HOOK_INPUT="$COMMENT_PLACEMENT_GUARD_INPUT" python3 - <<'PYEOF'
+COMMENT_PLACEMENT_GUARD_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$COMMENT_PLACEMENT_GUARD_INPUT_TMPFILE"' EXIT
+printf '%s' "$COMMENT_PLACEMENT_GUARD_INPUT" > "$COMMENT_PLACEMENT_GUARD_INPUT_TMPFILE"
+
+python3 - "$COMMENT_PLACEMENT_GUARD_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import sys
 
-raw = os.environ.get("COMMENT_PLACEMENT_GUARD_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

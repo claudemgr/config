@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302137-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  trailing-newline-guard.sh
 # @@Description      :  PostToolUse Write+Edit hook: enforces the trailing-newline rule read-only, blocking with a remediation message instead of rewriting the file.
-# @@Changelog        :  BLOCKED message now names the mid-line-fragment and project-tooling-wins exceptions this hook cannot auto-detect.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Skips secret/token files, VERSION, lockfiles, binary content, empty files, nonexistent paths; applies everywhere.
 # @@Resource         :  file_ending_conventions.md, CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302137-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -31,12 +31,17 @@ fi
 
 TRAILING_NEWLINE_GUARD_INPUT="$(cat)"
 
-TRAILING_NEWLINE_GUARD_HOOK_INPUT="$TRAILING_NEWLINE_GUARD_INPUT" python3 - <<'PYEOF'
+TRAILING_NEWLINE_GUARD_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$TRAILING_NEWLINE_GUARD_INPUT_TMPFILE"' EXIT
+printf '%s' "$TRAILING_NEWLINE_GUARD_INPUT" > "$TRAILING_NEWLINE_GUARD_INPUT_TMPFILE"
+
+python3 - "$TRAILING_NEWLINE_GUARD_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import sys
 
-raw = os.environ.get("TRAILING_NEWLINE_GUARD_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

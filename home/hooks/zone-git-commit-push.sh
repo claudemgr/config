@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Saturday, August 29, 2026 00:00 EDT
 # @@File             :  zone-git-commit-push.sh
 # @@Description      :  PreToolUse hook: allows raw git commit/push only under the Local System Management Zone, blocks elsewhere — the commit wrapper is the only path outside it.
-# @@Changelog        :  Fixed the git global-flag-value bypass in subcommand detection and added sudo/doas to the wrapper-strip list; fixed the license header field to WTFPL.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  git reset stays hard-denied via settings.json; force-push stays blocked everywhere via no-force-push.sh, including inside the zone.
 # @@Resource         :  CLAUDE.md - Local System Management Zone
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -34,7 +34,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
+INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$INPUT_TMPFILE"' EXIT
+printf '%s' "$INPUT" > "$INPUT_TMPFILE"
+
+python3 - "$INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
@@ -42,7 +46,9 @@ import shlex
 import sys
 
 try:
-    d = json.loads(os.environ.get("HOOK_INPUT", "{}"), strict=False)
+    with open(sys.argv[1], "r") as _f:
+        raw = _f.read()
+    d = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
 

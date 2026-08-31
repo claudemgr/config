@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311123-git
+##@Version           :  202608311400-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Reconciled against project_files.md's tables, fixed deny/allow ordering, and scoped root-dir checks to the file's own git root.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302000-git"
+VERSION="202608311400-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -30,13 +30,18 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-HOOK_INPUT="$INPUT" python3 - <<'PYEOF'
+INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$INPUT_TMPFILE"' EXIT
+printf '%s' "$INPUT" > "$INPUT_TMPFILE"
+
+python3 - "$INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import sys
 
-raw = os.environ.get("HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw)
 except json.JSONDecodeError:

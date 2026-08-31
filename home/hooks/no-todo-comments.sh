@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302148-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 21:00 EDT
 # @@File             :  no-todo-comments.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK markers and a narrow commented-out-code heuristic, enforcing previously prose-only CLAUDE.md rules.
-# @@Changelog        :  AUDIT.AI.md is now exempt alongside TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md — it's the same kind of tracking doc, not committed code.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Never matches `# @@TODO : None` or mid-sentence mentions; TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md are exempt; commented-code detection is conservative.
 # @@Resource         :  CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302148-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -31,13 +31,18 @@ fi
 
 NO_TODO_COMMENTS_INPUT="$(cat)"
 
-NO_TODO_COMMENTS_HOOK_INPUT="$NO_TODO_COMMENTS_INPUT" python3 - <<'PYEOF'
+NO_TODO_COMMENTS_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$NO_TODO_COMMENTS_INPUT_TMPFILE"' EXIT
+printf '%s' "$NO_TODO_COMMENTS_INPUT" > "$NO_TODO_COMMENTS_INPUT_TMPFILE"
+
+python3 - "$NO_TODO_COMMENTS_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import sys
 
-raw = os.environ.get("NO_TODO_COMMENTS_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302345-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
 # @@Description      :  PreToolUse hook: blocks destructive/history-rewriting git ops everywhere — a hook can only block, not interactively confirm.
-# @@Changelog        :  Added commit --amend, stash drop/clear, push --delete, update-ref -d, reflog expire, gc --prune (CLAUDE.md's discard/rewrite catch-all).
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
 # @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302345-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -32,14 +32,19 @@ fi
 
 NO_HISTORY_REWRITE_INPUT="$(cat)"
 
-NO_HISTORY_REWRITE_HOOK_INPUT="$NO_HISTORY_REWRITE_INPUT" python3 - <<'PYEOF'
+NO_HISTORY_REWRITE_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$NO_HISTORY_REWRITE_INPUT_TMPFILE"' EXIT
+printf '%s' "$NO_HISTORY_REWRITE_INPUT" > "$NO_HISTORY_REWRITE_INPUT_TMPFILE"
+
+python3 - "$NO_HISTORY_REWRITE_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("NO_HISTORY_REWRITE_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

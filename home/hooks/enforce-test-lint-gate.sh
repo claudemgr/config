@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302205-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Marker dir lookup moved from project-named claudemgr/config to claude-hooks (shared infra namespace, not a repo name), matching the writer hooks' new path.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302205-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -32,14 +32,19 @@ fi
 # $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
 ENFORCE_TEST_LINT_GATE_INPUT="$(cat)"
 
-ENFORCE_TEST_LINT_GATE_HOOK_INPUT="$ENFORCE_TEST_LINT_GATE_INPUT" python3 - <<'PYEOF'
+ENFORCE_TEST_LINT_GATE_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$ENFORCE_TEST_LINT_GATE_INPUT_TMPFILE"' EXIT
+printf '%s' "$ENFORCE_TEST_LINT_GATE_INPUT" > "$ENFORCE_TEST_LINT_GATE_INPUT_TMPFILE"
+
+python3 - "$ENFORCE_TEST_LINT_GATE_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("ENFORCE_TEST_LINT_GATE_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

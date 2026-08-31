@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302319-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, Jul 03, 2026 12:30 EDT
 # @@File             :  bound-shell-lifetime.sh
 # @@Description      :  Claude Code PreToolUse hook — block unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization)
-# @@Changelog        :  Narrowed the sentinel token to *.done and let timeout/iteration-cap bounding exempt sentinel polls, matching shell_lifetime_conventions.md.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  `timeout N`-wrapped and container-mediated commands are exempt; bounded loops (counters, seq, {1..N}, SECONDS) are allowed.
 # @@Resource         :  ~/.claude/memory/execution_hierarchy.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302319-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -37,14 +37,19 @@ __require_cmd python3
 
 BOUND_SHELL_LIFETIME_INPUT="$(cat)"
 
-BOUND_SHELL_LIFETIME_HOOK_INPUT="$BOUND_SHELL_LIFETIME_INPUT" python3 - <<'PYEOF'
+BOUND_SHELL_LIFETIME_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$BOUND_SHELL_LIFETIME_INPUT_TMPFILE"' EXIT
+printf '%s' "$BOUND_SHELL_LIFETIME_INPUT" > "$BOUND_SHELL_LIFETIME_INPUT_TMPFILE"
+
+python3 - "$BOUND_SHELL_LIFETIME_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("BOUND_SHELL_LIFETIME_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

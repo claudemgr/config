@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302359-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
 # @@Description      :  PreToolUse Read+Grep+Bash hook: blocks reading the commit wrapper script (Read/Grep tools, cat/less/head/etc via Bash), a previously prose-only rule.
-# @@Changelog        :  Added the Grep matcher — Grep on the gitcommit path bypassed the Read-only guard entirely.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :  None
 # @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302359-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -31,7 +31,11 @@ fi
 
 NO_READ_GITCOMMIT_INPUT="$(cat)"
 
-NO_READ_GITCOMMIT_HOOK_INPUT="$NO_READ_GITCOMMIT_INPUT" python3 - <<'PYEOF'
+NO_READ_GITCOMMIT_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$NO_READ_GITCOMMIT_INPUT_TMPFILE"' EXIT
+printf '%s' "$NO_READ_GITCOMMIT_INPUT" > "$NO_READ_GITCOMMIT_INPUT_TMPFILE"
+
+python3 - "$NO_READ_GITCOMMIT_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
@@ -39,7 +43,8 @@ import shlex
 import shutil
 import sys
 
-raw = os.environ.get("NO_READ_GITCOMMIT_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:

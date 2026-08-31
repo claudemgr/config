@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311200-git
+##@Version           :  202608311430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse Read+Bash hook: block reading ~/.claude/ deployed copies when a home/ source exists
-# @@Changelog        :  Added Bash-side coverage (cat/less/head/etc. bypassed the Read-only guard) and a home/ source existence check before redirecting.
+# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
 # @@TODO             :
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md); fails open if the home/ source doesn't exist
 # @@Resource         :  home/hooks/no-read-gitcommit.sh
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311200-git"
+VERSION="202608311430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -27,14 +27,19 @@ fi
 
 DRIFT_GUARD_READ_INPUT="$(cat)"
 
-DRIFT_GUARD_READ_HOOK_INPUT="$DRIFT_GUARD_READ_INPUT" python3 - <<'PYEOF'
+DRIFT_GUARD_READ_INPUT_TMPFILE="$(mktemp)"
+trap 'rm -f "$DRIFT_GUARD_READ_INPUT_TMPFILE"' EXIT
+printf '%s' "$DRIFT_GUARD_READ_INPUT" > "$DRIFT_GUARD_READ_INPUT_TMPFILE"
+
+python3 - "$DRIFT_GUARD_READ_INPUT_TMPFILE" <<'PYEOF'
 import json
 import os
 import re
 import shlex
 import sys
 
-raw = os.environ.get("DRIFT_GUARD_READ_HOOK_INPUT", "")
+with open(sys.argv[1], "r") as _f:
+    raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:
