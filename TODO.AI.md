@@ -182,17 +182,33 @@ other items are independent and can be fixed in any order.
 
 ## Secrets
 
-- [ ] 20: no-secrets.sh:69-74 — zone exemption applied on path alone;
-      sensitive_data.md:35 conditions it on confirmed private
-      visibility (network check forbidden in hooks per AI.md:202 —
-      note the gap in the hook comment / AI.md:231 if left unfixed).
-      Duplicated at bash-content-scan.sh:165-167.
-- [ ] 21: bash-content-scan.sh:110-119 doesn't mirror no-secrets.sh's
-      ALLOWED_TEMPLATES (:58-65) despite claiming full mirroring at
-      :12-16,204-206.
-- [ ] 22: no-forbidden-files.sh:156 allowlists `.env.template`, which
-      neither no-secrets.sh nor project_files.md:39 recognizes (only
-      `.example`/`.sample`).
+- [x] 20: FIXED — no-secrets.sh and bash-content-scan.sh both got a
+      comment above their zone-exemption block stating the cwd-path
+      check is necessary but not sufficient: sensitive_data.md's own
+      "The Only Exceptions" text conditions the exemption on confirmed
+      private repo visibility, which a hook cannot verify (a live check
+      is network I/O, forbidden by AI.md's hook rules); the Repo
+      privacy gate (CLAUDE.md's zone section, steps 1-5) is what
+      actually keeps the exemption safe. AI.md's `no-secrets.sh` hooks-
+      table row (line 231) got the same caveat, also noting it covers
+      bash-content-scan.sh's duplicated check. No logic change — a live
+      visibility check remains correctly out of scope for a hook.
+- [x] 21: FIXED — bash-content-scan.sh's heredoc/redirect extractors now
+      also capture the write target's filename; ALLOWED_TEMPLATES (the
+      same 6 names as no-secrets.sh) is checked against that target's
+      basename, and only non-template segments are scanned for secrets
+      (AI-attribution scanning is unaffected — no template exemption
+      there, matching no-ai-attribution.sh). Live-tested: heredoc/echo
+      writing a real secret to a real file still blocks; the same
+      secret written to `.env.example`/`app.env.sample` now passes; the
+      Local System Management Zone cwd exemption still passes.
+- [x] 22: Verified NOT a bug — no-forbidden-files.sh's allowlist (lines
+      159-161) already matches exactly `.env.example`/`.env.sample`/
+      `app.env.example`/`app.env.sample`/`default.env.example`/
+      `default.env.sample`, consistent with no-secrets.sh and
+      project_files.md:39. No `.env.template` entry exists; this was
+      already resolved by an earlier segment's pass over
+      no-forbidden-files.sh (items 10-13) before this item was reached.
 
 ## block-host-toolchain.sh (worst offender, 846 lines)
 

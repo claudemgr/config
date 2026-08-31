@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302230-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Added the cwd-scoped Local System Management Zone plaintext-credential exception; fixed the license header field to WTFPL.
+# @@Changelog        :  Documented that the zone's cwd-path exemption is necessary but not sufficient — a live visibility check is forbidden network I/O in a hook, so the Repo privacy gate is the actual enforcement mechanism (TODO.AI.md item 20).
 # @@TODO             :  None
 # @@Other            :  Applies to Write (content) and Edit (new_string); .env.example/.sample templates and placeholder-text matches (changeme, your_key_here) are skipped.
 # @@Resource         :  ~/.claude/memory/sensitive_data.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302230-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -65,7 +65,13 @@ if basename in ALLOWED_TEMPLATES:
     sys.exit(0)
 
 # Local System Management Zone (~/Projects/local/system/**, see CLAUDE.md) allows
-# plaintext credentials — derived from $HOME at runtime, never hardcoded.
+# plaintext credentials — derived from $HOME at runtime, never hardcoded. This
+# cwd-path check is necessary but not sufficient: sensitive_data.md's "The Only
+# Exceptions" conditions the zone exemption on confirmed PRIVATE repo visibility,
+# which a hook cannot verify (AI.md's hook rules forbid network I/O, and a
+# visibility check is network I/O). The Repo privacy gate — run at repo-creation
+# and after every push, per CLAUDE.md's zone section — is what actually keeps
+# this exemption safe; this hook only narrows scope by path.
 cwd = d.get("cwd", "") or ""
 zone_root = os.path.join(os.environ.get("HOME", "/root"), "Projects", "local", "system")
 if cwd == zone_root or cwd.startswith(zone_root + os.sep):

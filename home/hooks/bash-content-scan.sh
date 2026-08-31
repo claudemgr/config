@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302235-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 18:00 EDT
 # @@File             :  bash-content-scan.sh
 # @@Description      :  PreToolUse Bash hook: scans no-secrets.sh/no-ai-attribution.sh patterns against heredoc or echo/printf redirects, which bypass Write/Edit tool_input.
-# @@Changelog        :  Added Bash heredoc/redirect secret-scanning coverage and fixed the license header field to WTFPL.
+# @@Changelog        :  Added ALLOWED_TEMPLATES mirroring for heredoc/redirect target filenames (TODO.AI.md item 21) and documented the zone exemption's necessary-but-not-sufficient caveat (item 20).
 # @@TODO             :  None
 # @@Other            :  Secrets respect the zone's plaintext-credential exemption (cwd-scoped); AI-attribution has no exemption; container/VM-mediated heredocs are exempt.
 # @@Resource         :  home/hooks/no-secrets.sh, home/hooks/no-ai-attribution.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302235-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -57,10 +57,13 @@ CONTAINER_PREFIXES = {"docker", "docker-compose", "podman", "podman-compose",
 
 
 def extract_heredoc_bodies(text):
-    # Returns a list of (body_text, is_container_mediated) - the body content
-    # written on disk-facing heredocs, so it can be scanned like Write/Edit
-    # content. Container/VM-mediated heredocs are flagged so the caller can
-    # skip them (the body runs inside a disposable guest, not the host).
+    # Returns a list of (body_text, is_container_mediated, target_path) - the
+    # body content written on disk-facing heredocs, so it can be scanned like
+    # Write/Edit content. Container/VM-mediated heredocs are flagged so the
+    # caller can skip them (the body runs inside a disposable guest, not the
+    # host). target_path is the redirect target on the same line as the
+    # heredoc marker, if any (e.g. `cat <<EOF > file.env.example`), so
+    # callers can apply the same template-filename exemption Write/Edit use.
     bodies = []
     lines = text.split("\n")
     i = 0
@@ -70,6 +73,8 @@ def extract_heredoc_bodies(text):
             delim = m.group(2)
             head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
             is_container = bool(head & CONTAINER_PREFIXES)
+            target_m = re.search(r">>?\s*([^\s&|;<>]+)", line[m.end():])
+            target = target_m.group(1) if target_m else ""
             body_lines = []
             j = i + 1
             while j < len(lines):
@@ -77,7 +82,7 @@ def extract_heredoc_bodies(text):
                     break
                 body_lines.append(lines[j])
                 j += 1
-            bodies.append(("\n".join(body_lines), is_container))
+            bodies.append(("\n".join(body_lines), is_container, target))
         i += 1
     return bodies
 
@@ -86,27 +91,47 @@ def extract_redirected_echo_printf(text):
     # echo/printf content redirected to a real file (> or >>), the other
     # common way a Bash command writes content without going through
     # Write/Edit. Best-effort - only literal-quoted or bare arguments before
-    # the first > / >> on the same logical line.
+    # the first > / >> on the same logical line. Returns (body, target_path).
     out = []
     for sub_cmd in re.split(r"[\n;]|&&|\|\|", text):
         sub_cmd = sub_cmd.strip()
         if not re.match(r"^(echo|printf)\b", sub_cmd):
             continue
-        if not re.search(r">>?\s*[^&|\s]", sub_cmd):
+        target_m = re.search(r">>?\s*([^&|\s]+)", sub_cmd)
+        if not target_m:
             continue
-        body = re.split(r">>?\s*[^&|\s]", sub_cmd, maxsplit=1)[0]
-        out.append(body)
+        body = sub_cmd[: target_m.start()]
+        out.append((body, target_m.group(1)))
     return out
 
 
+# Exempted template/example env files - mirrors no-secrets.sh's ALLOWED_TEMPLATES
+# so a heredoc/redirect writing a template file isn't flagged when the same
+# content written via Write/Edit tool_input would be exempt.
+ALLOWED_TEMPLATES = {
+    ".env.example",
+    ".env.sample",
+    "app.env.example",
+    "app.env.sample",
+    "default.env.example",
+    "default.env.sample",
+}
+
 segments = []
-for body, is_container in extract_heredoc_bodies(cmd):
+secret_segments = []
+for body, is_container, target in extract_heredoc_bodies(cmd):
     if is_container:
         continue
     segments.append(body)
-segments.extend(extract_redirected_echo_printf(cmd))
+    if os.path.basename(target) not in ALLOWED_TEMPLATES:
+        secret_segments.append(body)
+for body, target in extract_redirected_echo_printf(cmd):
+    segments.append(body)
+    if os.path.basename(target) not in ALLOWED_TEMPLATES:
+        secret_segments.append(body)
 
 content = "\n".join(s for s in segments if s)
+secret_content = "\n".join(s for s in secret_segments if s)
 if not content:
     sys.exit(0)
 
@@ -154,6 +179,14 @@ def redact(value):
     return value[:4] + "*" * (len(value) - 6) + value[-2:]
 
 
+# Local System Management Zone (~/Projects/local/system/**, see CLAUDE.md) allows
+# plaintext credentials. This cwd-path check is necessary but not sufficient:
+# sensitive_data.md's "The Only Exceptions" conditions the zone exemption on
+# confirmed PRIVATE repo visibility, which a hook cannot verify (AI.md's hook
+# rules forbid network I/O, and a visibility check is network I/O). The Repo
+# privacy gate — run at repo-creation and after every push, per CLAUDE.md's
+# zone section — is what actually keeps this exemption safe; this hook only
+# narrows scope by path.
 cwd = payload.get("cwd", "") or ""
 zone_root = os.path.join(os.environ.get("HOME", "/root"), "Projects", "local", "system")
 in_zone = cwd == zone_root or cwd.startswith(zone_root + os.sep)
@@ -161,7 +194,7 @@ in_zone = cwd == zone_root or cwd.startswith(zone_root + os.sep)
 findings = []
 if not in_zone:
     for label, pattern in SECRET_PATTERNS:
-        for m in re.finditer(pattern, content):
+        for m in re.finditer(pattern, secret_content):
             if PLACEHOLDER_RE.search(m.group(0)):
                 continue
             findings.append(f"secret: {label}: {redact(m.group())}")
