@@ -65,9 +65,6 @@ independent and can be fixed in any order.
 - [ ] 33: enforce-test-lint-gate.sh:156-157 permanently blocks commits
       for any non-spec-collection project with no .sh files — no
       lint-gate tool exists for e.g. a pure Python/Node repo.
-- [ ] 35: lint-agent-mark.sh:48-52 marks the gate on subagent
-      *completion*, not on a passing result — a lint agent reporting
-      unfixed violations still opens the gate (home/CLAUDE.md:257).
 - [ ] 36: validate-workflows.sh:57-80 does a network install
       (setupmgr act) inside a hook — violates AI.md:201-202 (hooks
       must be fast, no network I/O).

@@ -9,10 +9,10 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  lint-agent-mark.sh
-# @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint finishes, since it never runs as a host command.
-# @@Changelog        :  Marker dir moved from project-named claudemgr/config to claude-hooks (a repo name is the wrong namespace for infra deployed and shared across every project).
+# @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint reports a clean result.
+# @@Changelog        :  Now parses last_assistant_message for the clean/issues-found contract instead of marking on bare subagent completion.
 # @@TODO             :  None
-# @@Other            :  No pass/fail field exists for a finished subagent, so completion itself counts as satisfied; writes the same marker enforce-test-lint-gate.sh checks.
+# @@Other            :  Lint agents always end their report `: clean` or `: N issue(s) found` — last_assistant_message is checked against that; issues found skips the marker.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh, home/hooks/enforce-test-lint-gate.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -40,6 +40,14 @@ esac
 LINT_AGENT_MARK_CWD=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.cwd // ""')
 LINT_AGENT_MARK_SESSION_ID=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.session_id // ""')
 [ -z "$LINT_AGENT_MARK_SESSION_ID" ] && exit 0
+
+# script-lint/go-lint/rust-lint's own Output Format section ends every
+# report with `: clean` (pass) or `: N issue(s) found` (fail), one line
+# per file/package/crate — a multi-file run must be ALL clean, so any
+# "issue(s) found" line anywhere disqualifies the whole report.
+LINT_AGENT_MARK_MSG=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.last_assistant_message // ""')
+printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': clean\b' || exit 0
+printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [0-9]+ issue\(s\) found\b' && exit 0
 
 LINT_AGENT_MARK_PROJECT=$(git -C "${LINT_AGENT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
   || LINT_AGENT_MARK_PROJECT="$LINT_AGENT_MARK_CWD"
