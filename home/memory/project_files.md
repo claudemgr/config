@@ -143,6 +143,7 @@ This table covers files Claude actively manages and files with non-obvious place
 | `.installed` | Flag file | | Marks a project as installed on this machine — gitignored, never committed |
 | `install.sh` | Script | | Standalone installer — allowed when the repo is primarily an install script |
 | `contrib/` | Dir | | Community contributions, examples, and third-party integrations — not covered by the main test/lint gates |
+| `deps/` | Dir | | Optional, committed, project-specific support files not part of the build/release output itself (e.g. scripts or Dockerfiles for building a dependency) — never a cache or temp/output dir; usage documented in README/SPEC/IDEA or the dir itself |
 
 ---
 

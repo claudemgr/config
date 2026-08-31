@@ -123,6 +123,11 @@ Placeholders in AI.md (e.g., `{project_name}`, `{PROJECT_ORG}`) are **reference 
 ├── app/          # source code (Android/Kotlin)
 ├── scripts/      # dev and install scripts (always committed)
 ├── tests/        # test runners and helpers (always committed)
+├── deps/         # optional; committed, project-specific support files not
+│                 # part of the build/release output itself (e.g. scripts or
+│                 # Dockerfiles for building a dependency) — never a cache,
+│                 # never temp/output; document its use in README/SPEC/IDEA
+│                 # or the dir itself
 ├── docker/
 │   ├── Dockerfile
 │   ├── Dockerfile.dev
