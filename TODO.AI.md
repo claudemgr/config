@@ -60,26 +60,6 @@ independent and can be fixed in any order.
       other hook that has no equivalent fallback (e.g.
       `drift-guard-read.sh`, `spec-guard-mark.sh`).
 
-## Template repos (ship as generated projects' AI.md)
-
-- [ ] 45: go/API.md:1607,3285-3321, rust/API.md:1595,3269-3305,
-      rust/SERVER.md:1906,3142, go/HYBRID.md:425,442 all teach
-      `gitcommit <command>` — a shape enforce-gitcommit-shape.sh:98-111
-      hard-blocks. Other files in the same repos use the correct
-      `--dir {dir} all` — internally inconsistent too.
-- [ ] 46: go/API.md:1878, rust/API.md:1864 allowlist
-      `Bash(go *)`/`Bash(cargo *)`/`Bash(golangci-lint *)`, which
-      block-host-toolchain.sh:265-294 and home/CLAUDE.md:171 forbid on
-      host; contradicts their own sibling go/APPLICATION.md:164.
-- [ ] 47: go/APPLICATION.md:605,658,1420,2049,2213 and
-      rust/APPLICATION.md:635,692 teach `golangci-lint run ./...` /
-      `cargo clippy` as "the lint gate", but lint-agent-mark.sh:50 only
-      recognizes script-lint/go-lint/rust-lint — following the template
-      leaves the commit permanently blocked.
-- [ ] 48: go/HYBRID.md:37618 README `docker run` example has `--name`
-      but no `--rm` and isn't detached — enforce-docker-rm.sh:220 blocks
-      it.
-
 ## AUDIT.AI.md A5 — deferred structural gap (go-auth-builder.md,
 ## rust-auth-builder.md)
 
