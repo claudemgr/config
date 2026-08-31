@@ -50,7 +50,8 @@ Agents are specialized sub-models invoked automatically based on what you ask, o
 | `bootstrap` | Start a new project from a spec file (`{project_dir}/AI.md`), or re-bootstrap after a spec change. Reads PART 0–6 of the spec and executes everything — directory layout, build system, config, metadata. Reconciles `TODO.AI.md` if it exists. |
 | `spec-migrator` | Migrate a project with `SPEC.md`, a project-spec `CLAUDE.md`, or a sparse `AI.md` to the standard `AI.md` + `IDEA.md` + `CLAUDE.md` loader structure. Also runs a bootstrap wizard for projects with no spec files at all. |
 | `go-server-to-api` | Audit a Go project after its AI.md has been replaced with a new spec (SERVER↔API), then generate a complete `TODO.AI.md` covering all migration tasks. |
-| `planner` | Design an implementation plan before writing code. Use when a task touches 3+ files, has ambiguous requirements, or needs architectural tradeoffs evaluated. Returns a step-by-step plan and flags risks. Does not write code. |
+| `planner` | Design an implementation plan before writing code. Use when a task has genuinely ambiguous requirements or needs architectural tradeoffs evaluated — not simply because it touches many files. Returns a step-by-step plan and flags risks. Does not write code. |
+| `implement` | Read a project spec (`AI.md`/`SPEC.md`/`CLAUDE.md`) and implement everything it prescribes, in order, until nothing defined in the spec is left unbuilt. Ensures PART 0–6 scaffolding exists, then drives every feature PART to done, delegating auth/billing/notifications/support to their scoped builder agents. |
 | `commit-prep` | Prepare a `COMMIT_MESS` file for the current git working tree without polluting the main conversation with raw diff output. |
 
 ### 🔍 Code Quality
@@ -101,6 +102,27 @@ Agents are specialized sub-models invoked automatically based on what you ask, o
 | `notifications-builder` | Interactive notification system scaffolder. Covers 30 channels across 7 categories, SMTP auto-enable behavior, channel plugin architecture, routing rules, user preferences, and administrative controls. |
 | `support-builder` | Interactive customer support system scaffolder. Covers ticketing (9-state machine), live chat, knowledge base, deterministic bot automation, SLA management, canned responses, and agent workspace. |
 | `go-auth-builder` | Interactive auth scaffolder for Go HTTP server projects. Covers admin auth, API tokens, user accounts, orgs/teams, custom domains, DB schemas, middleware, handlers, HTML templates, routes, and i18n. |
+| `rust-auth-builder` | Interactive auth scaffolder for Rust Axum HTTP server projects. Covers admin auth, API tokens, user accounts, orgs/teams, custom domains, DB schemas, middleware, handlers, HTML templates, routes, and i18n. |
+| `dockersrc-bootstrap` | Bootstrap or update a CasjaysDev Docker image repo (base/toolchain images, also `casjaysdevdocker` app repos). Regenerates `gen-dockerfile`-managed files after template changes, preserves hand-crafted content, audits for dead variable/function references. |
+
+---
+
+## 🧩 Skills
+
+Skills are invoked with `/{name}` or auto-triggered when the task matches. Defined in `home/skills/{name}/SKILL.md`.
+
+| Skill | When to use |
+|-------|-------------|
+| `audit` | Comprehensive project health audit — security, code quality, logic correctness, documentation completeness, spec compliance. Fixes issues directly; tracks >5 issues in `AUDIT.AI.md`. |
+| `bootstrap-script` | Bootstrap a new or existing script-only project — main script, `.editorconfig`, `.shellcheckrc`, and standard project files. No workflows, no toolchain, no Makefile. |
+| `doc-sync` | Sync the `__help()`, man page, and completions triple after a bash script changes; also syncs `README.md` when warranted. |
+| `go-lint` | Lint the current Go project for convention violations. |
+| `review` | Review the current diff (staged + unstaged) or a specific file/function for correctness, security, reliability, and style. |
+| `rpm-build` | Author an RPM spec file and run the full build workflow for a CasjaysDev package. |
+| `rust-lint` | Lint the current Rust project for convention violations. |
+| `script-lint` | Lint bash/sh scripts in the current project for convention violations. |
+| `security-audit` | Security-focused review — threat modeling, OWASP audits, secrets scanning, dependency CVEs, auth flows, hardening. |
+| `test-write` | Write tests for existing code — unit, integration, table-driven, fuzz targets. |
 
 ---
 
@@ -151,6 +173,8 @@ config/
 │   ├── CLAUDE.md           # Global AI rules
 │   ├── settings.json       # Permissions and hook wiring
 │   ├── agents/             # Agent definition files ({name}.md)
+│   ├── skills/             # Skill definitions ({name}/SKILL.md)
+│   ├── TEMPLATES/          # Authoritative feature specs (BILLING.md, NOTIFICATIONS.md, SUPPORT.md, BASE.md)
 │   ├── hooks/              # Hook scripts ({name}.sh)
 │   └── memory/             # Convention and standards files
 │       ├── MEMORY.md       # Index

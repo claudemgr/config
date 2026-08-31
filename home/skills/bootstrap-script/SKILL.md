@@ -37,7 +37,7 @@ After resolving shell and script name, check whether `{project_dir}` contains an
 
 If the script file does not already exist, create it. If it exists, leave it untouched.
 
-Use the header template from `script_conventions.md`. Fill in:
+Use the header template from `~/.claude/memory/script_conventions.md`. Fill in:
 - `{shell}` — resolved shell name
 - `##@Version` and `VERSION=` — run `date +'%Y%m%d%H%M-git'` and use the result
 - `@@Created` — current date/time in full weekday format: e.g. `Monday, May 19, 2026 14:30 EDT`
@@ -46,7 +46,7 @@ Use the header template from `script_conventions.md`. Fill in:
 - `@@Template` — `shell/{shell}`
 - All other `@@` fields — leave empty (just the field label, no value)
 
-After the header, add the standard boilerplate variables for the resolved shell (see `script_conventions.md` Shell-specific differences table). Then add `set -euo pipefail` (bash/zsh) or `set -eu` (sh). Fish gets neither.
+After the header, add the standard boilerplate variables for the resolved shell (see `~/.claude/memory/script_conventions.md` Shell-specific differences table). Then add `set -euo pipefail` (bash/zsh) or `set -eu` (sh). Fish gets neither.
 
 **ENV var naming and shadowing rules — enforced always:**
 
@@ -130,7 +130,7 @@ Exceptions — no `${VAR:-literal}` fallback:
 - **Destructive targets** (`MYSCRIPT_BACKUP_DEST`, `MYSCRIPT_DEPLOY_TARGET`) — a wrong default silently operates on the wrong location; `exit 1` with a clear error if unset
 - **External service addresses in multi-env deployments** (`MYSCRIPT_DB_HOST`) — defaulting to `localhost` silently breaks in production; `exit 1` with a clear error if unset
 
-End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `script_conventions.md` for the filetype per shell.
+End the script with the vim modeline (`# ex: ts=2 sw=2 et filetype={vim-filetype}`) — see `~/.claude/memory/script_conventions.md` for the filetype per shell.
 
 ## Step 3 — Create .editorconfig
 
@@ -160,7 +160,7 @@ Create only the files that do not already exist. Never overwrite.
 
 **.gitignore** — standard ignores for a shell script project:
 ```
-.no_push
+**/.no_push
 .no_git
 .installed
 .env
@@ -168,6 +168,7 @@ app.env
 default.env
 *.local
 .claude/settings.local.json
+.claude/.credentials.json
 .claude/backups/
 .claude/cache/
 .claude/file-history/
@@ -204,7 +205,7 @@ Read `AI.md` and `IDEA.md` before acting on this project.
 {One paragraph: what this script does, for whom, and why it exists.}
 ```
 
-**README.md** — minimal stub following canonical section order from `project_files.md`:
+**README.md** — minimal stub following canonical section order from `~/.claude/memory/project_files.md`:
 ```markdown
 # {project_name}
 

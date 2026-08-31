@@ -14,7 +14,7 @@ You are an interactive auth scaffolder for Rust Axum HTTP server projects.
 
 ## Step 1 — Discover the project
 
-Read only what the project itself contains. Do not read spec files.
+Read only what the project itself contains. This agent's own embedded spec (below) is the sole source of what to build — never read an external spec/template file to decide that. `IDEA.md`/`AI.md`, if the project already has them, are read later only for metadata (project name, feature-flag reconciliation, PART-lock bookkeeping in Steps 16-17), never as a substitute for this agent's embedded instructions.
 
 ```bash
 # Cargo package name → infer {project_name} from [package].name
@@ -78,11 +78,11 @@ Reply with numbers separated by spaces — e.g. "1 3" or "1 2 3 4 5"
 
   1. Admin authentication   — admin login, sessions, admin panel routes
   2. API tokens             — per-user/admin API keys for programmatic access
-  3. User accounts          — registration (open or admin-invite/private mode), login, profiles, password reset, email verify
+  3. User accounts          — registration (open or admin-invite/private mode), login, profiles, password reset, email verify  [requires 1]
   4. Organizations / Teams  — user groups, shared resource ownership  [requires 3]
   5. Custom domains         — per-user/org domain routing              [requires 3 or 4]
 
-Dependencies: 4 requires 3 · 5 requires 3 or 4
+Dependencies: 3 requires 1 (admin-invite/direct-create user rows reference admins(id)) · 4 requires 3 · 5 requires 3 or 4
 ```
 
 If the user selects 4 without 3, or 5 without 3/4: auto-add the missing prerequisite and tell the user.
@@ -105,6 +105,19 @@ Find the DB init file from Step 1 and add the tables there. All DDL is idempoten
 
 This schema is portable across SQLite/Postgres/MySQL as written (`INTEGER PRIMARY KEY AUTOINCREMENT` is SQLite syntax — for `DB_KIND = postgres` substitute `BIGSERIAL PRIMARY KEY`; for `mysql` substitute `BIGINT AUTO_INCREMENT PRIMARY KEY`). Table and column names are identical to the Go auth-builder schema for cross-language portability.
 
+### Shared table (all features — required by Step 7's rate limiter)
+
+```sql
+CREATE TABLE IF NOT EXISTS rate_limits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    bucket      TEXT NOT NULL,
+    hit_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_bucket_hit ON rate_limits(bucket, hit_at);
+```
+
+`count_rate_limit_hits(bucket, since)` counts rows where `bucket = ?` and `hit_at >= ?`. `record_rate_limit_hit(bucket, at)` inserts one row. Periodically prune rows older than the largest configured window (e.g. a scheduled `DELETE FROM rate_limits WHERE hit_at < ?` run hourly) so the table does not grow unbounded.
+
 ### Tables for Feature 1 (admin auth)
 
 ```sql
@@ -112,8 +125,10 @@ CREATE TABLE IF NOT EXISTS admins (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     username        TEXT UNIQUE NOT NULL,
     email           TEXT UNIQUE NOT NULL,
-    password_hash   TEXT NOT NULL,             -- argon2id encoded string
-    totp_secret     TEXT,                      -- NULL = TOTP not enrolled
+    -- argon2id encoded string
+    password_hash   TEXT NOT NULL,
+    -- NULL = TOTP not enrolled
+    totp_secret     TEXT,
     totp_enabled    INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL,
     updated_at      INTEGER NOT NULL,
@@ -122,7 +137,8 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 
 CREATE TABLE IF NOT EXISTS admin_sessions (
-    id          TEXT PRIMARY KEY,              -- 32-byte OsRng hex
+    -- 32-byte OsRng hex
+    id          TEXT PRIMARY KEY,
     admin_id    INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
     ip          TEXT NOT NULL,
     user_agent  TEXT NOT NULL,
@@ -141,11 +157,14 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_type  TEXT NOT NULL CHECK(owner_type IN ('admin','user')),
     owner_id    INTEGER NOT NULL,
-    token_hash  TEXT UNIQUE NOT NULL,          -- SHA-256 hex of raw token
+    -- SHA-256 hex of raw token
+    token_hash  TEXT UNIQUE NOT NULL,
     name        TEXT NOT NULL,
-    scopes      TEXT NOT NULL DEFAULT '[]',    -- JSON array of strings
+    -- JSON array of strings
+    scopes      TEXT NOT NULL DEFAULT '[]',
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER,                       -- NULL = never
+    -- NULL = never
+    expires_at  INTEGER,
     last_used   INTEGER,
     revoked     INTEGER NOT NULL DEFAULT 0
 );
@@ -192,7 +211,8 @@ CREATE TABLE IF NOT EXISTS password_resets (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 1 hour TTL
+    -- 1 hour TTL
+    expires_at  INTEGER NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash);
@@ -204,20 +224,26 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     email       TEXT NOT NULL,
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 24 hour TTL
+    -- 24 hour TTL
+    expires_at  INTEGER NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
 CREATE INDEX IF NOT EXISTS idx_email_verif_user  ON email_verifications(user_id);
 
 CREATE TABLE IF NOT EXISTS user_invites (
-    id           TEXT PRIMARY KEY,             -- crypto-random 32-byte hex
-    username     TEXT UNIQUE NOT NULL,          -- pre-assigned; taken by the invited user on accept
+    -- crypto-random 32-byte hex
+    id           TEXT PRIMARY KEY,
+    -- pre-assigned; taken by the invited user on accept
+    username     TEXT UNIQUE NOT NULL,
     invited_by   INTEGER NOT NULL REFERENCES admins(id),
-    token_hash   TEXT UNIQUE NOT NULL,          -- SHA-256 hex of raw token
+    -- SHA-256 hex of raw token
+    token_hash   TEXT UNIQUE NOT NULL,
     created_at   INTEGER NOT NULL,
-    expires_at   INTEGER NOT NULL,             -- default 7d, configurable (1h/6h/24h/48h/7d)
-    max_uses     INTEGER NOT NULL DEFAULT 1,   -- 0 = unlimited
+    -- default 7d, configurable (1h/6h/24h/48h/7d)
+    expires_at   INTEGER NOT NULL,
+    -- 0 = unlimited
+    max_uses     INTEGER NOT NULL DEFAULT 1,
     used_count   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_user_invites_token    ON user_invites(token_hash);
@@ -231,7 +257,8 @@ CREATE INDEX IF NOT EXISTS idx_user_invites_username ON user_invites(username);
 ```sql
 CREATE TABLE IF NOT EXISTS orgs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug            TEXT UNIQUE NOT NULL,      -- lowercase, 2-39 chars, alphanumeric + hyphens
+    -- lowercase, 2-39 chars, alphanumeric + hyphens
+    slug            TEXT UNIQUE NOT NULL,
     display_name    TEXT NOT NULL,
     description     TEXT NOT NULL DEFAULT '',
     avatar_url      TEXT NOT NULL DEFAULT '',
@@ -260,7 +287,8 @@ CREATE TABLE IF NOT EXISTS org_invites (
     invited_by  INTEGER NOT NULL REFERENCES users(id),
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 72 hour TTL
+    -- 72 hour TTL
+    expires_at  INTEGER NOT NULL,
     accepted    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_org_invites_org   ON org_invites(org_id);
@@ -276,7 +304,8 @@ CREATE TABLE IF NOT EXISTS custom_domains (
     owner_type      TEXT NOT NULL CHECK(owner_type IN ('user','org')),
     owner_id        INTEGER NOT NULL,
     verified        INTEGER NOT NULL DEFAULT 0,
-    verify_token    TEXT UNIQUE NOT NULL,      -- set TXT _verify.{domain} to this value
+    -- set TXT _verify.{domain} to this value
+    verify_token    TEXT UNIQUE NOT NULL,
     ssl_enabled     INTEGER NOT NULL DEFAULT 0,
     ssl_cert_path   TEXT,
     ssl_key_path    TEXT,
@@ -296,7 +325,7 @@ Create `src/models/{feature}.rs`. Check for existing files first (`ls src/models
 
 All models follow these rules:
 - Structs derive `serde::Serialize`, `serde::Deserialize`, and `sqlx::FromRow`
-- Validation functions return `Result<(), ValidationError>`, never `panic!`/`unwrap()`
+- Validation functions return `Result<(), ValidationError>`, never `panic!`/`unwrap()` on user-supplied input (a module-level `Lazy<Regex>` compiled from a fixed literal pattern is fine — it can only fail on a build-time typo in the pattern itself, never on user data)
 - Passwords: Argon2id only (time=3, memory=64MiB, parallelism=4, keylen=32)
 - Tokens: SHA-256 hex hash; raw token shown once, never stored
 - Security-sensitive equality (hex hash/token comparisons): constant-time via `subtle::ConstantTimeEq`
@@ -312,6 +341,7 @@ use rand::RngCore;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use thiserror::Error;
+use totp_rs::{Algorithm, Secret, TOTP};
 
 // argon2id parameters — never reduce these values.
 const ARGON_TIME_COST: u32 = 3;
@@ -390,6 +420,48 @@ pub fn constant_time_eq(a: &str, b: &str) -> bool {
     }
     ab.ct_eq(&bb).into()
 }
+
+// constant_time_eq_str compares two strings in constant time, safe for empty input.
+pub fn constant_time_eq_str(a: &str, b: &str) -> bool {
+    let (ab, bb) = (a.as_bytes(), b.as_bytes());
+    if ab.is_empty() || bb.is_empty() || ab.len() != bb.len() {
+        return false;
+    }
+    ab.ct_eq(bb).into()
+}
+
+// new_totp_secret generates a new RFC 6238 TOTP secret for account_name (the
+// admin/user's username or email) and returns the base32 secret to store in
+// admins.totp_secret/users.totp_secret plus the otpauth:// URI for the QR
+// code shown during enrollment.
+pub fn new_totp_secret(issuer: &str, account_name: &str) -> Result<(String, String), AuthError> {
+    let mut raw = [0u8; 20];
+    OsRng.try_fill_bytes(&mut raw).map_err(|e| AuthError::Rand(e.to_string()))?;
+    let secret = Secret::Raw(raw.to_vec()).to_encoded();
+    let totp = TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret.to_bytes().map_err(|e| AuthError::Rand(e.to_string()))?,
+        Some(issuer.to_string()),
+        account_name.to_string(),
+    )
+    .map_err(|e| AuthError::Rand(e.to_string()))?;
+    Ok((secret.to_string(), totp.get_url()))
+}
+
+// validate_totp checks code against secret using the standard 30-second step
+// and a ±1 step skew window to tolerate clock drift.
+pub fn validate_totp(secret: &str, code: &str) -> bool {
+    let Ok(bytes) = Secret::Encoded(secret.to_string()).to_bytes() else {
+        return false;
+    };
+    let Ok(totp) = TOTP::new(Algorithm::SHA1, 6, 1, 30, bytes, None, String::new()) else {
+        return false;
+    };
+    totp.check_current(code).unwrap_or(false)
+}
 ```
 
 ### `src/models/admin.rs`
@@ -453,7 +525,7 @@ pub fn validate_admin_username(u: &str) -> Result<(), ValidationError> {
 }
 
 pub fn validate_admin_email(e: &str) -> Result<(), ValidationError> {
-    if !e.contains('@') || email_address::EmailAddress::is_valid(e) == false {
+    if !e.contains('@') || !email_address::EmailAddress::is_valid(e) {
         return Err(ValidationError::InvalidEmail);
     }
     Ok(())
@@ -940,6 +1012,78 @@ pub fn require_scope(
         })
     }
 }
+
+// new_csrf_token generates a fresh 32-byte random CSRF token, hex-encoded.
+fn new_csrf_token() -> String {
+    let mut b = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut b);
+    hex::encode(b)
+}
+
+// CsrfToken is the per-request token: the existing `csrf_token` cookie value
+// if present, otherwise a freshly generated one. Page handlers read it from
+// the request extensions and set it as `csrf_token` on the template data.
+#[derive(Debug, Clone)]
+pub struct CsrfToken(pub String);
+
+// csrf_double is a double-submit-cookie CSRF middleware: it issues a
+// `csrf_token` cookie (readable by JS, not HttpOnly) on GET/HEAD/OPTIONS
+// requests that don't already have one, and on state-changing methods
+// requires the `csrf_token` form field or `X-CSRF-Token` header to match the
+// cookie in constant time. Every HTML form must include a hidden
+// `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`, and
+// every page handler must set `csrf_token` from the request extension
+// `CsrfToken` when rendering the template.
+pub async fn csrf_double(mut req: Request<Body>, next: Next) -> Response {
+    let existing = session_cookie(&req, "csrf_token");
+    let token = existing.clone().unwrap_or_else(new_csrf_token);
+    req.extensions_mut().insert(CsrfToken(token.clone()));
+
+    if matches!(
+        req.method(),
+        &axum::http::Method::GET | &axum::http::Method::HEAD | &axum::http::Method::OPTIONS
+    ) {
+        let mut res = next.run(req).await;
+        if existing.is_none() {
+            let cookie = format!("csrf_token={token}; Path=/; Secure; SameSite=Strict");
+            if let Ok(value) = axum::http::HeaderValue::from_str(&cookie) {
+                res.headers_mut().append(axum::http::header::SET_COOKIE, value);
+            }
+        }
+        return res;
+    }
+
+    let header_token = req
+        .headers()
+        .get("X-CSRF-Token")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+
+    // Header clients (JSON APIs) skip the body-buffering path entirely.
+    // Form clients need the body read once and put back for the handler.
+    let submitted = match header_token {
+        Some(t) => Some(t),
+        None => {
+            let (parts, body) = req.into_parts();
+            let Ok(bytes) = axum::body::to_bytes(body, 1024 * 1024).await else {
+                return forbidden("Invalid or missing CSRF token");
+            };
+            let form_value = url::form_urlencoded::parse(&bytes)
+                .find(|(k, _)| k == "csrf_token")
+                .map(|(_, v)| v.into_owned());
+            req = Request::from_parts(parts, Body::from(bytes));
+            form_value
+        }
+    };
+
+    let Some(submitted) = submitted else {
+        return forbidden("Invalid or missing CSRF token");
+    };
+    if !crate::models::auth::constant_time_eq_str(&submitted, &token) {
+        return forbidden("Invalid or missing CSRF token");
+    }
+    next.run(req).await
+}
 ```
 
 The project's `db` module must expose an `AuthDb` trait (or equivalent inherent methods on the shared `Db` type) implementing:
@@ -1001,8 +1145,15 @@ pub fn rate_limit_for(
 
             let count = match state.db.count_rate_limit_hits(&bucket, window_start).await {
                 Ok(c) => c,
-                // On DB error, fail open — log but proceed
-                Err(_) => return next.run(req).await,
+                // Fail closed on DB error — never silently drop rate limiting
+                Err(_) => {
+                    let body = json!({
+                        "ok": false,
+                        "error": "RATE_LIMIT_UNAVAILABLE",
+                        "message": "Try again shortly"
+                    });
+                    return (StatusCode::SERVICE_UNAVAILABLE, axum::Json(body)).into_response();
+                }
             };
             if count >= max {
                 let retry_after = window_secs;
@@ -1015,7 +1166,8 @@ pub fn rate_limit_for(
                 let mut resp = (StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response();
                 resp.headers_mut().insert(
                     "Retry-After",
-                    retry_after.to_string().parse().unwrap(),
+                    axum::http::HeaderValue::from_str(&retry_after.to_string())
+                        .unwrap_or_else(|_| axum::http::HeaderValue::from_static("1")),
                 );
                 return resp;
             }
@@ -1066,6 +1218,9 @@ Rate limit defaults — baked in as constants, configurable via server config:
 | `auth.password_reset_confirm` | 5 | 3600s (1 hr) |
 | `auth.email_verify` | 5 | 3600s (1 hr) |
 | `auth.totp_verify` | 10 | 300s (5 min) |
+| `auth.password_change` | 3 | 3600s (1 hr) |
+| `auth.invite_create` | 20 | 3600s (1 hr) |
+| `auth.invite_accept` | 10 | 3600s (1 hr) |
 | `api.read` (GET/HEAD) | 120 | 60s |
 | `api.write` (POST/PUT/PATCH/DELETE) | 10 | 60s |
 | `api.health` | 120 | 60s |
@@ -1084,8 +1239,11 @@ Create `src/handlers/{feature}.rs` for each selected feature.
 - For login flows: **always call `check_password` even when the user is not found** (against `dummy_password_hash()`) — prevents timing oracle
 - Use identical error messages for "wrong password" and "no such user": `"Invalid credentials"`
 - Set session cookies: `HttpOnly; Secure; SameSite=Strict; Path=/`
-- JSON success: `{"ok":true,"data":{...}}` with status 200/201
-- JSON error: `{"ok":false,"error":"CODE","message":"human text"}`
+- JSON success: `{"ok":true,"data":{...}}` with status 200/201, via `axum::Json(body)` — no manual
+  trailing newline (the Go auth-builder appends `\n` because it writes JSON manually with
+  `fmt.Fprintf`/`json.Encoder`, which trails a newline by default; axum's `Json` extractor does
+  not, so do not add one here — this is an intentional framework difference, not a bug)
+- JSON error: `{"ok":false,"error":"CODE","message":"human text"}`, same framing as above
 
 ### Feature 1 — Admin auth handler (`src/handlers/admin_auth.rs`)
 
@@ -1100,7 +1258,7 @@ Routes and their implementations:
 //   2. db.get_admin_by_username(username) — on not found, still run
 //      check_password(dummy_password_hash(), password)
 //   3. check_password(&admin.password_hash, password) — return 401 "Invalid credentials" if false
-//   4. If admin.totp_enabled: require "totp_code" in body; validate with totp::validate
+//   4. If admin.totp_enabled: require "totp_code" in body; validate with auth::validate_totp(&admin.totp_secret, code)
 //   5. new_session_id() → insert admin_sessions row (expires = now + cfg.admin.session_timeout)
 //   6. Set-Cookie: admin_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/server/{admin_path}
 //   7. Update admins.last_login + last_login_ip
@@ -1122,7 +1280,7 @@ Routes and their implementations:
 
 // POST /server/{admin_path}/auth/totp/enable
 // Auth: require_admin middleware
-// Flow: generate TOTP secret → store in admins.totp_secret (not yet enabled) → return QR code URI
+// Flow: auth::new_totp_secret(&cfg.server.name, &admin.username) → store secret in admins.totp_secret (not yet enabled) → return the otpauth:// URI for the client to render as a QR code
 
 // POST /server/{admin_path}/auth/totp/confirm
 // Auth: require_admin middleware
@@ -1155,9 +1313,13 @@ Routes and their implementations:
 //   7. Return {"ok":true,"data":{"user_id":N,"username":"...","email_verification_required":bool}}
 
 // POST /server/{admin_path}/users/invite
-// Auth: require_admin middleware (available in BOTH open and private mode — mode only gates
-// the public /auth/register form, never the admin's ability to add users; see PART 34 note below)
-// Rate limit: 20 / 3600s per admin
+// Auth: require_admin middleware (available in BOTH open and private mode — registration mode
+// controls only whether the public /auth/register form is reachable; it does not control the
+// admin's ability to add users. Server Admin account management and Regular User account
+// creation are separate scopes, so the admin can always invite or directly create a user,
+// in either mode.)
+// Rate limit: 20 / 3600s per IP (key "auth.invite_create" — the limiter buckets by client IP,
+// same as every other endpoint; there is no separate per-admin-ID counter)
 // Body: {"username":"..."}
 // Flow:
 //   1. Validate username; check not already taken (users table) and no pending invite for it
@@ -1175,10 +1337,11 @@ Routes and their implementations:
 //   4. If SMTP configured: email the activation link to the address automatically
 //   5. Return {"ok":true,"data":{"user_id":N,"username":"...","activation_url":"..." (only when SMTP not configured, for manual delivery)}}
 
-// GET /api/{api_version}/auth/invite/{token}
-// Public (no auth) — validates the token exists and is unexpired/unused before rendering the
-// password-setup form; on invalid/expired/used token render the same generic
-// "This invite link is no longer valid" state (never distinguish expired vs used vs unknown)
+// The password-setup form page is served by the SSR route GET /auth/invite/{token} (see the
+// route table below), not a separate /api/ endpoint — that handler validates the token exists
+// and is unexpired/unused before rendering the form; on invalid/expired/used token it renders
+// the same generic "This invite link is no longer valid" state (never distinguish expired vs
+// used vs unknown).
 
 // POST /api/{api_version}/auth/invite/{token}/accept
 // Rate limit: 10 / 3600s per IP
@@ -1283,7 +1446,7 @@ Routes and their implementations:
 
 Create under `{TEMPLATE_DIR}/auth/`. Discover the project's existing layout template from Step 1 and extend it. If no layout exists, create a minimal standalone `layouts/public.html` for the auth pages.
 
-All templates use the `askama` crate (the project's default per SERVER.md's Askama Templates rule; if Step 1 found `tera` or `minijinja` in use instead, translate `{% extends %}`/`{% block %}`/`{{ var }}` to that engine's equivalent syntax — the page structure and field names below stay the same). All user-supplied values render through Askama's default auto-escaping — never wrap them with a raw/safe filter. CSRF token is injected as `{{ csrf_token }}` on every form.
+All templates use the `askama` crate (the project's default templating engine per its own AI.md, if present, otherwise this agent's default; if Step 1 found `tera` or `minijinja` in use instead, translate `{% extends %}`/`{% block %}`/`{{ var }}` to that engine's equivalent syntax — the page structure and field names below stay the same). All user-supplied values render through Askama's default auto-escaping — never wrap them with a raw/safe filter. Wrap the frontend route group in `middlewares::auth::csrf_double` (Step 6) so every GET issues a `csrf_token` cookie and every POST/PUT/PATCH/DELETE verifies it; each page handler reads the token back out of the request extensions (`req.extensions().get::<middlewares::auth::CsrfToken>()`) and sets it as `csrf_token` on the template struct before rendering. CSRF token is injected as `{{ csrf_token }}` on every form.
 
 Each template is backed by a Rust struct deriving `askama::Template`, e.g.:
 
@@ -1683,19 +1846,19 @@ Register HTML-serving routes alongside the API routes. Each HTML route renders t
 
 ## Step 11 — Route registration
 
-Find the router assembly file (`src/routes/mod.rs`). Add these route groups, and layer middleware in this order (remember: in axum/tower the **last** `.layer()` call is **outermost** and runs **first** — see Step 6/7 code comments for the exact reverse-order layering pattern):
+Find the router assembly file (`src/routes/mod.rs`). Add these route groups, and layer middleware in this order (remember: in axum/tower the **last** `.layer()` call is **outermost** and runs **first**, so `.layer()` calls must be added in the *reverse* of the desired execution order below):
 
 ```
-Allowlist → Blocklist → RateLimit → GeoIP → Auth → Handler
+Allowlist → Blocklist → RateLimit → GeoIP → CSRF → Auth → Handler
 ```
 
-Admin routes use `require_admin`. User routes use `require_user` or `require_token`. Public auth routes (login, register, reset) have no auth middleware but do have `rate_limit_for(...)` applied per-route.
+Admin routes use `require_admin`. User routes use `require_user` or `require_token`. Public auth routes (login, register, reset) have no auth middleware but do have `rate_limit_for(...)` applied per-route. `middlewares::auth::csrf_double` wraps every route in Step 9's frontend group and every non-token-authenticated route in Step 8's API group (i.e. everything reachable from a browser form) — it must sit outside `require_admin`/`require_user` so the token check still runs, but does not need to wrap `require_token`-protected API routes, since Bearer-token clients are not vulnerable to cross-site form submission.
 
 ---
 
 ## Step 12 — Config
 
-Extend the project's config struct (`src/config/mod.rs`) and `server.yml` example. Config uses `serde::Deserialize` per the project's existing config-loading convention (see rust/SERVER.md § Configuration Storage):
+Extend the project's config struct (`src/config/mod.rs`) and `server.yml` example, using `serde::Deserialize` to match the project's existing config-loading pattern:
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -1760,7 +1923,8 @@ server:
       max_sessions: 5
     users:
       registration:
-        mode: open           # open | private
+        # open | private
+        mode: open
       require_email_verification: true
       session_timeout: 2592000
       session_idle_timeout: 86400
@@ -1774,7 +1938,7 @@ server:
 
 ## Step 13 — i18n strings
 
-Find the project's i18n translation files (`find src -name "*.json" -path "*locales*"`). Add an `"auth"` key to `en.json` (and stub the same keys into the other locale files if they exist — leave translation to a human/translation pipeline, just make the keys present):
+Find the project's i18n translation files (`find src -name "*.json" -path "*/i18n/*" -o -name "*.json" -path "*/locales/*"`). Add an `"auth"` key to `en.json` (and stub the same keys into the other locale files if they exist — leave translation to a human/translation pipeline, just make the keys present):
 
 ```json
 "auth": {
@@ -1840,23 +2004,22 @@ Every handler test suite includes:
 
 ```bash
 # Compile check
-cargo build
+make build
 
 # Tests
-cargo test
+make test
 
 # Confirm no raw tokens in DB (sanity)
 # Confirm no bcrypt crate usage for password storage
 grep -rn -- "bcrypt::hash\|bcrypt::verify\|use bcrypt" "{project_dir}/src" 2>/dev/null | grep -v "_test"
-# Should return nothing (bcrypt is only permitted as a one-time migration path for
-# verifying legacy hashes before rehashing to Argon2id — never for new passwords)
+# Should return nothing
 ```
 
 ---
 
 ## Step 16 — Update IDEA.md
 
-After all code is written and `cargo build` passes, record the auth implementation as constraints in
+After all code is written and `make build` passes, record the auth implementation as constraints in
 `{project_dir}/IDEA.md`.
 
 If `IDEA.md` does not exist, create it with the required three-section layout:

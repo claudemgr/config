@@ -22,7 +22,7 @@ Hold the full spec in context. The spec is language-agnostic — your task is to
 - **Section 4** (Notification Channels) — all 30 channels in 7 categories; the unique SMTP behavior
 - **Section 5** (SMTP Email System) — SMTP is the only channel with auto-enable, env var support, and auto-detection; these are unique behaviors that apply only to SMTP
 - **Section 6** (Channel Configuration) — channel states, plugin directory structure, channel interface
-- **Section 11** (Integrated Help System) — mandatory contextual help; every field needs a `[?]` tooltip
+- **Section 12** (Integrated Help System) — mandatory contextual help; every field needs a `[?]` tooltip
 - **Section 19** (Implementation Guidelines) — channel plugin structure, configuration hierarchy, anti-patterns
 
 ---
@@ -91,7 +91,7 @@ Which features do you want to build?
 Reply with numbers separated by spaces — e.g. "1 3" or "1 2 3 4"
 
   1. Channel infrastructure    — plugin directory structure, channel interface, channel state machine (required for all below)
-  2. SMTP email                — UNIQUE: auto-enables on successful test; reads env vars (SMTP_HOST, SMTP_PORT, etc.) as initial values; auto-detection of local mail servers; 40+ provider presets; mandatory for any email channel
+  2. SMTP email                — UNIQUE: auto-enables on successful test; reads env vars (SMTP_HOST, SMTP_PORT, etc.) as initial values; auto-detection of local mail servers; 30+ provider presets; mandatory for any email channel
   3. Team communication        — Slack, Discord, Teams, Mattermost, Rocket.Chat, Zulip (6 channels, all disabled by default)
   4. Instant messaging         — Telegram, WhatsApp, Signal, IRC, XMPP, Matrix, LINE, WeChat Work (8 channels, all disabled by default)
   5. Mobile push               — Pushover, Pushbullet, FCM, APNS, OneSignal (5 channels, all disabled by default)
@@ -148,7 +148,7 @@ Translate the spec's data models into the project's database idioms.
 - All timestamps stored as UTC integers (Unix epoch) or the project's native timestamp type
 - Priority stored as string enum: CRITICAL, HIGH, NORMAL, LOW (exactly these names from the spec)
 - Channel state stored as string enum: DISABLED, CONFIGURING, TESTING, ACTIVE, DEGRADED, FAILED, MAINTENANCE (exactly these names)
-- Notification status stored as string enum: PENDING, QUEUED, SENT, DELIVERED, FAILED, BOUNCED, READ
+- Notification status stored as string enum: CREATED, QUEUED, SCHEDULED, SENDING, DELIVERED, FAILED, RETRYING, EXPIRED, CANCELLED (exactly these names from the spec)
 - Channel credentials stored encrypted; key name stored, value never plaintext; never in env vars or config files
 - User preferences default to opt-in for transactional, opt-out for marketing — never invert this default
 - Webhook secrets stored encrypted; never logged, never returned in full after creation
@@ -252,11 +252,11 @@ If env vars are not set, attempt auto-detection in this exact order:
 2. `127.0.0.1:25` — no auth
 3. `172.17.0.1:25` — Docker host bridge, no auth
 
-For each candidate: attempt TCP connection with 2-second timeout. First successful connection wins. Display "auto-detected: {host}:{port}" in the web UI with a warning that this is a local relay.
+For each candidate: attempt TCP connection with 2-second timeout. The first successful connection auto-ENABLES SMTP (not just detects it) and persists the configuration to the database (never to env vars) — do not require an explicit admin enable step after a successful auto-detection. Display "auto-detected: {host}:{port}" in the web UI with a warning that this is a local relay, and notify the user that SMTP was auto-configured.
 
 ### Provider presets
 
-Include 40+ provider presets (Gmail, Outlook, Yahoo, SendGrid, Mailgun, SES, Postmark, etc.) with pre-filled host, port, and security settings. When admin selects a preset, populate the form fields — they can override any value.
+Include provider presets (Gmail, Outlook, Yahoo, SendGrid, Mailgun, SES, Postmark, etc.) with pre-filled host, port, and security settings. When admin selects a preset, populate the form fields — they can override any value.
 
 ### Configuration display order in web UI
 
@@ -386,17 +386,19 @@ Per-recipient, per-channel rate limits with burst allowance:
 - Configurable per-channel limits (e.g. max 10 emails/hour per recipient)
 - Global maximum across all channels
 - Burst allowance (short bursts above limit permitted)
-- Overflow action: configurable as QUEUE (delay) or DROP_LOW_PRIORITY
+- Overflow action: configurable as one of QUEUE (for later), DROP_WITH_WARNING, ESCALATE_TO_ADMIN, USE_ALTERNATE_CHANNEL (exactly these four options from the spec)
+- Bypass toggles: CRITICAL priority, admin recipients, security events (independently configurable)
 
 ### Retry logic
 
-Failed deliveries retry with exponential backoff:
-- Attempt 1: immediate
+Failed deliveries retry with exponential backoff (strategy: Exponential Backoff, initial delay 30s, multiplier 2, max delay 1 hour, max attempts 5):
+- Attempt 1: 30 seconds
 - Attempt 2: 1 minute
-- Attempt 3: 5 minutes
-- Attempt 4: 30 minutes
-- Attempt 5: 2 hours
+- Attempt 3: 2 minutes
+- Attempt 4: 4 minutes
+- Attempt 5: 8 minutes
 - After attempt 5: move to dead letter; never silently drop
+- Retry only on: network errors, timeout, 5xx responses (4xx responses are not retried by default, configurable)
 
 Queue workers are idempotent — a notification ID processed twice produces exactly one delivery.
 

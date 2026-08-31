@@ -14,7 +14,7 @@ You are an interactive auth scaffolder for Go HTTP server projects.
 
 ## Step 1 — Discover the project
 
-Read only what the project itself contains. Do not read spec files.
+Read only what the project itself contains. This agent's own embedded spec (below) is the sole source of what to build — never read an external spec/template file to decide that. `IDEA.md`/`AI.md`, if the project already has them, are read later only for metadata (project name, feature-flag reconciliation, PART-lock bookkeeping in Steps 16-17), never as a substitute for this agent's embedded instructions.
 
 ```bash
 # Go module name → infer {project_name} from last path segment
@@ -74,11 +74,11 @@ Reply with numbers separated by spaces — e.g. "1 3" or "1 2 3 4 5"
 
   1. Admin authentication   — admin login, sessions, admin panel routes
   2. API tokens             — per-user/admin API keys for programmatic access
-  3. User accounts          — registration (open or admin-invite/private mode), login, profiles, password reset, email verify
+  3. User accounts          — registration (open or admin-invite/private mode), login, profiles, password reset, email verify  [requires 1]
   4. Organizations / Teams  — user groups, shared resource ownership  [requires 3]
   5. Custom domains         — per-user/org domain routing              [requires 3 or 4]
 
-Dependencies: 4 requires 3 · 5 requires 3 or 4
+Dependencies: 3 requires 1 (admin-invite/direct-create user rows reference admins(id)) · 4 requires 3 · 5 requires 3 or 4
 ```
 
 If the user selects 4 without 3, or 5 without 3/4: auto-add the missing prerequisite and tell the user.
@@ -99,6 +99,19 @@ Always build in dependency order, regardless of input order:
 
 Find the DB init file from Step 1 and add the tables there. All DDL is idempotent: `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`. Never `DROP`, never `ALTER ... DROP COLUMN`.
 
+### Shared table (all features — required by Step 7's rate limiter)
+
+```sql
+CREATE TABLE IF NOT EXISTS rate_limits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    bucket      TEXT NOT NULL,
+    hit_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_bucket_hit ON rate_limits(bucket, hit_at);
+```
+
+`CountRateLimitHits(bucket, since)` counts rows where `bucket = ?` and `hit_at >= ?`. `RecordRateLimitHit(bucket, at)` inserts one row. Periodically prune rows older than the largest configured window (e.g. a scheduled `DELETE FROM rate_limits WHERE hit_at < ?` run hourly) so the table does not grow unbounded.
+
 ### Tables for Feature 1 (admin auth)
 
 ```sql
@@ -106,8 +119,10 @@ CREATE TABLE IF NOT EXISTS admins (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     username        TEXT UNIQUE NOT NULL,
     email           TEXT UNIQUE NOT NULL,
-    password_hash   TEXT NOT NULL,             -- argon2id encoded string
-    totp_secret     TEXT,                      -- NULL = TOTP not enrolled
+    -- argon2id encoded string
+    password_hash   TEXT NOT NULL,
+    -- NULL = TOTP not enrolled
+    totp_secret     TEXT,
     totp_enabled    INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL,
     updated_at      INTEGER NOT NULL,
@@ -116,7 +131,8 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 
 CREATE TABLE IF NOT EXISTS admin_sessions (
-    id          TEXT PRIMARY KEY,              -- crypto/rand 32-byte hex
+    -- crypto/rand 32-byte hex
+    id          TEXT PRIMARY KEY,
     admin_id    INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
     ip          TEXT NOT NULL,
     user_agent  TEXT NOT NULL,
@@ -135,11 +151,14 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_type  TEXT NOT NULL CHECK(owner_type IN ('admin','user')),
     owner_id    INTEGER NOT NULL,
-    token_hash  TEXT UNIQUE NOT NULL,          -- SHA-256 hex of raw token
+    -- SHA-256 hex of raw token
+    token_hash  TEXT UNIQUE NOT NULL,
     name        TEXT NOT NULL,
-    scopes      TEXT NOT NULL DEFAULT '[]',    -- JSON array of strings
+    -- JSON array of strings
+    scopes      TEXT NOT NULL DEFAULT '[]',
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER,                       -- NULL = never
+    -- NULL = never
+    expires_at  INTEGER,
     last_used   INTEGER,
     revoked     INTEGER NOT NULL DEFAULT 0
 );
@@ -186,7 +205,8 @@ CREATE TABLE IF NOT EXISTS password_resets (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 1 hour TTL
+    -- 1 hour TTL
+    expires_at  INTEGER NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash);
@@ -198,20 +218,26 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     email       TEXT NOT NULL,
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 24 hour TTL
+    -- 24 hour TTL
+    expires_at  INTEGER NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
 CREATE INDEX IF NOT EXISTS idx_email_verif_user  ON email_verifications(user_id);
 
 CREATE TABLE IF NOT EXISTS user_invites (
-    id           TEXT PRIMARY KEY,             -- crypto/rand 32-byte hex
-    username     TEXT UNIQUE NOT NULL,          -- pre-assigned; taken by the invited user on accept
+    -- crypto/rand 32-byte hex
+    id           TEXT PRIMARY KEY,
+    -- pre-assigned; taken by the invited user on accept
+    username     TEXT UNIQUE NOT NULL,
     invited_by   INTEGER NOT NULL REFERENCES admins(id),
-    token_hash   TEXT UNIQUE NOT NULL,          -- SHA-256 hex of raw token
+    -- SHA-256 hex of raw token
+    token_hash   TEXT UNIQUE NOT NULL,
     created_at   INTEGER NOT NULL,
-    expires_at   INTEGER NOT NULL,             -- default 7d, configurable (1h/6h/24h/48h/7d)
-    max_uses     INTEGER NOT NULL DEFAULT 1,   -- 0 = unlimited
+    -- default 7d, configurable (1h/6h/24h/48h/7d)
+    expires_at   INTEGER NOT NULL,
+    -- 0 = unlimited
+    max_uses     INTEGER NOT NULL DEFAULT 1,
     used_count   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_user_invites_token    ON user_invites(token_hash);
@@ -225,7 +251,8 @@ CREATE INDEX IF NOT EXISTS idx_user_invites_username ON user_invites(username);
 ```sql
 CREATE TABLE IF NOT EXISTS orgs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug            TEXT UNIQUE NOT NULL,      -- lowercase, 2-39 chars, alphanumeric + hyphens
+    -- lowercase, 2-39 chars, alphanumeric + hyphens
+    slug            TEXT UNIQUE NOT NULL,
     display_name    TEXT NOT NULL,
     description     TEXT NOT NULL DEFAULT '',
     avatar_url      TEXT NOT NULL DEFAULT '',
@@ -254,7 +281,8 @@ CREATE TABLE IF NOT EXISTS org_invites (
     invited_by  INTEGER NOT NULL REFERENCES users(id),
     token_hash  TEXT UNIQUE NOT NULL,
     created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,             -- 72 hour TTL
+    -- 72 hour TTL
+    expires_at  INTEGER NOT NULL,
     accepted    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_org_invites_org   ON org_invites(org_id);
@@ -270,7 +298,8 @@ CREATE TABLE IF NOT EXISTS custom_domains (
     owner_type      TEXT NOT NULL CHECK(owner_type IN ('user','org')),
     owner_id        INTEGER NOT NULL,
     verified        INTEGER NOT NULL DEFAULT 0,
-    verify_token    TEXT UNIQUE NOT NULL,      -- set TXT _verify.{domain} to this value
+    -- set TXT _verify.{domain} to this value
+    verify_token    TEXT UNIQUE NOT NULL,
     ssl_enabled     INTEGER NOT NULL DEFAULT 0,
     ssl_cert_path   TEXT,
     ssl_key_path    TEXT,
@@ -309,7 +338,10 @@ import (
     "fmt"
     "strconv"
     "strings"
+    "time"
 
+    "github.com/pquerna/otp"
+    "github.com/pquerna/otp/totp"
     "golang.org/x/crypto/argon2"
 )
 
@@ -339,7 +371,7 @@ func HashPassword(p string) (string, error) {
 // Always constant-time — safe to call even when the stored hash is a dummy.
 func CheckPassword(stored, plaintext string) bool {
     parts := strings.Split(stored, "$")
-    if len(parts) != 6 {
+    if len(parts) != 6 || parts[1] != "argon2id" {
         return false
     }
     var m, t uint32
@@ -370,6 +402,11 @@ func CheckPassword(stored, plaintext string) bool {
     candidate := argon2.IDKey([]byte(plaintext), salt, t, m, p, uint32(len(storedHash)))
     return subtle.ConstantTimeCompare(storedHash, candidate) == 1
 }
+
+// dummyHash is a fixed, valid argon2id hash used to run CheckPassword against
+// when no matching account was found — this keeps login latency identical for
+// "wrong password" and "no such user".
+const dummyHash = "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 // NewSessionID generates a cryptographically random 64-hex-char session ID.
 func NewSessionID() (string, error) {
@@ -407,6 +444,36 @@ func ConstantTimeEq(a, b string) bool {
         return false
     }
     return subtle.ConstantTimeCompare(ab, bb) == 1
+}
+
+// NewTOTPSecret generates a new RFC 6238 TOTP secret for accountName (the
+// admin/user's username or email) and returns the base32 secret to store in
+// admins.totp_secret/users.totp_secret plus the otpauth:// URI for the QR
+// code shown during enrollment.
+func NewTOTPSecret(issuer, accountName string) (secret, otpauthURI string, err error) {
+    key, err := totp.Generate(totp.GenerateOpts{
+        Issuer:      issuer,
+        AccountName: accountName,
+    })
+    if err != nil {
+        return "", "", fmt.Errorf("new totp secret: %w", err)
+    }
+    return key.Secret(), key.URL(), nil
+}
+
+// ValidateTOTP checks code against secret using the standard 30-second step
+// and a ±1 step skew window to tolerate clock drift.
+func ValidateTOTP(secret, code string) bool {
+    valid, err := totp.ValidateCustom(code, secret, time.Now(), totp.ValidateOpts{
+        Period:    30,
+        Skew:      1,
+        Digits:    otp.DigitsSix,
+        Algorithm: otp.AlgorithmSHA1,
+    })
+    if err != nil {
+        return false
+    }
+    return valid
 }
 ```
 
@@ -710,7 +777,9 @@ package middleware
 
 import (
     "context"
+    crand "crypto/rand"
     "crypto/sha256"
+    "crypto/subtle"
     "encoding/hex"
     "net/http"
     "strings"
@@ -725,6 +794,7 @@ const (
     CtxTokenID     ctxKey = "token_id"
     CtxTokenScopes ctxKey = "token_scopes"
     CtxTokenOwner  ctxKey = "token_owner_type"
+    CtxCSRFToken   ctxKey = "csrf_token"
 )
 
 // RequireAdmin validates the admin_session cookie. Returns 401 if absent/expired.
@@ -835,6 +905,68 @@ func sessionCookie(r *http.Request, name string) string {
     return c.Value
 }
 
+// NewCSRFToken generates a fresh 32-byte random CSRF token, hex-encoded.
+func NewCSRFToken() (string, error) {
+    b := make([]byte, 32)
+    if _, err := crand.Read(b); err != nil {
+        return "", err
+    }
+    return hex.EncodeToString(b), nil
+}
+
+// CSRFDouble is a double-submit-cookie CSRF middleware: it issues a
+// `csrf_token` cookie (readable by JS, HttpOnly false) on GET requests that
+// don't already have one, and on state-changing methods requires the
+// `csrf_token` form field or `X-CSRF-Token` header to match the cookie in
+// constant time. Every HTML form must include a hidden
+// `<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">`, and every
+// page handler must set `.CSRFToken` from the request's CSRF cookie (or a
+// freshly issued one) when rendering the template.
+func CSRFDouble(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        cookie, err := r.Cookie("csrf_token")
+        if err != nil || cookie.Value == "" {
+            token, genErr := NewCSRFToken()
+            if genErr != nil {
+                writeJSON(w, 500, `{"ok":false,"error":"INTERNAL","message":"Failed to issue CSRF token"}`)
+                return
+            }
+            http.SetCookie(w, &http.Cookie{
+                Name: "csrf_token", Value: token, Path: "/",
+                Secure: true, SameSite: http.SameSiteStrictMode, HttpOnly: false,
+            })
+            r = r.WithContext(context.WithValue(r.Context(), CtxCSRFToken, token))
+            cookie = &http.Cookie{Value: token}
+        } else {
+            r = r.WithContext(context.WithValue(r.Context(), CtxCSRFToken, cookie.Value))
+        }
+
+        switch r.Method {
+        case http.MethodGet, http.MethodHead, http.MethodOptions:
+            next.ServeHTTP(w, r)
+            return
+        }
+
+        submitted := r.Header.Get("X-CSRF-Token")
+        if submitted == "" {
+            submitted = r.FormValue("csrf_token")
+        }
+        if !ConstantTimeEqStr(submitted, cookie.Value) {
+            writeJSON(w, 403, `{"ok":false,"error":"CSRF_INVALID","message":"Invalid or missing CSRF token"}`)
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
+// ConstantTimeEqStr compares two strings in constant time, safe for empty input.
+func ConstantTimeEqStr(a, b string) bool {
+    if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
+        return false
+    }
+    return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
 func writeJSON(w http.ResponseWriter, status int, body string) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(status)
@@ -866,6 +998,7 @@ import (
     "context"
     "fmt"
     "net/http"
+    "strings"
     "time"
 )
 
@@ -881,8 +1014,10 @@ func RateLimit(db RateLimitDB, key string, max int, windowSecs int64) func(http.
 
             count, err := db.CountRateLimitHits(r.Context(), bucket, windowStart)
             if err != nil {
-                // On DB error, fail open — log but proceed
-                next.ServeHTTP(w, r)
+                // Fail closed on DB error — never silently drop rate limiting
+                w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(503)
+                fmt.Fprintf(w, `{"ok":false,"error":"RATE_LIMIT_UNAVAILABLE","message":"Try again shortly"}`+"\n")
                 return
             }
             if count >= int64(max) {
@@ -893,9 +1028,8 @@ func RateLimit(db RateLimitDB, key string, max int, windowSecs int64) func(http.
                 fmt.Fprintf(w, `{"ok":false,"error":"RATE_LIMITED","message":"Too many requests","retry_after":%d}`+"\n", retryAfter)
                 return
             }
-            if err := db.RecordRateLimitHit(r.Context(), bucket, now); err != nil {
-                // Non-fatal — proceed even if we couldn't record
-            }
+            // Non-fatal if this write fails — the request is already allowed through
+            _ = db.RecordRateLimitHit(r.Context(), bucket, now)
             next.ServeHTTP(w, r)
         })
     }
@@ -904,11 +1038,9 @@ func RateLimit(db RateLimitDB, key string, max int, windowSecs int64) func(http.
 func clientIP(r *http.Request) string {
     if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
         // Use only the first (leftmost) address — set by the outermost trusted proxy
-        if i := len(xff); i > 0 {
-            parts := splitComma(xff)
-            if len(parts) > 0 {
-                return trim(parts[0])
-            }
+        parts := strings.Split(xff, ",")
+        if len(parts) > 0 {
+            return strings.TrimSpace(parts[0])
         }
     }
     if xri := r.Header.Get("X-Real-IP"); xri != "" {
@@ -942,6 +1074,9 @@ Rate limit defaults — baked in as constants, configurable via server config:
 | `auth.password_reset_confirm` | 5 | 3600s (1 hr) |
 | `auth.email_verify` | 5 | 3600s (1 hr) |
 | `auth.totp_verify` | 10 | 300s (5 min) |
+| `auth.password_change` | 3 | 3600s (1 hr) |
+| `auth.invite_create` | 20 | 3600s (1 hr) |
+| `auth.invite_accept` | 10 | 3600s (1 hr) |
 | `api.read` (GET/HEAD) | 120 | 60s |
 | `api.write` (POST/PUT/PATCH/DELETE) | 10 | 60s |
 | `api.health` | 120 | 60s |
@@ -975,7 +1110,7 @@ Routes and their implementations:
 //   1. Decode + validate body
 //   2. db.GetAdminByUsername(username) — on not found, still run CheckPassword(dummyHash, password)
 //   3. CheckPassword(admin.PasswordHash, password) — return 401 "Invalid credentials" if false
-//   4. If admin.TOTPEnabled: require "totp_code" in body; validate with totp.ValidateTOTP
+//   4. If admin.TOTPEnabled: require "totp_code" in body; validate with model.ValidateTOTP(admin.TOTPSecret, code)
 //   5. NewSessionID() → insert admin_sessions row (expires = now + cfg.Admin.SessionTimeout)
 //   6. Set-Cookie: admin_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/server/{admin_path}
 //   7. Update admins.last_login + last_login_ip
@@ -997,7 +1132,7 @@ Routes and their implementations:
 
 // POST /server/{admin_path}/auth/totp/enable
 // Auth: RequireAdmin middleware
-// Flow: generate TOTP secret → store in admins.totp_secret (not yet enabled) → return QR code URI
+// Flow: model.NewTOTPSecret(cfg.Server.Name, admin.Username) → store secret in admins.totp_secret (not yet enabled) → return the otpauth:// URI for the client to render as a QR code
 
 // POST /server/{admin_path}/auth/totp/confirm
 // Auth: RequireAdmin middleware
@@ -1008,7 +1143,7 @@ Routes and their implementations:
 // POST /server/{admin_path}/auth/totp/disable
 // Auth: RequireAdmin middleware
 // Body: {"password":"...","code":"..."}
-// Flow: verify both password and TOTP code → set totp_enabled=0, totp_secret="" → return {"ok":true}
+// Flow: verify both password and TOTP code → set totp_enabled=0, totp_secret=NULL → return {"ok":true}
 ```
 
 ### Feature 3 — User auth handler (`src/handler/user_auth_handler.go`)
@@ -1029,9 +1164,13 @@ Routes and their implementations:
 //   7. Return {"ok":true,"data":{"user_id":N,"username":"...","email_verification_required":bool}}
 
 // POST /server/{admin_path}/users/invite
-// Auth: RequireAdmin middleware (available in BOTH open and private mode — mode only gates
-// the public /auth/register form, never the admin's ability to add users; see PART 34 note below)
-// Rate limit: 20 / 3600s per admin
+// Auth: RequireAdmin middleware (available in BOTH open and private mode — registration mode
+// controls only whether the public /auth/register form is reachable; it does not control the
+// admin's ability to add users. Server Admin account management and Regular User account
+// creation are separate scopes, so the admin can always invite or directly create a user,
+// in either mode.)
+// Rate limit: 20 / 3600s per IP (key "auth.invite_create" — the limiter buckets by client IP,
+// same as every other endpoint; there is no separate per-admin-ID counter)
 // Body: {"username":"..."}
 // Flow:
 //   1. Validate username; check not already taken (users table) and no pending invite for it
@@ -1049,10 +1188,11 @@ Routes and their implementations:
 //   4. If SMTP configured: email the activation link to the address automatically
 //   5. Return {"ok":true,"data":{"user_id":N,"username":"...","activation_url":"..." (only when SMTP not configured, for manual delivery)}}
 
-// GET /api/{api_version}/auth/invite/{token}
-// Public (no auth) — validates the token exists and is unexpired/unused before rendering the
-// password-setup form; on invalid/expired/used token render the same generic
-// "This invite link is no longer valid" state (never distinguish expired vs used vs unknown)
+// The password-setup form page is served by the SSR route GET /auth/invite/{token} (see the
+// route table below), not a separate /api/ endpoint — that handler validates the token exists
+// and is unexpired/unused before rendering the form; on invalid/expired/used token it renders
+// the same generic "This invite link is no longer valid" state (never distinguish expired vs
+// used vs unknown).
 
 // POST /api/{api_version}/auth/invite/{token}/accept
 // Rate limit: 10 / 3600s per IP
@@ -1157,7 +1297,7 @@ Routes and their implementations:
 
 Create under `{TEMPLATE_DIR}/auth/`. Discover the project's existing layout template name from Step 1 and extend it. If no layout exists, create a minimal standalone layout for the auth pages.
 
-All templates use Go's `html/template` package. All user-supplied values are `{{.Field}}` — never `template.HTML`. CSRF token is injected as `{{.CSRFToken}}` on every form.
+All templates use Go's `html/template` package. All user-supplied values are `{{.Field}}` — never `template.HTML`. Wrap the frontend route group in `middleware.CSRFDouble` (Step 6) so every GET issues a `csrf_token` cookie and every POST/PUT/PATCH/DELETE verifies it; each page handler reads the token back out of the request context (`r.Context().Value(middleware.CtxCSRFToken)` — cast to `string`) and sets it as `.CSRFToken` on the template data before rendering. CSRF token is injected as `{{.CSRFToken}}` on every form.
 
 ### Admin login — `{TEMPLATE_DIR}/auth/admin_login.html`
 
@@ -1544,10 +1684,10 @@ Register HTML-serving routes alongside the API routes. Each HTML route renders t
 Find the router file. Add these route groups in middleware order:
 
 ```
-Allowlist → Blocklist → RateLimit → GeoIP → Auth → Handler
+Allowlist → Blocklist → RateLimit → GeoIP → CSRF → Auth → Handler
 ```
 
-Admin routes use the admin session middleware. User routes use the user session or token middleware. Public auth routes (login, register, reset) have no auth middleware but have rate limiting.
+Admin routes use the admin session middleware. User routes use the user session or token middleware. Public auth routes (login, register, reset) have no auth middleware but have rate limiting. `middleware.CSRFDouble` wraps every route in Step 9's frontend group and every non-token-authenticated route in Step 8's API group (i.e. everything reachable from a browser form) — it must sit outside `RequireAdmin`/`RequireUser` so the token check still runs, but does not need to wrap `RequireToken`-protected API routes, since Bearer-token clients are not vulnerable to cross-site form submission.
 
 ---
 
@@ -1611,7 +1751,8 @@ server:
       max_sessions: 5
     users:
       registration:
-        mode: open           # open | private
+        # open | private
+        mode: open
       require_email_verification: true
       session_timeout: 2592000
       session_idle_timeout: 86400
@@ -1625,7 +1766,7 @@ server:
 
 ## Step 13 — i18n strings
 
-Find the project's i18n translation files (`find src -name "*.json" -path "*/i18n/*"`). Add an `"auth"` key:
+Find the project's i18n translation files (`find src -name "*.json" -path "*/i18n/*" -o -name "*.json" -path "*/locales/*"`). Add an `"auth"` key:
 
 ```json
 "auth": {

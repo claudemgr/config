@@ -82,7 +82,7 @@ From this, determine:
 
 ## Step 3 — Generate bot patterns from the project codebase
 
-**This step runs before asking the user anything.** The bot system requires project-specific patterns that you generate at BUILD TIME by scanning the project's own source code. This is the ONLY point at which AI capabilities are used for the bot — the patterns are then stored as static data and the production bot performs only deterministic regex/string matching against them.
+**Scan and generate patterns now, in memory — do not write any source file yet.** The bot system requires project-specific patterns that you generate at BUILD TIME by scanning the project's own source code. This is the ONLY point at which AI capabilities are used for the bot — the patterns are then stored as static data and the production bot performs only deterministic regex/string matching against them. Actually writing the pattern file happens in Step 5, after the user has confirmed feature 1 (Ticketing, which the bot is mandatory and bundled with) is selected — never write it before that gate, since a user who declines feature 1 needs no bot infrastructure at all.
 
 Scan the project for:
 
@@ -115,7 +115,7 @@ From this scan, generate project-specific bot patterns to complement the univers
 - `confidence_threshold` — must be 1.0 (100%); the bot only responds at full confidence
 - `suggested_ticket_category` — pre-fill value for the ticket form if the bot cannot resolve
 
-Write all patterns to the appropriate source file for the project's language (`internal/support/bot_patterns.go`, `src/support/bot_patterns.ts`, etc.). This file is static data compiled into the application — it has NO API endpoints and is never accessible via any URL.
+Hold these generated patterns in memory. Once Step 4 confirms feature 1 (Ticketing) is selected, write them to the appropriate source file for the project's language (`internal/support/bot_patterns.go`, `src/support/bot_patterns.ts`, etc.) as part of the "Bot patterns" build stage in Step 5. This file is static data compiled into the application — it has NO API endpoints and is never accessible via any URL. If the user declines feature 1, discard the generated patterns and skip writing this file entirely.
 
 ---
 
@@ -138,9 +138,9 @@ Reply with numbers separated by spaces — e.g. "1 3" or "1 2 3 4 5"
 Dependencies: 1 required (the bot system comes with 1) · 2 required for 3 and 5 · 4 feeds 1's bot patterns · 6 requires 1 · 7 applies to all features installed
 ```
 
-Note: **the bot system is included with feature 1** and cannot be excluded. It is mandatory per the spec's Key Implementation Note #1. Users must interact with the bot before creating a ticket. This is not configurable.
+Note: feature 1 itself is optional (the user may decline it), but **if feature 1 is selected, the bot system is included and cannot be excluded from it** — per the spec's Key Implementation Note #1, users must interact with the bot before creating a ticket, and this is not configurable once feature 1 is built.
 
-Note: **the support mode toggle is included with feature 2** and cannot be excluded. It is mandatory per the spec's Key Implementation Note #2. Agents cannot create tickets while in support mode.
+Note: feature 2 itself is optional (the user may decline it), but **if feature 2 is selected, the support mode toggle is included and cannot be excluded from it** — per the spec's Key Implementation Note #2, agents cannot create tickets while in support mode, and this is not configurable once feature 2 is built.
 
 ---
 
@@ -156,7 +156,7 @@ Specifically: data model → user roles → bot engine → ticket lifecycle → 
 
 ## Step 6 — Data model
 
-Translate the spec's data models into the project's database idioms. The spec (Section 16) defines a minimum of 11 entities. Implement all of them.
+Translate the spec's data models into the project's database idioms. The spec (Section 16) defines a minimum of 11 entities (Users, Tickets, Messages/Replies, Attachments, Categories, Agent_Assignments, Audit_Logs, Configuration, Knowledge_Articles, Chat_Sessions, Canned_Responses). Implement all of them, plus a `support_agents` table for agent-profile fields (not a separate spec entity — an extension of Users needed to support the role/display-name system in Step 7), for 12 tables total.
 
 ### Core tables / collections to create
 
@@ -200,12 +200,13 @@ Implement the spec's 4-role system exactly:
 GUEST (unauthenticated)
   - View public knowledge base articles
   - View system status
-  - Cannot create tickets
+  - Submit tickets (through bot pre-screening — mandatory; email verification required)
+  - View status of own tickets via email link
   - Cannot start live chat
 
 REGISTERED_USER (authenticated)
-  - All GUEST permissions
-  - Create tickets (through bot pre-screening — mandatory)
+  - All GUEST permissions except the email-verification requirement
+  - Create tickets (through bot pre-screening — mandatory; no email verification needed)
   - View and reply to own tickets
   - Close own tickets
   - Start live chat (when available)
@@ -312,17 +313,20 @@ Match confidence < 100%?
      → Ticket created as DRAFT, then transitions to OPEN when submitted
 
 Match confidence = 100%?
-  → Bot provides response
+  → Bot provides response (attempt 1 of up to 3)
   → "Did this help?" [Yes] [No — I still need help]
-  → [Yes]: session ends (no ticket created)
-  → [No]: bot presents ticket form pre-filled from context
+  → [Yes]: bot confirms resolution, asks optional feedback, logs the pattern; session ends (no ticket created)
+  → [No], attempts 1-2 exhausted: bot tries up to 2 more substantially different solutions
+     → repeat the same "Did this help?" check after each
+  → [No], after 3 failed attempts: bot presents ticket form pre-filled from the conversation
+     (issue summary, category, priority, solutions already attempted, bot conversation history)
      → User modifies any field → User clicks Submit
      → Ticket created
 ```
 
 **The bot NEVER saves a ticket.** It pre-fills the form and the user must click Submit. If the user closes the window during pre-fill, no ticket is saved.
 
-**The bot NEVER attempts more than 3 times** before escalating to ticket creation.
+**The bot always tries up to 3 different solutions** (never escalates to the ticket form after a single rejected match) before escalating to ticket creation.
 
 ### Universal pattern categories (built-in)
 
@@ -355,6 +359,7 @@ AWAITING_AGENT → AWAITING_USER (agent replies again)
 RESOLVED → CLOSED         (user confirms resolution OR 72-hour timeout passes)
 CLOSED → REOPENED         (user requests reopening)
 REOPENED → OPEN           (system automatically transitions; agent re-assigns)
+* → CLOSED                (admin force close from any state)
 ```
 
 **Enforcement rules:**
@@ -622,8 +627,8 @@ Write tests covering:
 - Bot isolation: confirm no API route serves bot pattern data
 - Bot never saves: bot session closed without Submit leaves no ticket record
 - Support mode blocks ticket creation: agent in support mode receives 403 on ticket create endpoints
-- Role enforcement: guest cannot create ticket; user cannot access agent endpoints; agent cannot access admin endpoints
-- Ticket state machine: every valid transition succeeds; every invalid transition rejected (e.g. OPEN → CLOSED is invalid per the machine)
+- Role enforcement: guest can only create tickets with email verification and cannot start live chat; user cannot access agent endpoints; agent cannot access admin endpoints
+- Ticket state machine: every valid transition succeeds (including admin force close, `* → CLOSED`, from any state); every invalid transition rejected (e.g. DRAFT → RESOLVED is invalid per the machine)
 - Ticket auto-save: DRAFT auto-saved without explicit Submit action
 - Agent display name: user-facing API responses contain only display_name, never support_role
 - Canned response tiers: agent sees SYSTEM + own DEPARTMENT + own PERSONAL; cannot see other agents' PERSONAL
@@ -662,7 +667,7 @@ Non-negotiable rules — must not be changed or removed:
 - WCAG 2.1 AA compliance required for all support UI
 - Touch targets minimum 44×44px on mobile
 - Chat availability requires: available agent + capacity + business hours + feature enabled
-- All state changes and config changes recorded in append-only audit_log
+- All state changes and config changes recorded in append-only audit_logs
 ```
 
 **SPEC.md** — append a `## Support overrides (support-builder)` section recording which features were installed and the non-negotiable rules above.
@@ -683,11 +688,11 @@ Support deployment checklist:
 ## Rules
 
 - **Read the spec first** — `~/.claude/TEMPLATES/SUPPORT.md` is the authoritative source; implement it, do not invent
-- **Bot is mandatory** — users must interact with the bot before creating any ticket; no skip option; not configurable
+- **Bot is mandatory whenever ticketing (feature 1) is built** — users must interact with the bot before creating any ticket; no skip option; not configurable
 - **Deterministic bot only** — no AI/ML inference in production; pattern matching is regex/string only; bot patterns generated at BUILD TIME only
 - **Bot has no API endpoints** — bot pattern data is not accessible via any URL or route
 - **Bot never saves** — the bot pre-fills the ticket form but the user must click Submit; no auto-save of tickets
-- **Support mode is mandatory** — agents must be in support mode to use agent functions; cannot be omitted
+- **Support mode is mandatory whenever the agent workspace (feature 2) is built** — agents must be in support mode to use agent functions; cannot be omitted from feature 2
 - **Support mode blocks ticket creation** — an agent in support mode cannot create a new ticket; enforce in API middleware
 - **9 ticket states with exact names** — DRAFT, OPEN, ASSIGNED, IN_PROGRESS, AWAITING_USER, AWAITING_AGENT, RESOLVED, CLOSED, REOPENED; do not use different names or a subset
 - **Agent display names only** — never expose role, title, or hierarchy to users; only display_name from support_agents

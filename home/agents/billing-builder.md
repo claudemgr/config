@@ -19,7 +19,7 @@ cat ~/.claude/TEMPLATES/BILLING.md
 ```
 
 Hold the full spec in context. The spec is language-agnostic — your task is to map every section to the project's idioms. Pay particular attention to:
-- **Section 5** (Billing Lifecycle) — subscription and invoice state machines
+- **Section 5** (Billing Lifecycle) — subscription state machine and renewal/grace-period logic (the invoice state machine is Section 9)
 - **Section 10** (Provider Management) — provider registry and all 47+ providers by category
 - **Section 11** (Integrated Help System) — mandatory tooltips for every field
 - **Section 20** (Implementation Guidelines) — provider plugin architecture, anti-patterns, configuration storage rules
@@ -130,12 +130,12 @@ Use the spec's state machine definitions (Section 5 "Billing Lifecycle") as the 
 
 - `billing_accounts` — links to host system's user/account; stores billing profile, currency preference, tax ID
 - `subscription_plans` — plan definitions: pricing, billing cycles, feature limits, trial config, visibility
-- `subscriptions` — per-account subscription; state machine: PENDING_ACTIVATION → TRIALING → ACTIVE → PAST_DUE → PAUSED → SUSPENDED → CANCELLED → EXPIRED
+- `subscriptions` — per-account subscription; state machine: PENDING_ACTIVATION → TRIALING → ACTIVE → PAST_DUE → PAUSED → CANCELLED → EXPIRED
 - `billing_events` — append-only log of all state transitions and billing actions
-- `payment_providers` — provider registry: name, category, enabled flag, encrypted credentials, priority, health status, state (UNCONFIGURED / TESTING / ACTIVE / DEGRADED / FAILED / DISABLED)
+- `payment_providers` — provider registry: name, category, enabled flag, encrypted credentials, priority, health status, state (UNCONFIGURED / TESTING / ACTIVE / DEGRADED / MAINTENANCE / FAILED / DEPRECATED / DISABLED)
 - `payment_methods` — tokenized payment method references (never raw card data)
 - `payment_attempts` — every charge attempt: provider, amount, result, timestamp
-- `invoices` — invoice records; state machine: DRAFT → ISSUED → DUE → PROCESSING → PAID → REFUNDED (adjustments via credit notes; no mutations after ISSUED)
+- `invoices` — invoice records; state machine: DRAFT → ISSUED → DUE → (OVERDUE | PROCESSING) → PAID/PARTIAL → REFUNDED, with `* → DISPUTED` and `* → CANCELLED` reachable from any state (adjustments via credit notes; no mutations after ISSUED)
 - `invoice_line_items` — line items per invoice
 - `credit_notes` — credit adjustments linked to invoices; never mutate the original invoice
 - `usage_records` — per-meter usage data with aggregation period
@@ -191,8 +191,11 @@ Interface PaymentProvider:
   get_transaction()
   get_payment_status()
   list_transactions()
+  get_balance()
   validate_webhook()
   process_webhook()
+  verify_customer()          (if provider supports compliance checks)
+  report_transaction()       (if provider supports compliance checks)
 ```
 
 **Critical rules from the spec:**
@@ -201,19 +204,19 @@ Interface PaymentProvider:
 - Provider credentials are never stored in code, environment variables, or config files — database only, encrypted.
 - The system must operate with zero providers enabled (invoice-only mode).
 - Health checks run only on enabled providers — never ping disabled providers.
-- Provider state machine: UNCONFIGURED → TESTING → ACTIVE → DEGRADED → FAILED (→ DISABLED from any state)
+- Provider state machine: UNCONFIGURED → TESTING → ACTIVE → DEGRADED → MAINTENANCE → FAILED → DEPRECATED (→ DISABLED from any state)
 
-For the initially selected providers: create the concrete implementation files. For all others: create stub plugin files that satisfy the interface but return `ErrProviderDisabled` on every operation — this ensures the registry can enumerate all 47+ without executing disabled code.
+Every provider gets a fully implemented plugin — the spec requires all 47+ to be enumerable and individually configurable, not conditionally present. For the initially selected providers: implement each method against that provider's real API. For all others: implement each method fully as well (real API calls, real credential validation), but the provider's `enabled` flag in `payment_providers` defaults to `false` and the interface's own guard (`is_available()` returning false while `enabled=false`, checked by the registry before dispatch) is what prevents any operation from executing — never an unimplemented method body. This keeps every provider registry-enumerable and individually testable without violating the "no partial implementation" rule.
 
 Provider registry is organized into 8 categories (all from the spec):
-- Global Processors (7 providers: Stripe, PayPal, Adyen, Braintree, Square, Authorize.net, 2Checkout)
-- Regional Specialists (9 providers: Mollie, Razorpay, Paytm, Mercado Pago, PayU, iDEAL, Bancontact, Sofort, SEPA)
-- Cryptocurrency (5 providers: Coinbase Commerce, BitPay, CoinGate, NOWPayments, OpenNode)
-- Buy Now Pay Later (5 providers: Klarna, Afterpay/Clearpay, Affirm, Sezzle, Zip)
-- Enterprise/B2B (5 providers: Bill.com, Paddle, FastSpring, Chargebee, Recurly)
-- Banking/Traditional (4 providers: ACH Direct, Wire Transfer, Check, BACS)
-- Mobile Wallets (6 providers: Apple Pay, Google Pay, Samsung Pay, PayPal, Venmo, Cash App)
-- Alternative/Niche (6 providers: Paysafecard, Skrill, Neteller, Perfect Money, WebMoney, Payeer)
+- Global Processors (7 providers: Stripe, PayPal/Braintree, Adyen, Square, Authorize.net, Worldpay (FIS), Checkout.com)
+- Regional Specialists (9 providers: Mollie, Razorpay, Mercado Pago, Flutterwave, Alipay, WeChat Pay, Paytm, iDEAL, SEPA)
+- Cryptocurrency (5 providers: Coinbase Commerce, BitPay, CoinGate, NOWPayments, BTCPay Server)
+- Buy Now Pay Later (5 providers: Klarna, Afterpay/Clearpay, Affirm, Sezzle, PayPal Pay Later)
+- Enterprise/B2B (5 providers: Bill.com, Paddle, 2Checkout (Verifone), FastSpring, Zuora)
+- Banking/Traditional (4 providers: ACH Direct, Wire Transfer, SWIFT, Check/Cheque)
+- Mobile Wallets (6 providers: Apple Pay, Google Pay, Samsung Pay, Amazon Pay, Venmo, Cash App)
+- Alternative/Niche (6 providers: Paysafecard, Skrill, Neteller, PaySera, Payoneer, Wise (TransferWise))
 
 Provider selection and failover logic:
 1. Filter to enabled providers only

@@ -172,7 +172,7 @@ User Preferences
 ```yaml
 SMTP:
   - Universal email protocol
-  - 40+ provider presets
+  - 30+ provider presets
   - Auto-enables on successful test
   - Custom configuration support
   - Local server auto-detection
@@ -472,7 +472,7 @@ Note: Environment variables are NEVER the active source,
 they only provide initial values for the UI.
 ```
 
-#### Provider Presets (40+ providers)
+#### Provider Presets (30+ providers)
 
 **Email Service Providers:**
 ```yaml

@@ -514,3 +514,22 @@ wiring (AI.md:214).
       `git push --force*`/`--force-with-lease`. Worth a deliberate
       decision (keep blanket caution vs. narrow the match) rather than
       an accidental prefix-match side effect.
+
+## AUDIT.AI.md A5 — deferred structural gap (go-auth-builder.md,
+## rust-auth-builder.md)
+
+- [ ] Step 8 "Handlers" in both `home/agents/go-auth-builder.md` and
+      `home/agents/rust-auth-builder.md` is written as prose describing
+      what each handler must do, not as actual Go/Rust handler code like
+      every other step in these files (models, middleware, templates are
+      all real code blocks). Step 14 "Tests" is likewise a checklist of
+      assertions to verify, not runnable test code. Every other builder
+      agent in this repo (billing-builder, notifications-builder,
+      support-builder) emits real code for every step. Bringing these two
+      steps in line would mean writing out full `net/http`/`axum` handler
+      functions for every route enumerated in Step 8, and real
+      `#[test]`/`_test.go` functions for every checklist line in Step 14 —
+      a large, self-contained rewrite of both files best done as its own
+      session (likely delegated the same way A6 was, given the size).
+      Deferred from the A5 fix pass because it's a rewrite of comparable
+      size to A6, not a small in-place fix.
