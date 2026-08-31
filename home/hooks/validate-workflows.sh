@@ -53,30 +53,43 @@ STAGED_WORKFLOWS="$(git -C "$PROJECT_DIR" diff --cached --name-only 2>/dev/null 
     | grep -E -- '^\.github/workflows/.*\.ya?ml$' || true)"
 [ -z "$STAGED_WORKFLOWS" ] && exit 0
 
-# Ensure act is available; install via setupmgr if missing
+# Third-party action pinning (cicd_conventions.md): every `uses:` on a
+# non-local, non-docker:// action must be pinned to a full 40-char commit
+# SHA, never a mutable tag/branch. Pure text scan — no network needed.
+UNPINNED=()
+while IFS= read -r wf; do
+    FULL_PATH="$PROJECT_DIR/$wf"
+    [ -f "$FULL_PATH" ] || continue
+    while IFS= read -r line; do
+        REF="$(printf '%s' "$line" | grep -oE -- '@[^[:space:]"'"'"']+$' | sed 's/^@//')"
+        [ -z "$REF" ] && continue
+        printf '%s' "$REF" | grep -qE -- '^[0-9a-f]{40}$' && continue
+        UNPINNED+=("$wf: $line")
+    done < <(grep -oE -- '^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[^[:space:]"'"'"']+' "$FULL_PATH" || true)
+done <<< "$STAGED_WORKFLOWS"
+
+if [ "${#UNPINNED[@]}" -gt 0 ]; then
+    PIN_MSG='BLOCKED: unpinned third-party GitHub Action(s) in staged workflow file(s).
+
+Every `uses:` must be pinned to a full 40-char commit SHA, never a tag/branch:
+'
+    for u in "${UNPINNED[@]}"; do
+        PIN_MSG="${PIN_MSG}
+  $u"
+    done
+    PIN_MSG="${PIN_MSG}
+
+Pin each to its commit SHA (see cicd_conventions.md), then re-run gitcommit."
+    __blocked "$PIN_MSG"
+fi
+
+# Hooks must never do network I/O (AI.md Part 6) — no auto-install here.
+# If act is missing, block and tell the user to install it themselves.
 if ! command -v act >/dev/null 2>&1; then
-    if ! command -v setupmgr >/dev/null 2>&1; then
-        __blocked 'BLOCKED: act is required to validate workflow files before committing.
-Neither act nor setupmgr is installed, so automatic install is not possible.
-Install act manually (https://github.com/nektos/act), then retry.'
-    fi
-    printf 'act not found — installing via setupmgr act...\n' >&2
-    # timeout guards against a network stall freezing gitcommit forever
-    timeout 60 setupmgr act >/dev/null 2>&1 && STATUS=0 || STATUS=$?
-    if [ "$STATUS" -eq 124 ]; then
-        __blocked 'BLOCKED: `setupmgr act` timed out after 60 seconds (failing closed).
-Install act manually (https://github.com/nektos/act), then retry.'
-    fi
-    if [ "$STATUS" -ne 0 ]; then
-        __blocked 'BLOCKED: act is required to validate workflow files before committing.
-Automatic install via `setupmgr act` failed.
-Install act manually (https://github.com/nektos/act), then retry.'
-    fi
-    # Verify install succeeded
-    if ! command -v act >/dev/null 2>&1; then
-        __blocked 'BLOCKED: act still not found after `setupmgr act`.
-Install act manually (https://github.com/nektos/act), then retry.'
-    fi
+    __blocked 'BLOCKED: act is required to validate workflow files before committing.
+act is not installed. Install it yourself (e.g. `setupmgr act`, or see
+https://github.com/nektos/act), then retry — hooks never perform network
+installs on their own.'
 fi
 
 # Validate each staged workflow file

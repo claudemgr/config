@@ -65,12 +65,6 @@ independent and can be fixed in any order.
 - [ ] 33: enforce-test-lint-gate.sh:156-157 permanently blocks commits
       for any non-spec-collection project with no .sh files — no
       lint-gate tool exists for e.g. a pure Python/Node repo.
-- [ ] 36: validate-workflows.sh:57-80 does a network install
-      (setupmgr act) inside a hook — violates AI.md:201-202 (hooks
-      must be fast, no network I/O).
-- [ ] 37: validate-workflows.sh only implements 1 of the Workflow
-      gate's 3 clauses — SHA-pinning of third-party Actions
-      (home/CLAUDE.md:259) is enforced by no hook at all.
 - [ ] 38: spec-guard.sh:58-64 hard-blocks repos with CLAUDE.md but no
       AI.md/SPEC.md, which project_conventions.md:172 puts out of
       scope — unsatisfiable gate.
