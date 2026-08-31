@@ -12,7 +12,7 @@
 # @@Description      :  PreToolUse hook: block Edit/Write on project files until AI.md/SPEC.md was read this session
 # @@Changelog        :  Marker path moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard, matching spec-guard-mark.sh's new write path.
 # @@TODO             :
-# @@Other            :  Fires only in a git repo with AI.md/SPEC.md; a CLAUDE.md loader without either is a broken bootstrap, blocked distinctly; meta/spec files are exempt.
+# @@Other            :  Gates repos with AI.md/SPEC.md; bare CLAUDE.md is a blocked broken bootstrap; exempt: meta/spec, README/LICENSE, COMMIT_MESS, env, .no_push.
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 VERSION="202608302205-git"

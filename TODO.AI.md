@@ -60,20 +60,6 @@ independent and can be fixed in any order.
       other hook that has no equivalent fallback (e.g.
       `drift-guard-read.sh`, `spec-guard-mark.sh`).
 
-## Gate/marker hooks
-
-- [ ] 33: enforce-test-lint-gate.sh:156-157 permanently blocks commits
-      for any non-spec-collection project with no .sh files — no
-      lint-gate tool exists for e.g. a pure Python/Node repo.
-- [ ] 38: spec-guard.sh:58-64 hard-blocks repos with CLAUDE.md but no
-      AI.md/SPEC.md, which project_conventions.md:172 puts out of
-      scope — unsatisfiable gate.
-- [ ] 39: spec-guard.sh:44-49 exempts seven files (incl. README.md,
-      LICENSE.md) not listed in its own header :17.
-- [ ] 40: project_type_conventions.md:176 omits `mgr` from the
-      template-repo list that AI.md:226 and spec-guard-mark.sh:49
-      both include.
-
 ## Session hooks
 
 - [ ] 42: drift-guard-read.sh never checks a home/ source actually

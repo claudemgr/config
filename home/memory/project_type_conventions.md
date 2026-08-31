@@ -20,7 +20,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | `tui` | terminal UI, interactive terminal, ncurses-style |
 | `cli` | command-line tool, one-shot invocation, scripting target |
 | `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
-| `spec-collection` | root is entirely Markdown (spec/template/doc files consumed by AI tooling or humans) plus README.md/LICENSE.md/.gitignore; no source code directory at all — not even scripts; e.g. `claudemgr/config`, `claudemgr/go`, `claudemgr/rust`, `claudemgr/android`, `claudemgr/docker` |
+| `spec-collection` | root is entirely Markdown (spec/template/doc files consumed by AI tooling or humans) plus README.md/LICENSE.md/.gitignore; no source code directory at all — not even scripts; e.g. `claudemgr/config`, `claudemgr/go`, `claudemgr/rust`, `claudemgr/android`, `claudemgr/docker`, `claudemgr/mgr` |
 | `library` | importable package/crate, no binary entrypoint |
 | `agent` / `worker` | background job processor, queue consumer, scheduled task |
 
@@ -173,7 +173,7 @@ Applies to: repos that are a collection of standalone bash/sh/zsh/fish scripts w
 
 ## Type: `spec-collection`
 
-Applies to: repos whose entire content is Markdown specification/template/documentation files — no source code, not even scripts. Distinct from `script-collection`: there is nothing to lint or syntax-check because there is no code, only prose/spec files consumed by AI tooling (e.g. copied verbatim into a generated project as its `AI.md`) or read by humans. Example: the `claudemgr` template repos (`go`, `rust`, `android`, `docker`) — each root holds only `.md` spec files plus `README.md`/`LICENSE.md`/`.gitignore`.
+Applies to: repos whose entire content is Markdown specification/template/documentation files — no source code, not even scripts. Distinct from `script-collection`: there is nothing to lint or syntax-check because there is no code, only prose/spec files consumed by AI tooling (e.g. copied verbatim into a generated project as its `AI.md`) or read by humans. Example: the `claudemgr` template repos (`go`, `rust`, `android`, `docker`, `mgr`) — each root holds only `.md` spec files plus `README.md`/`LICENSE.md`/`.gitignore`.
 
 **Simple rule: if there are scripts, lint; if there are no scripts, don't.** A repo with any `*.sh`/`*.bash` file anywhere in its tree beyond a bare deploy-only `install.sh` (see below) is not `spec-collection` — it is `script-collection` (or a mix) and needs the test/lint gate. `claudemgr/config` is the disqualifying example: it ships dozens of scripts under `home/hooks/`, so it is **not** `spec-collection` despite being template/spec-heavy — `bash -n` + `script-lint` apply to every `*.sh` in it.
 
