@@ -176,9 +176,12 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       Fixed: dropped `.pem`/`.key`/`.crt` from `EXEMPT_EXT` — they're text
       (base64/PEM-armored), not binary; `.der`/`.p12`/`.pfx` stay exempt as
       genuinely binary encodings, per `file_ending_conventions.md:12`.
-- [ ] `no-todo-comments.sh:76-92` — runs on every file type, not just
+- [x] `no-todo-comments.sh:76-92` — runs on every file type, not just
       code; a Markdown `# TODO` heading or `* key = value` bullet false-
       positives as commented-out code.
+      Fixed: for `.md` files, comment-prefix matching now scoped to `<!--`
+      only, and the commented-out-code heuristic is skipped entirely —
+      Markdown headings/bullets aren't comment syntax.
 - [ ] `comment-placement-guard.sh:137` — SHA-pin exemption limited to
       `.github/workflows/`; spec also covers `.gitea/workflows/` and
       `.forgejo/workflows/`.
