@@ -1098,198 +1098,1943 @@ Create `src/handler/{feature}_handler.go` for each selected feature.
 - JSON success: `{"ok":true,"data":{...}}\n` with status 200/201
 - JSON error: `{"ok":false,"error":"CODE","message":"human text"}\n`
 
-### Feature 1 — Admin auth handler (`src/handler/admin_auth_handler.go`)
+### Shared handler scaffolding (`src/handler/handler.go`)
 
-Routes and their implementations:
+Every handler file below hangs off this one `Handler` struct and these shared
+helpers. `{MODULE}` is the Go module path discovered in Step 1.
 
 ```go
-// POST /server/{admin_path}/auth/login
-// Body: {"username":"...","password":"..."}
-// Rate limit: 5 / 900s per IP (key "auth.admin_login")
-// Flow:
-//   1. Decode + validate body
-//   2. db.GetAdminByUsername(username) — on not found, still run CheckPassword(dummyHash, password)
-//   3. CheckPassword(admin.PasswordHash, password) — return 401 "Invalid credentials" if false
-//   4. If admin.TOTPEnabled: require "totp_code" in body; validate with model.ValidateTOTP(admin.TOTPSecret, code)
-//   5. NewSessionID() → insert admin_sessions row (expires = now + cfg.Admin.SessionTimeout)
-//   6. Set-Cookie: admin_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/server/{admin_path}
-//   7. Update admins.last_login + last_login_ip
-//   8. Return {"ok":true,"data":{"admin_id":N,"username":"..."}}
+package handler
 
-// POST /server/{admin_path}/auth/logout
-// Auth: RequireAdmin middleware
-// Flow: delete admin_sessions row → clear cookie → return {"ok":true}
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "net"
+    "net/http"
+    "strings"
 
-// GET /server/{admin_path}/auth/session
-// Auth: RequireAdmin middleware
-// Return: {"ok":true,"data":{"admin_id":N,"username":"...","expires_at":N}}
+    "{MODULE}/src/config"
+    "{MODULE}/src/middleware"
+)
 
-// POST /server/{admin_path}/auth/password/change
-// Auth: RequireAdmin middleware
-// Rate limit: 3 / 3600s per IP
-// Body: {"current_password":"...","new_password":"..."}
-// Flow: verify current → HashPassword(new) → update admins.password_hash → return {"ok":true}
+// ErrNotFound is what every Store lookup returns when no row matches.
+// The db package must translate sql.ErrNoRows into this error.
+var ErrNotFound = errors.New("not found")
 
-// POST /server/{admin_path}/auth/totp/enable
-// Auth: RequireAdmin middleware
-// Flow: model.NewTOTPSecret(cfg.Server.Name, admin.Username) → store secret in admins.totp_secret (not yet enabled) → return the otpauth:// URI for the client to render as a QR code
+// Mailer sends transactional auth mail. Configured reports whether SMTP is set
+// up; when it is not, activation/reset links are returned to the caller instead.
+type Mailer interface {
+    Configured() bool
+    Send(ctx context.Context, to, subject, body string) error
+}
 
-// POST /server/{admin_path}/auth/totp/confirm
-// Auth: RequireAdmin middleware
-// Rate limit: 10 / 300s per IP (key "auth.totp_verify")
-// Body: {"code":"..."}
-// Flow: verify code against pending totp_secret → set totp_enabled=1 → return {"ok":true}
+// Handler carries every dependency the auth handlers need. Wire it up in the
+// router file (Step 11): AdminPath is Step 1's ADMIN_PATH, BaseURL is the
+// server's external base URL (e.g. "https://{fqdn}").
+type Handler struct {
+    DB         Store
+    Mail       Mailer
+    Auth       config.AuthConfig
+    ServerName string
+    BaseURL    string
+    AdminPath  string
+}
 
-// POST /server/{admin_path}/auth/totp/disable
-// Auth: RequireAdmin middleware
-// Body: {"password":"...","code":"..."}
-// Flow: verify both password and TOTP code → set totp_enabled=0, totp_secret=NULL → return {"ok":true}
+// dummyPasswordHash mirrors Step 5's unexported model dummy hash. Login paths
+// run CheckPassword against it when no account matched so that "no such user"
+// and "wrong password" cost the same wall-clock time.
+const dummyPasswordHash = "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+// Config fallbacks, applied when the YAML left a value at zero (Step 12).
+const (
+    defaultAdminSessionTimeout = 86400
+    defaultUserSessionTimeout  = 2592000
+    defaultInviteExpiry        = 604800
+    passwordResetTTL           = 3600
+    emailVerificationTTL       = 86400
+)
+
+type okEnvelope struct {
+    OK   bool `json:"ok"`
+    Data any  `json:"data,omitempty"`
+}
+
+type errEnvelope struct {
+    OK      bool   `json:"ok"`
+    Error   string `json:"error"`
+    Message string `json:"message"`
+}
+
+// writeOK emits {"ok":true,"data":{...}}\n. Pass nil data for a bare {"ok":true}.
+func writeOK(w http.ResponseWriter, status int, data any) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    _ = json.NewEncoder(w).Encode(okEnvelope{OK: true, Data: data})
+}
+
+// writeErr emits {"ok":false,"error":"CODE","message":"human text"}\n.
+func writeErr(w http.ResponseWriter, status int, code, message string) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    _ = json.NewEncoder(w).Encode(errEnvelope{OK: false, Error: code, Message: message})
+}
+
+func writeNotFound(w http.ResponseWriter) {
+    writeErr(w, http.StatusNotFound, "NOT_FOUND", "Not found")
+}
+
+func writeInternal(w http.ResponseWriter) {
+    writeErr(w, http.StatusInternalServerError, "INTERNAL", "Something went wrong")
+}
+
+func writeInvalidCredentials(w http.ResponseWriter) {
+    writeErr(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials")
+}
+
+// decodeJSON caps the body at 1 MiB and reports whether decoding succeeded.
+// It writes the 400 response itself on failure.
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+    if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(dst); err != nil {
+        writeErr(w, http.StatusBadRequest, "INVALID_JSON", "Request body is not valid JSON")
+        return false
+    }
+    return true
+}
+
+// setSessionCookie sets an auth cookie: HttpOnly; Secure; SameSite=Strict.
+func setSessionCookie(w http.ResponseWriter, name, value, path string, maxAge int) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     name,
+        Value:    value,
+        Path:     path,
+        MaxAge:   maxAge,
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteStrictMode,
+    })
+}
+
+// clearSessionCookie expires an auth cookie with the attributes it was set with.
+func clearSessionCookie(w http.ResponseWriter, name, path string) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     name,
+        Value:    "",
+        Path:     path,
+        MaxAge:   -1,
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteStrictMode,
+    })
+}
+
+func adminIDFrom(r *http.Request) int64 {
+    id, _ := r.Context().Value(middleware.CtxAdminID).(int64)
+    return id
+}
+
+func userIDFrom(r *http.Request) int64 {
+    id, _ := r.Context().Value(middleware.CtxUserID).(int64)
+    return id
+}
+
+// pathParam reads a path wildcard. With the stdlib mux this is r.PathValue;
+// with chi replace the body with chi.URLParam(r, name), with gorilla/mux with
+// mux.Vars(r)[name].
+func pathParam(r *http.Request, name string) string {
+    return r.PathValue(name)
+}
+
+func orDefault(v, def int) int {
+    if v <= 0 {
+        return def
+    }
+    return v
+}
+
+// adminCookiePath scopes the admin session cookie to the admin panel only.
+func (h *Handler) adminCookiePath() string {
+    return "/server/" + h.AdminPath
+}
+
+// clientIP mirrors Step 7's rate-limiter helper — leftmost X-Forwarded-For
+// entry, then X-Real-IP, then RemoteAddr with the port stripped. It is repeated
+// here because the middleware copy is unexported.
+func clientIP(r *http.Request) string {
+    if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+        return strings.TrimSpace(strings.Split(xff, ",")[0])
+    }
+    if xri := r.Header.Get("X-Real-IP"); xri != "" {
+        return xri
+    }
+    if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+        return host
+    }
+    return r.RemoteAddr
+}
+```
+
+### Store interface (`src/handler/store.go`)
+
+The project's `db` package implements this; it is the handler-side twin of
+Step 6's `AuthDB` and Step 7's `RateLimitDB`. Struct types come from Step 5;
+`email_verifications` has no model struct in Step 5, so its methods take and
+return scalars the same way `AuthDB` does.
+
+```go
+package handler
+
+import (
+    "context"
+
+    "{MODULE}/src/model"
+)
+
+type Store interface {
+    // Feature 1 — admins
+    GetAdminByID(ctx context.Context, id int64) (*model.Admin, error)
+    GetAdminByUsername(ctx context.Context, username string) (*model.Admin, error)
+    CreateAdminSession(ctx context.Context, s *model.AdminSession) error
+    GetAdminSessionByID(ctx context.Context, id string) (*model.AdminSession, error)
+    DeleteAdminSession(ctx context.Context, id string) error
+    UpdateAdminLogin(ctx context.Context, adminID, at int64, ip string) error
+    UpdateAdminPassword(ctx context.Context, adminID int64, hash string) error
+    SetAdminTOTPSecret(ctx context.Context, adminID int64, secret string) error
+    SetAdminTOTPEnabled(ctx context.Context, adminID int64, enabled bool) error
+    ClearAdminTOTP(ctx context.Context, adminID int64) error
+
+    // Feature 2 — API tokens
+    ListAPITokens(ctx context.Context, ownerType string, ownerID int64) ([]model.APIToken, error)
+    CreateAPIToken(ctx context.Context, t *model.APIToken) (int64, error)
+    GetAPITokenByID(ctx context.Context, id int64) (*model.APIToken, error)
+    RevokeAPIToken(ctx context.Context, id int64) error
+
+    // Feature 3 — users
+    GetUserByID(ctx context.Context, id int64) (*model.User, error)
+    GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+    GetUserByEmail(ctx context.Context, email string) (*model.User, error)
+    GetUserByLogin(ctx context.Context, login string) (*model.User, error)
+    CreateUser(ctx context.Context, u *model.User) (int64, error)
+    UpdateUserProfile(ctx context.Context, userID int64, displayName, bio, avatarURL string, at int64) error
+    UpdateUserPassword(ctx context.Context, userID int64, hash string, at int64) error
+    UpdateUserLogin(ctx context.Context, userID, at int64, ip string) error
+    SetUserEmailVerified(ctx context.Context, userID int64) error
+    CreateUserSession(ctx context.Context, s *model.UserSession) error
+    DeleteUserSession(ctx context.Context, id string) error
+    CreatePasswordReset(ctx context.Context, p *model.PasswordReset) error
+    GetPasswordResetByTokenHash(ctx context.Context, hash string) (*model.PasswordReset, error)
+    MarkPasswordResetUsed(ctx context.Context, id string) error
+    CreateEmailVerification(ctx context.Context, id string, userID int64, email, tokenHash string, createdAt, expiresAt int64) error
+    GetEmailVerification(ctx context.Context, tokenHash string) (id string, userID int64, email string, expiresAt int64, used bool, err error)
+    MarkEmailVerificationUsed(ctx context.Context, id string) error
+    CreateUserInvite(ctx context.Context, i *model.UserInvite) error
+    GetUserInviteByTokenHash(ctx context.Context, hash string) (*model.UserInvite, error)
+    GetUserInviteByUsername(ctx context.Context, username string) (*model.UserInvite, error)
+    IncrementUserInviteUse(ctx context.Context, id string) error
+
+    // Feature 4 — orgs
+    ListOrgsForUser(ctx context.Context, userID int64) ([]model.Org, error)
+    CreateOrg(ctx context.Context, o *model.Org) (int64, error)
+    GetOrgBySlug(ctx context.Context, slug string) (*model.Org, error)
+    UpdateOrg(ctx context.Context, o *model.Org) error
+    DeleteOrg(ctx context.Context, orgID int64) error
+    ListOrgMembers(ctx context.Context, orgID int64) ([]model.OrgMember, error)
+    GetOrgMember(ctx context.Context, orgID, userID int64) (*model.OrgMember, error)
+    AddOrgMember(ctx context.Context, m *model.OrgMember) error
+    UpdateOrgMemberRole(ctx context.Context, orgID, userID int64, role string) error
+    RemoveOrgMember(ctx context.Context, orgID, userID int64) error
+    CreateOrgInvite(ctx context.Context, i *model.OrgInvite) error
+    GetOrgInviteByTokenHash(ctx context.Context, hash string) (*model.OrgInvite, error)
+    MarkOrgInviteAccepted(ctx context.Context, id string) error
+
+    // Feature 5 — custom domains
+    ListDomains(ctx context.Context, ownerType string, ownerID int64) ([]model.CustomDomain, error)
+    CreateDomain(ctx context.Context, d *model.CustomDomain) (int64, error)
+    GetDomainByName(ctx context.Context, domain string) (*model.CustomDomain, error)
+    DeleteDomain(ctx context.Context, id int64) error
+    SetDomainVerified(ctx context.Context, id, at int64) error
+}
+```
+
+### Feature 1 — Admin auth handler (`src/handler/admin_auth_handler.go`)
+
+Routes: `POST /server/{admin_path}/auth/login` (rate limit key `auth.admin_login`,
+5 / 900s) · `POST /server/{admin_path}/auth/logout` · `GET /server/{admin_path}/auth/session` ·
+`POST /server/{admin_path}/auth/password/change` (`auth.password_change`, 3 / 3600s) ·
+`POST /server/{admin_path}/auth/totp/enable` · `POST /server/{admin_path}/auth/totp/confirm`
+(`auth.totp_verify`, 10 / 300s) · `POST /server/{admin_path}/auth/totp/disable`.
+Every route except login is wrapped in `middleware.RequireAdmin`; rate limits are
+applied with `middleware.RateLimit` at registration time (Step 11), not inside
+the handler.
+
+```go
+package handler
+
+import (
+    "errors"
+    "net/http"
+    "time"
+
+    "{MODULE}/src/model"
+)
+
+type adminLoginRequest struct {
+    Username string `json:"username"`
+    Password string `json:"password"`
+    TOTPCode string `json:"totp_code"`
+}
+
+// AdminLogin handles POST /server/{admin_path}/auth/login.
+func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
+    var req adminLoginRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.Username == "" || req.Password == "" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Username and password are required")
+        return
+    }
+
+    admin, err := h.DB.GetAdminByUsername(r.Context(), req.Username)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+
+    // Always spend the argon2id cost, even when no admin matched.
+    stored := dummyPasswordHash
+    if admin != nil && admin.PasswordHash != "" {
+        stored = admin.PasswordHash
+    }
+    passwordOK := model.CheckPassword(stored, req.Password)
+    if admin == nil || admin.PasswordHash == "" || !passwordOK {
+        writeInvalidCredentials(w)
+        return
+    }
+
+    if admin.TOTPEnabled {
+        if req.TOTPCode == "" {
+            writeErr(w, http.StatusUnauthorized, "TOTP_REQUIRED", "Two-factor authentication code required")
+            return
+        }
+        if !model.ValidateTOTP(admin.TOTPSecret, req.TOTPCode) {
+            writeErr(w, http.StatusUnauthorized, "TOTP_INVALID", "Invalid authenticator code")
+            return
+        }
+    }
+
+    sid, err := model.NewSessionID()
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    now := time.Now().Unix()
+    ttl := orDefault(h.Auth.Admin.SessionTimeout, defaultAdminSessionTimeout)
+    session := &model.AdminSession{
+        ID:        sid,
+        AdminID:   admin.ID,
+        IP:        clientIP(r),
+        UserAgent: r.UserAgent(),
+        CreatedAt: now,
+        ExpiresAt: now + int64(ttl),
+        LastSeen:  now,
+    }
+    if err := h.DB.CreateAdminSession(r.Context(), session); err != nil {
+        writeInternal(w)
+        return
+    }
+    setSessionCookie(w, "admin_session", sid, h.adminCookiePath(), ttl)
+
+    if err := h.DB.UpdateAdminLogin(r.Context(), admin.ID, now, session.IP); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{
+        "admin_id": admin.ID,
+        "username": admin.Username,
+    })
+}
+
+// AdminLogout handles POST /server/{admin_path}/auth/logout.
+func (h *Handler) AdminLogout(w http.ResponseWriter, r *http.Request) {
+    if c, err := r.Cookie("admin_session"); err == nil && c.Value != "" {
+        if err := h.DB.DeleteAdminSession(r.Context(), c.Value); err != nil {
+            writeInternal(w)
+            return
+        }
+    }
+    clearSessionCookie(w, "admin_session", h.adminCookiePath())
+    writeOK(w, http.StatusOK, nil)
+}
+
+// AdminSession handles GET /server/{admin_path}/auth/session.
+func (h *Handler) AdminSession(w http.ResponseWriter, r *http.Request) {
+    c, err := r.Cookie("admin_session")
+    if err != nil || c.Value == "" {
+        writeErr(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+        return
+    }
+    session, err := h.DB.GetAdminSessionByID(r.Context(), c.Value)
+    if err != nil {
+        writeErr(w, http.StatusUnauthorized, "UNAUTHORIZED", "Session expired")
+        return
+    }
+    admin, err := h.DB.GetAdminByID(r.Context(), session.AdminID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{
+        "admin_id":   admin.ID,
+        "username":   admin.Username,
+        "expires_at": session.ExpiresAt,
+    })
+}
+
+type passwordChangeRequest struct {
+    CurrentPassword string `json:"current_password"`
+    NewPassword     string `json:"new_password"`
+}
+
+// AdminPasswordChange handles POST /server/{admin_path}/auth/password/change.
+func (h *Handler) AdminPasswordChange(w http.ResponseWriter, r *http.Request) {
+    var req passwordChangeRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidatePassword(req.NewPassword); err != nil {
+        writeErr(w, http.StatusBadRequest, "PASSWORD_INVALID", err.Error())
+        return
+    }
+    admin, err := h.DB.GetAdminByID(r.Context(), adminIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if !model.CheckPassword(admin.PasswordHash, req.CurrentPassword) {
+        writeInvalidCredentials(w)
+        return
+    }
+    hash, err := model.HashPassword(req.NewPassword)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.UpdateAdminPassword(r.Context(), admin.ID, hash); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+// AdminTOTPEnable handles POST /server/{admin_path}/auth/totp/enable. The secret
+// is stored but totp_enabled stays 0 until AdminTOTPConfirm succeeds.
+func (h *Handler) AdminTOTPEnable(w http.ResponseWriter, r *http.Request) {
+    admin, err := h.DB.GetAdminByID(r.Context(), adminIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    secret, uri, err := model.NewTOTPSecret(h.ServerName, admin.Username)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.SetAdminTOTPSecret(r.Context(), admin.ID, secret); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"otpauth_uri": uri})
+}
+
+type totpCodeRequest struct {
+    Code string `json:"code"`
+}
+
+// AdminTOTPConfirm handles POST /server/{admin_path}/auth/totp/confirm.
+func (h *Handler) AdminTOTPConfirm(w http.ResponseWriter, r *http.Request) {
+    var req totpCodeRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    admin, err := h.DB.GetAdminByID(r.Context(), adminIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if admin.TOTPSecret == "" || !model.ValidateTOTP(admin.TOTPSecret, req.Code) {
+        writeErr(w, http.StatusUnauthorized, "TOTP_INVALID", "Invalid authenticator code")
+        return
+    }
+    if err := h.DB.SetAdminTOTPEnabled(r.Context(), admin.ID, true); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+type totpDisableRequest struct {
+    Password string `json:"password"`
+    Code     string `json:"code"`
+}
+
+// AdminTOTPDisable handles POST /server/{admin_path}/auth/totp/disable.
+func (h *Handler) AdminTOTPDisable(w http.ResponseWriter, r *http.Request) {
+    var req totpDisableRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    admin, err := h.DB.GetAdminByID(r.Context(), adminIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if !model.CheckPassword(admin.PasswordHash, req.Password) {
+        writeInvalidCredentials(w)
+        return
+    }
+    if !model.ValidateTOTP(admin.TOTPSecret, req.Code) {
+        writeErr(w, http.StatusUnauthorized, "TOTP_INVALID", "Invalid authenticator code")
+        return
+    }
+    if err := h.DB.ClearAdminTOTP(r.Context(), admin.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
 ```
 
 ### Feature 3 — User auth handler (`src/handler/user_auth_handler.go`)
 
+Routes: `POST /api/{api_version}/auth/register` (`auth.register`, 5 / 3600s) ·
+`POST /server/{admin_path}/users/invite` (`auth.invite_create`, 20 / 3600s, RequireAdmin) ·
+`POST /server/{admin_path}/users/create` (RequireAdmin) ·
+`POST /api/{api_version}/auth/invite/{token}/accept` (`auth.invite_accept`, 10 / 3600s) ·
+`POST /api/{api_version}/auth/login` (`auth.user_login`, 5 / 900s) ·
+`POST /api/{api_version}/auth/logout` (RequireUser) ·
+`GET|PUT /api/{api_version}/auth/me` (RequireUser) ·
+`POST /api/{api_version}/auth/password/change` (RequireUser, `auth.password_change`, 3 / 3600s) ·
+`POST /api/{api_version}/auth/password/reset/request` (`auth.password_reset_request`, 3 / 3600s) ·
+`POST /api/{api_version}/auth/password/reset/confirm` (`auth.password_reset_confirm`, 5 / 3600s) ·
+`POST /api/{api_version}/auth/email/verify` (`auth.email_verify`, 5 / 3600s).
+
+Admin invite and direct-create are reachable in BOTH registration modes — the
+mode gates only the public `/auth/register` form. The password-setup page itself
+is the SSR route `GET /auth/invite/{token}` (Step 10), not a `/api/` endpoint;
+that page handler validates the token before rendering the form and shows the
+same generic "This invite link is no longer valid" state for unknown, expired
+and already-used tokens alike.
+
 ```go
-// POST /api/{api_version}/auth/register
-// Only reachable when users.registration.mode == "open" — return 404 "not found" when mode == "private"
-// (check the config value first, before any body parsing or rate-limit consumption)
-// Rate limit: 5 / 3600s per IP (key "auth.register")
-// Body: {"username":"...","email":"...","password":"..."}
-// Flow:
-//   1. Validate username, email, password
-//   2. Check username and email are not already taken (use identical timing for both checks)
-//   3. HashPassword(password) → insert users row
-//   4. If require_email_verification: send verification email with token (NewSessionID as token, hash it)
-//   5. NewSessionID() → insert user_sessions row
-//   6. Set-Cookie: user_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/
-//   7. Return {"ok":true,"data":{"user_id":N,"username":"...","email_verification_required":bool}}
+package handler
 
-// POST /server/{admin_path}/users/invite
-// Auth: RequireAdmin middleware (available in BOTH open and private mode — registration mode
-// controls only whether the public /auth/register form is reachable; it does not control the
-// admin's ability to add users. Server Admin account management and Regular User account
-// creation are separate scopes, so the admin can always invite or directly create a user,
-// in either mode.)
-// Rate limit: 20 / 3600s per IP (key "auth.invite_create" — the limiter buckets by client IP,
-// same as every other endpoint; there is no separate per-admin-ID counter)
-// Body: {"username":"..."}
-// Flow:
-//   1. Validate username; check not already taken (users table) and no pending invite for it
-//   2. NewTokenRaw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
-//   3. Return {"ok":true,"data":{"username":"...","invite_url":"https://.../auth/invite/{raw_token}","expires_at":N}}
-//   — the raw token is never stored, only its hash; admin copies/shares the URL manually
+import (
+    "errors"
+    "fmt"
+    "net/http"
+    "time"
 
-// POST /server/{admin_path}/users/create
-// Auth: RequireAdmin middleware (available in both modes)
-// Body: {"username":"...","email":"..."}
-// Flow:
-//   1. Validate username + email; check neither already taken
-//   2. Insert users row with password_hash = '' (not yet activated — see Step 4 note)
-//   3. NewTokenRaw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
-//   4. If SMTP configured: email the activation link to the address automatically
-//   5. Return {"ok":true,"data":{"user_id":N,"username":"...","activation_url":"..." (only when SMTP not configured, for manual delivery)}}
+    "{MODULE}/src/model"
+)
 
-// The password-setup form page is served by the SSR route GET /auth/invite/{token} (see the
-// route table below), not a separate /api/ endpoint — that handler validates the token exists
-// and is unexpired/unused before rendering the form; on invalid/expired/used token it renders
-// the same generic "This invite link is no longer valid" state (never distinguish expired vs
-// used vs unknown).
+type publicUser struct {
+    ID            int64  `json:"id"`
+    Username      string `json:"username"`
+    Email         string `json:"email"`
+    EmailVerified bool   `json:"email_verified"`
+    DisplayName   string `json:"display_name"`
+    AvatarURL     string `json:"avatar_url"`
+    Bio           string `json:"bio"`
+    CreatedAt     int64  `json:"created_at"`
+    LastLogin     *int64 `json:"last_login"`
+}
 
-// POST /api/{api_version}/auth/invite/{token}/accept
-// Rate limit: 10 / 3600s per IP
-// Body: {"password":"..."}
-// Flow:
-//   1. HashToken(token) → look up user_invites → validate not expired and used_count < max_uses
-//   2. HashPassword(password) → update the corresponding users row's password_hash (matched by
-//      invite.username for the direct-create flow, or create the users row now for the invite flow)
-//   3. user_invites.used_count += 1
-//   4. NewSessionID() → insert user_sessions row → Set-Cookie (same as register)
-//   5. Return {"ok":true,"data":{"user_id":N,"username":"..."}}
+// toPublicUser strips password_hash and the suspension fields from a user row.
+func toPublicUser(u *model.User) publicUser {
+    return publicUser{
+        ID:            u.ID,
+        Username:      u.Username,
+        Email:         u.Email,
+        EmailVerified: u.EmailVerified,
+        DisplayName:   u.DisplayName,
+        AvatarURL:     u.AvatarURL,
+        Bio:           u.Bio,
+        CreatedAt:     u.CreatedAt,
+        LastLogin:     u.LastLogin,
+    }
+}
 
-// POST /api/{api_version}/auth/login
-// Rate limit: 5 / 900s per IP (key "auth.user_login")
-// Body: {"login":"...","password":"..."} — login = username OR email
-// Flow: same constant-time pattern as admin login; "Invalid credentials" for all failures
+// startUserSession creates a user_sessions row and sets the session cookie.
+func (h *Handler) startUserSession(w http.ResponseWriter, r *http.Request, userID int64) error {
+    sid, err := model.NewSessionID()
+    if err != nil {
+        return err
+    }
+    now := time.Now().Unix()
+    ttl := orDefault(h.Auth.Users.SessionTimeout, defaultUserSessionTimeout)
+    if err := h.DB.CreateUserSession(r.Context(), &model.UserSession{
+        ID:        sid,
+        UserID:    userID,
+        IP:        clientIP(r),
+        UserAgent: r.UserAgent(),
+        CreatedAt: now,
+        ExpiresAt: now + int64(ttl),
+        LastSeen:  now,
+    }); err != nil {
+        return err
+    }
+    setSessionCookie(w, "user_session", sid, "/", ttl)
+    return nil
+}
 
-// POST /api/{api_version}/auth/logout
-// Auth: RequireUser
-// Flow: delete user_sessions row → clear cookie → return {"ok":true}
+// sendEmailVerification issues a verification token and mails the link.
+func (h *Handler) sendEmailVerification(r *http.Request, userID int64, email string) error {
+    raw, err := model.NewSessionID()
+    if err != nil {
+        return err
+    }
+    id, err := model.NewSessionID()
+    if err != nil {
+        return err
+    }
+    now := time.Now().Unix()
+    if err := h.DB.CreateEmailVerification(r.Context(), id, userID, email,
+        model.HashToken(raw), now, now+emailVerificationTTL); err != nil {
+        return err
+    }
+    if h.Mail == nil || !h.Mail.Configured() {
+        return nil
+    }
+    link := fmt.Sprintf("%s/auth/email/verify?token=%s", h.BaseURL, raw)
+    return h.Mail.Send(r.Context(), email, "Verify your email address",
+        "Confirm your email address: "+link)
+}
 
-// GET /api/{api_version}/auth/me
-// Auth: RequireUser
-// Return: {"ok":true,"data":{user object without password_hash}}
+type registerRequest struct {
+    Username string `json:"username"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
 
-// PUT /api/{api_version}/auth/me
-// Auth: RequireUser
-// Body: {"display_name":"...","bio":"...","avatar_url":"..."}
-// Updatable fields only — username/email change requires separate flow
+// UserRegister handles POST /api/{api_version}/auth/register. The mode check
+// runs before body parsing so that in "private" mode the route is
+// indistinguishable from one that does not exist.
+func (h *Handler) UserRegister(w http.ResponseWriter, r *http.Request) {
+    if h.Auth.Users.Registration.Mode != "open" {
+        writeNotFound(w)
+        return
+    }
+    var req registerRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidateUsername(req.Username); err != nil {
+        writeErr(w, http.StatusBadRequest, "USERNAME_INVALID", err.Error())
+        return
+    }
+    if err := model.ValidateEmail(req.Email); err != nil {
+        writeErr(w, http.StatusBadRequest, "EMAIL_INVALID", err.Error())
+        return
+    }
+    if err := model.ValidatePassword(req.Password); err != nil {
+        writeErr(w, http.StatusBadRequest, "PASSWORD_INVALID", err.Error())
+        return
+    }
 
-// POST /api/{api_version}/auth/password/change
-// Auth: RequireUser; Rate limit: 3 / 3600s
-// Body: {"current_password":"...","new_password":"..."}
+    // Both lookups always run so the response time never reveals which of the
+    // two collided.
+    byName, nameErr := h.DB.GetUserByUsername(r.Context(), req.Username)
+    byEmail, emailErr := h.DB.GetUserByEmail(r.Context(), req.Email)
+    if (nameErr != nil && !errors.Is(nameErr, ErrNotFound)) ||
+        (emailErr != nil && !errors.Is(emailErr, ErrNotFound)) {
+        writeInternal(w)
+        return
+    }
+    if byName != nil {
+        writeErr(w, http.StatusConflict, "USERNAME_TAKEN", "That username is already taken")
+        return
+    }
+    if byEmail != nil {
+        writeErr(w, http.StatusConflict, "EMAIL_TAKEN", "An account with that email already exists")
+        return
+    }
 
-// POST /api/{api_version}/auth/password/reset/request
-// Rate limit: 3 / 3600s per IP
-// Body: {"email":"..."}
-// ALWAYS return {"ok":true,"data":{"message":"If an account exists, a reset link was sent"}}
-// regardless of whether the email exists — never confirm account existence
+    hash, err := model.HashPassword(req.Password)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    now := time.Now().Unix()
+    userID, err := h.DB.CreateUser(r.Context(), &model.User{
+        Username:     req.Username,
+        Email:        req.Email,
+        PasswordHash: hash,
+        CreatedAt:    now,
+        UpdatedAt:    now,
+    })
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if h.Auth.Users.RequireEmailVerification {
+        if err := h.sendEmailVerification(r, userID, req.Email); err != nil {
+            writeInternal(w)
+            return
+        }
+    }
+    if err := h.startUserSession(w, r, userID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{
+        "user_id":                     userID,
+        "username":                    req.Username,
+        "email_verification_required": h.Auth.Users.RequireEmailVerification,
+    })
+}
 
-// POST /api/{api_version}/auth/password/reset/confirm
-// Rate limit: 5 / 3600s per IP
-// Body: {"token":"...","new_password":"..."}
-// Flow: HashToken(token) → look up password_resets → validate not expired/used → update password → mark used
+// newInvite mints an invite token and stores only its hash.
+func (h *Handler) newInvite(r *http.Request, adminID int64, username string) (raw string, expiresAt int64, err error) {
+    raw, hash, err := model.NewTokenRaw("")
+    if err != nil {
+        return "", 0, err
+    }
+    id, err := model.NewSessionID()
+    if err != nil {
+        return "", 0, err
+    }
+    now := time.Now().Unix()
+    expiresAt = now + int64(orDefault(h.Auth.Users.InviteExpiry, defaultInviteExpiry))
+    if err := h.DB.CreateUserInvite(r.Context(), &model.UserInvite{
+        ID:        id,
+        Username:  username,
+        InvitedBy: adminID,
+        TokenHash: hash,
+        CreatedAt: now,
+        ExpiresAt: expiresAt,
+        MaxUses:   1,
+    }); err != nil {
+        return "", 0, err
+    }
+    return raw, expiresAt, nil
+}
 
-// POST /api/{api_version}/auth/email/verify
-// Rate limit: 5 / 3600s per IP
-// Body: {"token":"..."}
-// Flow: HashToken(token) → look up email_verifications → mark verified → set users.email_verified=1
+type inviteCreateRequest struct {
+    Username string `json:"username"`
+}
+
+// AdminInviteUser handles POST /server/{admin_path}/users/invite. The raw token
+// is returned once for the admin to share; only its hash is stored.
+func (h *Handler) AdminInviteUser(w http.ResponseWriter, r *http.Request) {
+    var req inviteCreateRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidateUsername(req.Username); err != nil {
+        writeErr(w, http.StatusBadRequest, "USERNAME_INVALID", err.Error())
+        return
+    }
+    existing, err := h.DB.GetUserByUsername(r.Context(), req.Username)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    pending, err := h.DB.GetUserInviteByUsername(r.Context(), req.Username)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    if existing != nil || (pending != nil && pending.Valid()) {
+        writeErr(w, http.StatusConflict, "USERNAME_TAKEN",
+            "That username already has a pending or active account")
+        return
+    }
+    raw, expiresAt, err := h.newInvite(r, adminIDFrom(r), req.Username)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{
+        "username":   req.Username,
+        "invite_url": fmt.Sprintf("%s/auth/invite/%s", h.BaseURL, raw),
+        "expires_at": expiresAt,
+    })
+}
+
+type userCreateRequest struct {
+    Username string `json:"username"`
+    Email    string `json:"email"`
+}
+
+// AdminCreateUser handles POST /server/{admin_path}/users/create. The users row
+// is inserted with an empty password_hash — no login path accepts it until the
+// invited user sets a password through the accept flow.
+func (h *Handler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
+    var req userCreateRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidateUsername(req.Username); err != nil {
+        writeErr(w, http.StatusBadRequest, "USERNAME_INVALID", err.Error())
+        return
+    }
+    if err := model.ValidateEmail(req.Email); err != nil {
+        writeErr(w, http.StatusBadRequest, "EMAIL_INVALID", err.Error())
+        return
+    }
+    byName, nameErr := h.DB.GetUserByUsername(r.Context(), req.Username)
+    byEmail, emailErr := h.DB.GetUserByEmail(r.Context(), req.Email)
+    if (nameErr != nil && !errors.Is(nameErr, ErrNotFound)) ||
+        (emailErr != nil && !errors.Is(emailErr, ErrNotFound)) {
+        writeInternal(w)
+        return
+    }
+    if byName != nil {
+        writeErr(w, http.StatusConflict, "USERNAME_TAKEN", "That username is already taken")
+        return
+    }
+    if byEmail != nil {
+        writeErr(w, http.StatusConflict, "EMAIL_TAKEN", "An account with that email already exists")
+        return
+    }
+
+    now := time.Now().Unix()
+    userID, err := h.DB.CreateUser(r.Context(), &model.User{
+        Username:     req.Username,
+        Email:        req.Email,
+        PasswordHash: "",
+        CreatedAt:    now,
+        UpdatedAt:    now,
+    })
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    raw, _, err := h.newInvite(r, adminIDFrom(r), req.Username)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    activationURL := fmt.Sprintf("%s/auth/invite/%s", h.BaseURL, raw)
+
+    data := map[string]any{"user_id": userID, "username": req.Username}
+    if h.Mail != nil && h.Mail.Configured() {
+        if err := h.Mail.Send(r.Context(), req.Email, "Activate your account",
+            "Set your password to activate your account: "+activationURL); err != nil {
+            writeInternal(w)
+            return
+        }
+    } else {
+        data["activation_url"] = activationURL
+    }
+    writeOK(w, http.StatusCreated, data)
+}
+
+type inviteAcceptRequest struct {
+    Password string `json:"password"`
+    // Used only by the pure-invite flow, where no users row exists yet; ignored
+    // when the admin already created the row through /users/create.
+    Email string `json:"email"`
+}
+
+// UserAcceptInvite handles POST /api/{api_version}/auth/invite/{token}/accept.
+func (h *Handler) UserAcceptInvite(w http.ResponseWriter, r *http.Request) {
+    var req inviteAcceptRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    invite, err := h.DB.GetUserInviteByTokenHash(r.Context(), model.HashToken(pathParam(r, "token")))
+    if err != nil || invite == nil || !invite.Valid() {
+        writeErr(w, http.StatusBadRequest, "INVITE_INVALID", "This invite link is no longer valid")
+        return
+    }
+    if err := model.ValidatePassword(req.Password); err != nil {
+        writeErr(w, http.StatusBadRequest, "PASSWORD_INVALID", err.Error())
+        return
+    }
+    hash, err := model.HashPassword(req.Password)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+
+    now := time.Now().Unix()
+    user, err := h.DB.GetUserByUsername(r.Context(), invite.Username)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    var userID int64
+    if user != nil {
+        userID = user.ID
+        if err := h.DB.UpdateUserPassword(r.Context(), userID, hash, now); err != nil {
+            writeInternal(w)
+            return
+        }
+    } else {
+        if err := model.ValidateEmail(req.Email); err != nil {
+            writeErr(w, http.StatusBadRequest, "EMAIL_INVALID", err.Error())
+            return
+        }
+        userID, err = h.DB.CreateUser(r.Context(), &model.User{
+            Username:     invite.Username,
+            Email:        req.Email,
+            PasswordHash: hash,
+            CreatedAt:    now,
+            UpdatedAt:    now,
+        })
+        if err != nil {
+            writeInternal(w)
+            return
+        }
+    }
+    if err := h.DB.IncrementUserInviteUse(r.Context(), invite.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.startUserSession(w, r, userID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"user_id": userID, "username": invite.Username})
+}
+
+type userLoginRequest struct {
+    // Username or email.
+    Login    string `json:"login"`
+    Password string `json:"password"`
+}
+
+// UserLogin handles POST /api/{api_version}/auth/login with the same
+// constant-time pattern as AdminLogin.
+func (h *Handler) UserLogin(w http.ResponseWriter, r *http.Request) {
+    var req userLoginRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.Login == "" || req.Password == "" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Login and password are required")
+        return
+    }
+    user, err := h.DB.GetUserByLogin(r.Context(), req.Login)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    stored := dummyPasswordHash
+    if user != nil && user.PasswordHash != "" {
+        stored = user.PasswordHash
+    }
+    passwordOK := model.CheckPassword(stored, req.Password)
+    if user == nil || user.PasswordHash == "" || !passwordOK {
+        writeInvalidCredentials(w)
+        return
+    }
+    if user.Suspended {
+        writeErr(w, http.StatusForbidden, "ACCOUNT_SUSPENDED", "Your account has been suspended")
+        return
+    }
+    if err := h.startUserSession(w, r, user.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.UpdateUserLogin(r.Context(), user.ID, time.Now().Unix(), clientIP(r)); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"user_id": user.ID, "username": user.Username})
+}
+
+// UserLogout handles POST /api/{api_version}/auth/logout.
+func (h *Handler) UserLogout(w http.ResponseWriter, r *http.Request) {
+    if c, err := r.Cookie("user_session"); err == nil && c.Value != "" {
+        if err := h.DB.DeleteUserSession(r.Context(), c.Value); err != nil {
+            writeInternal(w)
+            return
+        }
+    }
+    clearSessionCookie(w, "user_session", "/")
+    writeOK(w, http.StatusOK, nil)
+}
+
+// UserMe handles GET /api/{api_version}/auth/me.
+func (h *Handler) UserMe(w http.ResponseWriter, r *http.Request) {
+    user, err := h.DB.GetUserByID(r.Context(), userIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, toPublicUser(user))
+}
+
+type updateMeRequest struct {
+    DisplayName string `json:"display_name"`
+    Bio         string `json:"bio"`
+    AvatarURL   string `json:"avatar_url"`
+}
+
+// UserUpdateMe handles PUT /api/{api_version}/auth/me. Only profile fields are
+// updatable here; username and email changes have their own flows.
+func (h *Handler) UserUpdateMe(w http.ResponseWriter, r *http.Request) {
+    var req updateMeRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    userID := userIDFrom(r)
+    if err := h.DB.UpdateUserProfile(r.Context(), userID, req.DisplayName, req.Bio,
+        req.AvatarURL, time.Now().Unix()); err != nil {
+        writeInternal(w)
+        return
+    }
+    user, err := h.DB.GetUserByID(r.Context(), userID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, toPublicUser(user))
+}
+
+// UserPasswordChange handles POST /api/{api_version}/auth/password/change.
+func (h *Handler) UserPasswordChange(w http.ResponseWriter, r *http.Request) {
+    var req passwordChangeRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidatePassword(req.NewPassword); err != nil {
+        writeErr(w, http.StatusBadRequest, "PASSWORD_INVALID", err.Error())
+        return
+    }
+    user, err := h.DB.GetUserByID(r.Context(), userIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if user.PasswordHash == "" || !model.CheckPassword(user.PasswordHash, req.CurrentPassword) {
+        writeInvalidCredentials(w)
+        return
+    }
+    hash, err := model.HashPassword(req.NewPassword)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.UpdateUserPassword(r.Context(), user.ID, hash, time.Now().Unix()); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+type passwordResetRequest struct {
+    Email string `json:"email"`
+}
+
+// UserPasswordResetRequest handles POST /api/{api_version}/auth/password/reset/request.
+// Every path returns the same body — the response never confirms whether the
+// address has an account.
+func (h *Handler) UserPasswordResetRequest(w http.ResponseWriter, r *http.Request) {
+    const generic = "If an account exists, a reset link was sent"
+
+    var req passwordResetRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidateEmail(req.Email); err != nil {
+        writeOK(w, http.StatusOK, map[string]any{"message": generic})
+        return
+    }
+    user, err := h.DB.GetUserByEmail(r.Context(), req.Email)
+    if err != nil || user == nil {
+        writeOK(w, http.StatusOK, map[string]any{"message": generic})
+        return
+    }
+    raw, hash, err := model.NewTokenRaw("")
+    if err != nil {
+        writeOK(w, http.StatusOK, map[string]any{"message": generic})
+        return
+    }
+    id, err := model.NewSessionID()
+    if err != nil {
+        writeOK(w, http.StatusOK, map[string]any{"message": generic})
+        return
+    }
+    now := time.Now().Unix()
+    if err := h.DB.CreatePasswordReset(r.Context(), &model.PasswordReset{
+        ID:        id,
+        UserID:    user.ID,
+        TokenHash: hash,
+        CreatedAt: now,
+        ExpiresAt: now + passwordResetTTL,
+    }); err == nil && h.Mail != nil && h.Mail.Configured() {
+        link := fmt.Sprintf("%s/auth/password/reset/confirm?token=%s", h.BaseURL, raw)
+        _ = h.Mail.Send(r.Context(), user.Email, "Reset your password",
+            "Reset your password: "+link)
+    }
+    writeOK(w, http.StatusOK, map[string]any{"message": generic})
+}
+
+type passwordResetConfirmRequest struct {
+    Token       string `json:"token"`
+    NewPassword string `json:"new_password"`
+}
+
+// UserPasswordResetConfirm handles POST /api/{api_version}/auth/password/reset/confirm.
+func (h *Handler) UserPasswordResetConfirm(w http.ResponseWriter, r *http.Request) {
+    var req passwordResetConfirmRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidatePassword(req.NewPassword); err != nil {
+        writeErr(w, http.StatusBadRequest, "PASSWORD_INVALID", err.Error())
+        return
+    }
+    reset, err := h.DB.GetPasswordResetByTokenHash(r.Context(), model.HashToken(req.Token))
+    if err != nil || reset == nil {
+        writeErr(w, http.StatusBadRequest, "RESET_INVALID", "This reset link is no longer valid")
+        return
+    }
+    if reset.Used {
+        writeErr(w, http.StatusBadRequest, "RESET_USED", "This reset link has already been used")
+        return
+    }
+    if reset.Expired() {
+        writeErr(w, http.StatusBadRequest, "RESET_EXPIRED",
+            "This reset link has expired. Please request a new one")
+        return
+    }
+    hash, err := model.HashPassword(req.NewPassword)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.UpdateUserPassword(r.Context(), reset.UserID, hash, time.Now().Unix()); err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.MarkPasswordResetUsed(r.Context(), reset.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+type emailVerifyRequest struct {
+    Token string `json:"token"`
+}
+
+// UserEmailVerify handles POST /api/{api_version}/auth/email/verify.
+func (h *Handler) UserEmailVerify(w http.ResponseWriter, r *http.Request) {
+    var req emailVerifyRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    id, userID, _, expiresAt, used, err := h.DB.GetEmailVerification(r.Context(), model.HashToken(req.Token))
+    if err != nil || used {
+        writeErr(w, http.StatusBadRequest, "VERIFICATION_INVALID",
+            "This verification link is no longer valid")
+        return
+    }
+    if time.Now().Unix() > expiresAt {
+        writeErr(w, http.StatusBadRequest, "VERIFICATION_EXPIRED",
+            "This verification link has expired. Please request a new one")
+        return
+    }
+    if err := h.DB.SetUserEmailVerified(r.Context(), userID); err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.MarkEmailVerificationUsed(r.Context(), id); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"message": "Email address verified"})
+}
 ```
 
 ### Feature 2 — API token handler (`src/handler/token_handler.go`)
 
+Routes: `GET /api/{api_version}/auth/tokens` · `POST /api/{api_version}/auth/tokens` ·
+`DELETE /api/{api_version}/auth/tokens/{id}` — each behind `RequireUser` or
+`RequireAdmin`, whichever the route group uses; the owner is resolved from
+whichever ID the middleware put in the context.
+
 ```go
-// GET /api/{api_version}/auth/tokens
-// Auth: RequireUser or RequireAdmin (check which is set in context)
-// Return: list of tokens for the authenticated owner (never include token_hash)
+package handler
 
-// POST /api/{api_version}/auth/tokens
-// Auth: RequireUser or RequireAdmin
-// Body: {"name":"...","scopes":["read","write"],"expires_at":N_or_null}
-// Flow: NewTokenRaw(prefix) → insert api_tokens with hash → return raw token ONCE in response
-// Response: {"ok":true,"data":{"id":N,"name":"...","token":"raw...","scopes":[...]}}
-// — the "token" field never appears again after this response
+import (
+    "encoding/json"
+    "net/http"
+    "strconv"
+    "time"
 
-// DELETE /api/{api_version}/auth/tokens/{id}
-// Auth: RequireUser or RequireAdmin — must be the owner of the token
-// Flow: verify ownership → set revoked=1 → return {"ok":true}
+    "{MODULE}/src/model"
+)
+
+type tokenResponse struct {
+    ID        int64    `json:"id"`
+    Name      string   `json:"name"`
+    Scopes    []string `json:"scopes"`
+    CreatedAt int64    `json:"created_at"`
+    ExpiresAt *int64   `json:"expires_at"`
+    LastUsed  *int64   `json:"last_used"`
+    Revoked   bool     `json:"revoked"`
+}
+
+// toTokenResponse never exposes token_hash.
+func toTokenResponse(t *model.APIToken) tokenResponse {
+    scopes := []string{}
+    _ = json.Unmarshal([]byte(t.Scopes), &scopes)
+    return tokenResponse{
+        ID:        t.ID,
+        Name:      t.Name,
+        Scopes:    scopes,
+        CreatedAt: t.CreatedAt,
+        ExpiresAt: t.ExpiresAt,
+        LastUsed:  t.LastUsed,
+        Revoked:   t.Revoked,
+    }
+}
+
+// tokenOwner resolves the authenticated caller into an api_tokens owner pair.
+func tokenOwner(r *http.Request) (ownerType string, ownerID int64, ok bool) {
+    if id := adminIDFrom(r); id != 0 {
+        return "admin", id, true
+    }
+    if id := userIDFrom(r); id != 0 {
+        return "user", id, true
+    }
+    return "", 0, false
+}
+
+// ListTokens handles GET /api/{api_version}/auth/tokens.
+func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
+    ownerType, ownerID, ok := tokenOwner(r)
+    if !ok {
+        writeErr(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+        return
+    }
+    tokens, err := h.DB.ListAPITokens(r.Context(), ownerType, ownerID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    out := make([]tokenResponse, 0, len(tokens))
+    for i := range tokens {
+        out = append(out, toTokenResponse(&tokens[i]))
+    }
+    writeOK(w, http.StatusOK, out)
+}
+
+type createTokenRequest struct {
+    Name      string   `json:"name"`
+    Scopes    []string `json:"scopes"`
+    ExpiresAt *int64   `json:"expires_at"`
+}
+
+// CreateToken handles POST /api/{api_version}/auth/tokens. The raw token is
+// returned once here and never again — only its SHA-256 hash is stored.
+func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
+    ownerType, ownerID, ok := tokenOwner(r)
+    if !ok {
+        writeErr(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+        return
+    }
+    var req createTokenRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.Name == "" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Token name is required")
+        return
+    }
+    if req.Scopes == nil {
+        req.Scopes = []string{}
+    }
+    scopesJSON, err := json.Marshal(req.Scopes)
+    if err != nil {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Scopes must be a list of strings")
+        return
+    }
+
+    prefix := model.TokenPrefixUser
+    if ownerType == "admin" {
+        prefix = model.TokenPrefixAdmin
+    }
+    raw, hash, err := model.NewTokenRaw(prefix)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    now := time.Now().Unix()
+    expiresAt := req.ExpiresAt
+    if expiresAt == nil && h.Auth.Tokens.DefaultExpiry > 0 {
+        exp := now + int64(h.Auth.Tokens.DefaultExpiry)
+        expiresAt = &exp
+    }
+    id, err := h.DB.CreateAPIToken(r.Context(), &model.APIToken{
+        OwnerType: ownerType,
+        OwnerID:   ownerID,
+        TokenHash: hash,
+        Name:      req.Name,
+        Scopes:    string(scopesJSON),
+        CreatedAt: now,
+        ExpiresAt: expiresAt,
+    })
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{
+        "id":     id,
+        "name":   req.Name,
+        "token":  raw,
+        "scopes": req.Scopes,
+    })
+}
+
+// RevokeToken handles DELETE /api/{api_version}/auth/tokens/{id}.
+func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+    ownerType, ownerID, ok := tokenOwner(r)
+    if !ok {
+        writeErr(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+        return
+    }
+    id, err := strconv.ParseInt(pathParam(r, "id"), 10, 64)
+    if err != nil {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Token id must be an integer")
+        return
+    }
+    token, err := h.DB.GetAPITokenByID(r.Context(), id)
+    if err != nil || token.OwnerType != ownerType || token.OwnerID != ownerID {
+        writeErr(w, http.StatusNotFound, "TOKEN_NOT_FOUND", "Token not found")
+        return
+    }
+    if err := h.DB.RevokeAPIToken(r.Context(), id); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
 ```
 
 ### Feature 4 — Org handler (`src/handler/org_handler.go`)
 
+Routes, all behind `RequireUser`: `GET|POST /api/{api_version}/orgs` ·
+`GET|PUT|DELETE /api/{api_version}/orgs/{slug}` ·
+`GET|POST /api/{api_version}/orgs/{slug}/members` ·
+`PUT|DELETE /api/{api_version}/orgs/{slug}/members/{username}` ·
+`POST /api/{api_version}/orgs/{slug}/invites` ·
+`GET /api/{api_version}/orgs/invites/{token}`.
+
 ```go
-// GET    /api/{api_version}/orgs                                → list user's orgs
-// POST   /api/{api_version}/orgs                                → create org (body: slug, display_name)
-// GET    /api/{api_version}/orgs/{slug}                         → get org details
-// PUT    /api/{api_version}/orgs/{slug}                         → update org (owner or org-admin only)
-// DELETE /api/{api_version}/orgs/{slug}                         → delete org (owner only)
-// GET    /api/{api_version}/orgs/{slug}/members                 → list members
-// POST   /api/{api_version}/orgs/{slug}/members                 → invite member (owner/org-admin)
-// PUT    /api/{api_version}/orgs/{slug}/members/{username}      → change role (owner/org-admin)
-// DELETE /api/{api_version}/orgs/{slug}/members/{username}      → remove member; member can remove self
-// POST   /api/{api_version}/orgs/{slug}/invites                 → send invite email (owner/org-admin)
-// GET    /api/{api_version}/orgs/invites/{token}                → accept invite (any logged-in user)
+package handler
+
+import (
+    "errors"
+    "fmt"
+    "net/http"
+    "strings"
+    "time"
+
+    "{MODULE}/src/model"
+)
+
+const orgInviteTTL = 72 * 3600
+
+// orgContext loads the org named in the path plus the caller's membership.
+func (h *Handler) orgContext(w http.ResponseWriter, r *http.Request) (*model.Org, *model.OrgMember, bool) {
+    org, err := h.DB.GetOrgBySlug(r.Context(), strings.ToLower(pathParam(r, "slug")))
+    if err != nil || org == nil {
+        writeErr(w, http.StatusNotFound, "ORG_NOT_FOUND", "Organization not found")
+        return nil, nil, false
+    }
+    member, err := h.DB.GetOrgMember(r.Context(), org.ID, userIDFrom(r))
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return nil, nil, false
+    }
+    if member == nil {
+        // Non-members must not learn that the org exists.
+        writeErr(w, http.StatusNotFound, "ORG_NOT_FOUND", "Organization not found")
+        return nil, nil, false
+    }
+    return org, member, true
+}
+
+func canManageOrg(m *model.OrgMember) bool {
+    return m != nil && (m.Role == "owner" || m.Role == "admin")
+}
+
+// ListOrgs handles GET /api/{api_version}/orgs.
+func (h *Handler) ListOrgs(w http.ResponseWriter, r *http.Request) {
+    orgs, err := h.DB.ListOrgsForUser(r.Context(), userIDFrom(r))
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, orgs)
+}
+
+type createOrgRequest struct {
+    Slug        string `json:"slug"`
+    DisplayName string `json:"display_name"`
+    Description string `json:"description"`
+}
+
+// CreateOrg handles POST /api/{api_version}/orgs.
+func (h *Handler) CreateOrg(w http.ResponseWriter, r *http.Request) {
+    var req createOrgRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    slug := strings.ToLower(strings.TrimSpace(req.Slug))
+    if err := model.ValidateOrgSlug(slug); err != nil {
+        writeErr(w, http.StatusBadRequest, "ORG_SLUG_INVALID", err.Error())
+        return
+    }
+    if req.DisplayName == "" {
+        req.DisplayName = slug
+    }
+    existing, err := h.DB.GetOrgBySlug(r.Context(), slug)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    if existing != nil {
+        writeErr(w, http.StatusConflict, "ORG_SLUG_TAKEN", "That organization name is already taken")
+        return
+    }
+    now := time.Now().Unix()
+    userID := userIDFrom(r)
+    orgID, err := h.DB.CreateOrg(r.Context(), &model.Org{
+        Slug:        slug,
+        DisplayName: req.DisplayName,
+        Description: req.Description,
+        OwnerID:     userID,
+        CreatedAt:   now,
+        UpdatedAt:   now,
+    })
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.AddOrgMember(r.Context(), &model.OrgMember{
+        OrgID:    orgID,
+        UserID:   userID,
+        Role:     "owner",
+        JoinedAt: now,
+    }); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{"id": orgID, "slug": slug})
+}
+
+// GetOrg handles GET /api/{api_version}/orgs/{slug}.
+func (h *Handler) GetOrg(w http.ResponseWriter, r *http.Request) {
+    org, _, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    writeOK(w, http.StatusOK, org)
+}
+
+type updateOrgRequest struct {
+    DisplayName string `json:"display_name"`
+    Description string `json:"description"`
+    AvatarURL   string `json:"avatar_url"`
+}
+
+// UpdateOrg handles PUT /api/{api_version}/orgs/{slug} — owner or org-admin only.
+func (h *Handler) UpdateOrg(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    if !canManageOrg(member) {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    var req updateOrgRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.DisplayName != "" {
+        org.DisplayName = req.DisplayName
+    }
+    org.Description = req.Description
+    org.AvatarURL = req.AvatarURL
+    org.UpdatedAt = time.Now().Unix()
+    if err := h.DB.UpdateOrg(r.Context(), org); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, org)
+}
+
+// DeleteOrg handles DELETE /api/{api_version}/orgs/{slug} — owner only.
+func (h *Handler) DeleteOrg(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    if member.Role != "owner" {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Only the owner can delete an organization")
+        return
+    }
+    if err := h.DB.DeleteOrg(r.Context(), org.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+// ListOrgMembers handles GET /api/{api_version}/orgs/{slug}/members.
+func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
+    org, _, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    members, err := h.DB.ListOrgMembers(r.Context(), org.ID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, members)
+}
+
+type addMemberRequest struct {
+    Username string `json:"username"`
+    Role     string `json:"role"`
+}
+
+// AddOrgMember handles POST /api/{api_version}/orgs/{slug}/members — owner or
+// org-admin adds an existing account straight into the org.
+func (h *Handler) AddOrgMember(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    if !canManageOrg(member) {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    var req addMemberRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.Role != "admin" && req.Role != "member" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Role must be admin or member")
+        return
+    }
+    user, err := h.DB.GetUserByUsername(r.Context(), req.Username)
+    if err != nil || user == nil {
+        writeErr(w, http.StatusNotFound, "MEMBER_NOT_FOUND", "Member not found")
+        return
+    }
+    if err := h.DB.AddOrgMember(r.Context(), &model.OrgMember{
+        OrgID:    org.ID,
+        UserID:   user.ID,
+        Role:     req.Role,
+        JoinedAt: time.Now().Unix(),
+    }); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{"username": user.Username, "role": req.Role})
+}
+
+type changeRoleRequest struct {
+    Role string `json:"role"`
+}
+
+// ChangeOrgMemberRole handles PUT /api/{api_version}/orgs/{slug}/members/{username}.
+func (h *Handler) ChangeOrgMemberRole(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    if !canManageOrg(member) {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    var req changeRoleRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if req.Role != "owner" && req.Role != "admin" && req.Role != "member" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Role must be owner, admin or member")
+        return
+    }
+    if req.Role == "owner" && member.Role != "owner" {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Only the owner can transfer ownership")
+        return
+    }
+    target, err := h.DB.GetUserByUsername(r.Context(), pathParam(r, "username"))
+    if err != nil || target == nil {
+        writeErr(w, http.StatusNotFound, "MEMBER_NOT_FOUND", "Member not found")
+        return
+    }
+    if _, err := h.DB.GetOrgMember(r.Context(), org.ID, target.ID); err != nil {
+        writeErr(w, http.StatusNotFound, "MEMBER_NOT_FOUND", "Member not found")
+        return
+    }
+    if err := h.DB.UpdateOrgMemberRole(r.Context(), org.ID, target.ID, req.Role); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"username": target.Username, "role": req.Role})
+}
+
+// RemoveOrgMember handles DELETE /api/{api_version}/orgs/{slug}/members/{username}.
+// Owners and org-admins can remove anyone; any member can remove themselves.
+func (h *Handler) RemoveOrgMember(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    target, err := h.DB.GetUserByUsername(r.Context(), pathParam(r, "username"))
+    if err != nil || target == nil {
+        writeErr(w, http.StatusNotFound, "MEMBER_NOT_FOUND", "Member not found")
+        return
+    }
+    self := target.ID == userIDFrom(r)
+    if !self && !canManageOrg(member) {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    if target.ID == org.OwnerID {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "The owner cannot be removed")
+        return
+    }
+    if err := h.DB.RemoveOrgMember(r.Context(), org.ID, target.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+type orgInviteRequest struct {
+    Email string `json:"email"`
+    Role  string `json:"role"`
+}
+
+// CreateOrgInvite handles POST /api/{api_version}/orgs/{slug}/invites.
+func (h *Handler) CreateOrgInvite(w http.ResponseWriter, r *http.Request) {
+    org, member, ok := h.orgContext(w, r)
+    if !ok {
+        return
+    }
+    if !canManageOrg(member) {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    var req orgInviteRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    if err := model.ValidateEmail(req.Email); err != nil {
+        writeErr(w, http.StatusBadRequest, "EMAIL_INVALID", err.Error())
+        return
+    }
+    if req.Role != "admin" && req.Role != "member" {
+        writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "Role must be admin or member")
+        return
+    }
+    raw, hash, err := model.NewTokenRaw("")
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    id, err := model.NewSessionID()
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    now := time.Now().Unix()
+    if err := h.DB.CreateOrgInvite(r.Context(), &model.OrgInvite{
+        ID:        id,
+        OrgID:     org.ID,
+        Email:     req.Email,
+        Role:      req.Role,
+        InvitedBy: userIDFrom(r),
+        TokenHash: hash,
+        CreatedAt: now,
+        ExpiresAt: now + orgInviteTTL,
+    }); err != nil {
+        writeInternal(w)
+        return
+    }
+    link := fmt.Sprintf("%s/api/{api_version}/orgs/invites/%s", h.BaseURL, raw)
+    data := map[string]any{"email": req.Email, "role": req.Role, "expires_at": now + orgInviteTTL}
+    if h.Mail != nil && h.Mail.Configured() {
+        if err := h.Mail.Send(r.Context(), req.Email,
+            "You have been invited to "+org.DisplayName, "Accept the invite: "+link); err != nil {
+            writeInternal(w)
+            return
+        }
+    } else {
+        data["invite_url"] = link
+    }
+    writeOK(w, http.StatusCreated, data)
+}
+
+// AcceptOrgInvite handles GET /api/{api_version}/orgs/invites/{token} for any
+// logged-in user.
+func (h *Handler) AcceptOrgInvite(w http.ResponseWriter, r *http.Request) {
+    invite, err := h.DB.GetOrgInviteByTokenHash(r.Context(), model.HashToken(pathParam(r, "token")))
+    if err != nil || invite == nil || invite.Accepted {
+        writeErr(w, http.StatusBadRequest, "INVITE_INVALID", "This invite link is no longer valid")
+        return
+    }
+    if time.Now().Unix() > invite.ExpiresAt {
+        writeErr(w, http.StatusBadRequest, "INVITE_EXPIRED", "This invite has expired")
+        return
+    }
+    if err := h.DB.AddOrgMember(r.Context(), &model.OrgMember{
+        OrgID:    invite.OrgID,
+        UserID:   userIDFrom(r),
+        Role:     invite.Role,
+        JoinedAt: time.Now().Unix(),
+    }); err != nil {
+        writeInternal(w)
+        return
+    }
+    if err := h.DB.MarkOrgInviteAccepted(r.Context(), invite.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{
+        "org_id":  invite.OrgID,
+        "role":    invite.Role,
+        "message": "Invite accepted. Welcome to the organization",
+    })
+}
 ```
 
 ### Feature 5 — Domain handler (`src/handler/domain_handler.go`)
 
+Routes, all behind `RequireUser`: `GET|POST /api/{api_version}/domains` ·
+`GET|DELETE /api/{api_version}/domains/{domain}` ·
+`POST /api/{api_version}/domains/{domain}/verify`.
+
 ```go
-// GET    /api/{api_version}/domains                             → list user/org domains
-// POST   /api/{api_version}/domains                             → add domain (body: domain, owner_type, owner_id)
-// GET    /api/{api_version}/domains/{domain}                    → get domain status
-// DELETE /api/{api_version}/domains/{domain}                    → remove domain (owner only)
-// POST   /api/{api_version}/domains/{domain}/verify             → trigger DNS TXT verification
-//   Flow: net.LookupTXT("_verify."+domain) with 10s timeout → check for verify_token value
-//   On success: set verified=1 → optionally trigger Let's Encrypt for SSL
+package handler
+
+import (
+    "context"
+    "errors"
+    "net"
+    "net/http"
+    "strconv"
+    "strings"
+    "time"
+
+    "{MODULE}/src/middleware"
+    "{MODULE}/src/model"
+)
+
+const dnsVerifyTimeout = 10 * time.Second
+
+// authorizeOwner reports whether the caller may act for (ownerType, ownerID):
+// their own user row, or an org they own or administer.
+func (h *Handler) authorizeOwner(r *http.Request, ownerType string, ownerID int64) (bool, error) {
+    userID := userIDFrom(r)
+    switch ownerType {
+    case "user":
+        return ownerID == userID, nil
+    case "org":
+        member, err := h.DB.GetOrgMember(r.Context(), ownerID, userID)
+        if err != nil && !errors.Is(err, ErrNotFound) {
+            return false, err
+        }
+        return canManageOrg(member), nil
+    default:
+        return false, nil
+    }
+}
+
+// ListDomains handles GET /api/{api_version}/domains. Defaults to the caller's
+// own domains; ?owner_type=org&owner_id=N lists an org's domains.
+func (h *Handler) ListDomains(w http.ResponseWriter, r *http.Request) {
+    ownerType := r.URL.Query().Get("owner_type")
+    ownerID := userIDFrom(r)
+    if ownerType == "" {
+        ownerType = "user"
+    }
+    if ownerType == "org" {
+        parsed, err := strconv.ParseInt(r.URL.Query().Get("owner_id"), 10, 64)
+        if err != nil {
+            writeErr(w, http.StatusBadRequest, "INVALID_REQUEST", "owner_id must be an integer")
+            return
+        }
+        ownerID = parsed
+    }
+    allowed, err := h.authorizeOwner(r, ownerType, ownerID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if !allowed {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    domains, err := h.DB.ListDomains(r.Context(), ownerType, ownerID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, domains)
+}
+
+type addDomainRequest struct {
+    Domain    string `json:"domain"`
+    OwnerType string `json:"owner_type"`
+    OwnerID   int64  `json:"owner_id"`
+}
+
+// AddDomain handles POST /api/{api_version}/domains.
+func (h *Handler) AddDomain(w http.ResponseWriter, r *http.Request) {
+    var req addDomainRequest
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    domain := strings.ToLower(strings.TrimSpace(req.Domain))
+    if err := model.ValidateDomain(domain); err != nil {
+        writeErr(w, http.StatusBadRequest, "DOMAIN_INVALID", err.Error())
+        return
+    }
+    if req.OwnerType == "" {
+        req.OwnerType = "user"
+        req.OwnerID = userIDFrom(r)
+    }
+    allowed, err := h.authorizeOwner(r, req.OwnerType, req.OwnerID)
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    if !allowed {
+        writeErr(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+        return
+    }
+    existing, err := h.DB.GetDomainByName(r.Context(), domain)
+    if err != nil && !errors.Is(err, ErrNotFound) {
+        writeInternal(w)
+        return
+    }
+    if existing != nil {
+        writeErr(w, http.StatusConflict, "DOMAIN_TAKEN", "That domain is already registered")
+        return
+    }
+    verifyToken, err := model.NewSessionID()
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    now := time.Now().Unix()
+    id, err := h.DB.CreateDomain(r.Context(), &model.CustomDomain{
+        Domain:      domain,
+        OwnerType:   req.OwnerType,
+        OwnerID:     req.OwnerID,
+        VerifyToken: verifyToken,
+        CreatedAt:   now,
+        UpdatedAt:   now,
+    })
+    if err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusCreated, map[string]any{
+        "id":          id,
+        "domain":      domain,
+        "verify_host": "_verify." + domain,
+        "verify_txt":  verifyToken,
+    })
+}
+
+// loadOwnedDomain fetches the path domain and checks the caller may act on it.
+func (h *Handler) loadOwnedDomain(w http.ResponseWriter, r *http.Request) (*model.CustomDomain, bool) {
+    domain, err := h.DB.GetDomainByName(r.Context(), strings.ToLower(pathParam(r, "domain")))
+    if err != nil || domain == nil {
+        writeErr(w, http.StatusNotFound, "DOMAIN_NOT_FOUND", "Domain not found")
+        return nil, false
+    }
+    allowed, err := h.authorizeOwner(r, domain.OwnerType, domain.OwnerID)
+    if err != nil {
+        writeInternal(w)
+        return nil, false
+    }
+    if !allowed {
+        writeErr(w, http.StatusNotFound, "DOMAIN_NOT_FOUND", "Domain not found")
+        return nil, false
+    }
+    return domain, true
+}
+
+// GetDomain handles GET /api/{api_version}/domains/{domain}.
+func (h *Handler) GetDomain(w http.ResponseWriter, r *http.Request) {
+    domain, ok := h.loadOwnedDomain(w, r)
+    if !ok {
+        return
+    }
+    writeOK(w, http.StatusOK, domain)
+}
+
+// DeleteDomain handles DELETE /api/{api_version}/domains/{domain}.
+func (h *Handler) DeleteDomain(w http.ResponseWriter, r *http.Request) {
+    domain, ok := h.loadOwnedDomain(w, r)
+    if !ok {
+        return
+    }
+    if err := h.DB.DeleteDomain(r.Context(), domain.ID); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, nil)
+}
+
+// VerifyDomain handles POST /api/{api_version}/domains/{domain}/verify: it looks
+// up TXT _verify.{domain} with a 10s timeout and matches the stored token.
+func (h *Handler) VerifyDomain(w http.ResponseWriter, r *http.Request) {
+    domain, ok := h.loadOwnedDomain(w, r)
+    if !ok {
+        return
+    }
+    ctx, cancel := context.WithTimeout(r.Context(), dnsVerifyTimeout)
+    defer cancel()
+
+    var resolver net.Resolver
+    records, err := resolver.LookupTXT(ctx, "_verify."+domain.Domain)
+    if err != nil {
+        writeErr(w, http.StatusBadRequest, "DOMAIN_VERIFY_FAILED",
+            "DNS verification failed. Check the TXT record and try again")
+        return
+    }
+    matched := false
+    for _, rec := range records {
+        if middleware.ConstantTimeEqStr(strings.TrimSpace(rec), domain.VerifyToken) {
+            matched = true
+            break
+        }
+    }
+    if !matched {
+        writeErr(w, http.StatusBadRequest, "DOMAIN_VERIFY_FAILED",
+            "DNS verification failed. Check the TXT record and try again")
+        return
+    }
+    if err := h.DB.SetDomainVerified(r.Context(), domain.ID, time.Now().Unix()); err != nil {
+        writeInternal(w)
+        return
+    }
+    writeOK(w, http.StatusOK, map[string]any{"domain": domain.Domain, "verified": true})
+}
 ```
+
+Certificate issuance for a freshly verified domain is the project's existing TLS
+concern — call whatever ACME/Let's Encrypt helper the project already has right
+after `SetDomainVerified`, and leave `ssl_enabled`/`ssl_cert_path`/`ssl_key_path`
+untouched when the project has none.
 
 ---
 
@@ -1816,15 +3561,813 @@ Find the project's i18n translation files (`find src -name "*.json" -path "*/i18
 
 ## Step 14 — Tests
 
-Create `{handler}_handler_test.go` alongside each handler. Table-driven tests using `t.Run`.
+Write table-driven tests with the standard `testing` package and
+`net/http/httptest` — no third-party test framework. Every category below is
+covered concretely for admin login and for user login/register; apply the exact
+same pattern to every other handler from Step 8.
 
-Every handler test suite includes:
-- Happy-path: correct inputs → expected status + body shape
-- Invalid inputs: missing fields, malformed JSON → 400
-- Auth failure: no cookie/token, expired, revoked → 401
-- Wrong credentials: always same 401 body regardless of whether user exists or password is wrong
-- Rate limit: call the endpoint `max+1` times → last call returns 429 with `Retry-After`
-- Scope check (token routes): valid token missing required scope → 403
+### Shared test doubles (`src/handler/handler_test.go`)
+
+`stubStore` embeds the `Store` interface so only the methods a given test needs
+have to be written; any unimplemented method panics, which correctly fails a
+test that calls something it did not stub.
+
+```go
+package handler
+
+import (
+    "context"
+    "encoding/json"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
+
+    "{MODULE}/src/config"
+    "{MODULE}/src/model"
+)
+
+// stubStore satisfies Store by embedding it; each test fills in only the hooks
+// the handler under test actually calls.
+type stubStore struct {
+    Store
+
+    adminByUsername func(ctx context.Context, username string) (*model.Admin, error)
+    adminByID       func(ctx context.Context, id int64) (*model.Admin, error)
+    createAdminSess func(ctx context.Context, s *model.AdminSession) error
+    adminSessByID   func(ctx context.Context, id string) (*model.AdminSession, error)
+    updateAdminLog  func(ctx context.Context, adminID, at int64, ip string) error
+
+    userByLogin    func(ctx context.Context, login string) (*model.User, error)
+    userByUsername func(ctx context.Context, username string) (*model.User, error)
+    userByEmail    func(ctx context.Context, email string) (*model.User, error)
+    createUser     func(ctx context.Context, u *model.User) (int64, error)
+    createUserSess func(ctx context.Context, s *model.UserSession) error
+    updateUserLog  func(ctx context.Context, userID, at int64, ip string) error
+}
+
+func (s *stubStore) GetAdminByUsername(ctx context.Context, username string) (*model.Admin, error) {
+    return s.adminByUsername(ctx, username)
+}
+
+func (s *stubStore) GetAdminByID(ctx context.Context, id int64) (*model.Admin, error) {
+    return s.adminByID(ctx, id)
+}
+
+func (s *stubStore) CreateAdminSession(ctx context.Context, sess *model.AdminSession) error {
+    if s.createAdminSess == nil {
+        return nil
+    }
+    return s.createAdminSess(ctx, sess)
+}
+
+func (s *stubStore) GetAdminSessionByID(ctx context.Context, id string) (*model.AdminSession, error) {
+    return s.adminSessByID(ctx, id)
+}
+
+func (s *stubStore) UpdateAdminLogin(ctx context.Context, adminID, at int64, ip string) error {
+    if s.updateAdminLog == nil {
+        return nil
+    }
+    return s.updateAdminLog(ctx, adminID, at, ip)
+}
+
+func (s *stubStore) GetUserByLogin(ctx context.Context, login string) (*model.User, error) {
+    return s.userByLogin(ctx, login)
+}
+
+func (s *stubStore) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
+    return s.userByUsername(ctx, username)
+}
+
+func (s *stubStore) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
+    return s.userByEmail(ctx, email)
+}
+
+func (s *stubStore) CreateUser(ctx context.Context, u *model.User) (int64, error) {
+    return s.createUser(ctx, u)
+}
+
+func (s *stubStore) CreateUserSession(ctx context.Context, sess *model.UserSession) error {
+    if s.createUserSess == nil {
+        return nil
+    }
+    return s.createUserSess(ctx, sess)
+}
+
+func (s *stubStore) UpdateUserLogin(ctx context.Context, userID, at int64, ip string) error {
+    if s.updateUserLog == nil {
+        return nil
+    }
+    return s.updateUserLog(ctx, userID, at, ip)
+}
+
+// newTestHandler builds a Handler with sane defaults for the auth config.
+func newTestHandler(store Store) *Handler {
+    h := &Handler{
+        DB:         store,
+        Auth:       config.AuthConfig{},
+        ServerName: "{project_name}",
+        BaseURL:    "https://example.test",
+        AdminPath:  "{admin_path}",
+    }
+    h.Auth.Admin.SessionTimeout = defaultAdminSessionTimeout
+    h.Auth.Users.SessionTimeout = defaultUserSessionTimeout
+    h.Auth.Users.Registration.Mode = "open"
+    return h
+}
+
+// mustHash produces a real argon2id hash so CheckPassword is exercised for real.
+func mustHash(t *testing.T, password string) string {
+    t.Helper()
+    hash, err := model.HashPassword(password)
+    if err != nil {
+        t.Fatalf("HashPassword: %v", err)
+    }
+    return hash
+}
+
+// postJSON runs a handler against a JSON POST and returns the recorder.
+func postJSON(h http.HandlerFunc, path, body string) *httptest.ResponseRecorder {
+    r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+    r.Header.Set("Content-Type", "application/json")
+    r.RemoteAddr = "203.0.113.10:54321"
+    w := httptest.NewRecorder()
+    h(w, r)
+    return w
+}
+
+// decodeEnvelope reads the {"ok":...} envelope common to every handler.
+func decodeEnvelope(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
+    t.Helper()
+    var out map[string]any
+    if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+        t.Fatalf("response is not JSON: %v (%q)", err, w.Body.String())
+    }
+    return out
+}
+
+// cookieNamed returns the Set-Cookie entry with the given name, or nil.
+func cookieNamed(w *httptest.ResponseRecorder, name string) *http.Cookie {
+    for _, c := range w.Result().Cookies() {
+        if c.Name == name {
+            return c
+        }
+    }
+    return nil
+}
+```
+
+### Admin login (`src/handler/admin_auth_handler_test.go`)
+
+Covers happy path, invalid input, wrong credentials, unknown account (identical
+response), and an account created by admin with an empty `password_hash`.
+
+```go
+package handler
+
+import (
+    "context"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+
+    "{MODULE}/src/model"
+)
+
+func TestAdminLogin(t *testing.T) {
+    const password = "correct-horse-battery-staple"
+    hash := mustHash(t, password)
+
+    admin := &model.Admin{ID: 1, Username: "root", PasswordHash: hash}
+    pendingAdmin := &model.Admin{ID: 2, Username: "pending", PasswordHash: ""}
+
+    tests := []struct {
+        name       string
+        body       string
+        lookup     func(ctx context.Context, username string) (*model.Admin, error)
+        wantStatus int
+        wantCode   string
+        wantCookie bool
+    }{
+        {
+            name: "happy path issues a session cookie",
+            body: `{"username":"root","password":"` + password + `"}`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                return admin, nil
+            },
+            wantStatus: http.StatusOK,
+            wantCookie: true,
+        },
+        {
+            name: "malformed json is rejected",
+            body: `{"username":`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                t.Fatal("store must not be reached for malformed JSON")
+                return nil, nil
+            },
+            wantStatus: http.StatusBadRequest,
+            wantCode:   "INVALID_JSON",
+        },
+        {
+            name: "missing password is rejected before any lookup",
+            body: `{"username":"root"}`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                t.Fatal("store must not be reached without a password")
+                return nil, nil
+            },
+            wantStatus: http.StatusBadRequest,
+            wantCode:   "INVALID_REQUEST",
+        },
+        {
+            name: "wrong password",
+            body: `{"username":"root","password":"wrong"}`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                return admin, nil
+            },
+            wantStatus: http.StatusUnauthorized,
+            wantCode:   "INVALID_CREDENTIALS",
+        },
+        {
+            name: "unknown username gives the same answer as a wrong password",
+            body: `{"username":"nobody","password":"` + password + `"}`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                return nil, ErrNotFound
+            },
+            wantStatus: http.StatusUnauthorized,
+            wantCode:   "INVALID_CREDENTIALS",
+        },
+        {
+            name: "empty stored hash can never authenticate",
+            body: `{"username":"pending","password":""}`,
+            lookup: func(context.Context, string) (*model.Admin, error) {
+                return pendingAdmin, nil
+            },
+            wantStatus: http.StatusBadRequest,
+            wantCode:   "INVALID_REQUEST",
+        },
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            h := newTestHandler(&stubStore{adminByUsername: tc.lookup})
+            w := postJSON(h.AdminLogin, "/server/{admin_path}/auth/login", tc.body)
+
+            if w.Code != tc.wantStatus {
+                t.Fatalf("status = %d, want %d (body %q)", w.Code, tc.wantStatus, w.Body.String())
+            }
+            env := decodeEnvelope(t, w)
+            if tc.wantCode == "" {
+                if env["ok"] != true {
+                    t.Fatalf("ok = %v, want true", env["ok"])
+                }
+            } else {
+                if env["ok"] != false {
+                    t.Fatalf("ok = %v, want false", env["ok"])
+                }
+                if env["error"] != tc.wantCode {
+                    t.Fatalf("error = %v, want %q", env["error"], tc.wantCode)
+                }
+                if env["message"] == "" || env["message"] == nil {
+                    t.Fatal("error envelope is missing a human message")
+                }
+            }
+
+            cookie := cookieNamed(w, "admin_session")
+            if tc.wantCookie {
+                if cookie == nil {
+                    t.Fatal("admin_session cookie was not set")
+                }
+                if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode {
+                    t.Fatalf("cookie attributes = HttpOnly:%v Secure:%v SameSite:%v, want true/true/Strict",
+                        cookie.HttpOnly, cookie.Secure, cookie.SameSite)
+                }
+                if cookie.Path != h.adminCookiePath() {
+                    t.Fatalf("cookie path = %q, want %q", cookie.Path, h.adminCookiePath())
+                }
+            } else if cookie != nil {
+                t.Fatal("a session cookie was issued for a failed login")
+            }
+        })
+    }
+}
+
+// TestAdminLoginRejectsUnknownAndWrongIdentically pins the two failure bodies
+// together so a future edit cannot make them distinguishable.
+func TestAdminLoginRejectsUnknownAndWrongIdentically(t *testing.T) {
+    hash := mustHash(t, "correct-horse-battery-staple")
+
+    known := newTestHandler(&stubStore{
+        adminByUsername: func(context.Context, string) (*model.Admin, error) {
+            return &model.Admin{ID: 1, Username: "root", PasswordHash: hash}, nil
+        },
+    })
+    unknown := newTestHandler(&stubStore{
+        adminByUsername: func(context.Context, string) (*model.Admin, error) {
+            return nil, ErrNotFound
+        },
+    })
+
+    a := postJSON(known.AdminLogin, "/server/{admin_path}/auth/login", `{"username":"root","password":"nope"}`)
+    b := postJSON(unknown.AdminLogin, "/server/{admin_path}/auth/login", `{"username":"ghost","password":"nope"}`)
+
+    if a.Code != b.Code {
+        t.Fatalf("status differs: %d vs %d", a.Code, b.Code)
+    }
+    if a.Body.String() != b.Body.String() {
+        t.Fatalf("body differs:\n%q\n%q", a.Body.String(), b.Body.String())
+    }
+}
+
+// TestAdminSessionAuthFailure covers the auth-failure category: no cookie, an
+// unknown session id, and a session the store rejects as expired.
+func TestAdminSessionAuthFailure(t *testing.T) {
+    tests := []struct {
+        name   string
+        cookie string
+        lookup func(ctx context.Context, id string) (*model.AdminSession, error)
+    }{
+        {
+            name:   "no cookie at all",
+            cookie: "",
+            lookup: func(context.Context, string) (*model.AdminSession, error) {
+                t.Fatal("store must not be reached without a cookie")
+                return nil, nil
+            },
+        },
+        {
+            name:   "unknown session id",
+            cookie: "deadbeef",
+            lookup: func(context.Context, string) (*model.AdminSession, error) { return nil, ErrNotFound },
+        },
+        {
+            name:   "expired session",
+            cookie: "expired",
+            lookup: func(context.Context, string) (*model.AdminSession, error) { return nil, ErrNotFound },
+        },
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            h := newTestHandler(&stubStore{adminSessByID: tc.lookup})
+            r := httptest.NewRequest(http.MethodGet, "/server/{admin_path}/auth/session", nil)
+            if tc.cookie != "" {
+                r.AddCookie(&http.Cookie{Name: "admin_session", Value: tc.cookie})
+            }
+            w := httptest.NewRecorder()
+            h.AdminSession(w, r)
+
+            if w.Code != http.StatusUnauthorized {
+                t.Fatalf("status = %d, want 401 (body %q)", w.Code, w.Body.String())
+            }
+            if env := decodeEnvelope(t, w); env["error"] != "UNAUTHORIZED" {
+                t.Fatalf("error = %v, want UNAUTHORIZED", env["error"])
+            }
+        })
+    }
+}
+
+// TestAdminTOTPRequired covers the second authentication factor.
+func TestAdminTOTPRequired(t *testing.T) {
+    const password = "correct-horse-battery-staple"
+    secret, _, err := model.NewTOTPSecret("{project_name}", "root")
+    if err != nil {
+        t.Fatalf("NewTOTPSecret: %v", err)
+    }
+    admin := &model.Admin{
+        ID: 1, Username: "root", PasswordHash: mustHash(t, password),
+        TOTPSecret: secret, TOTPEnabled: true,
+    }
+    h := newTestHandler(&stubStore{
+        adminByUsername: func(context.Context, string) (*model.Admin, error) { return admin, nil },
+    })
+
+    t.Run("missing code", func(t *testing.T) {
+        w := postJSON(h.AdminLogin, "/server/{admin_path}/auth/login",
+            `{"username":"root","password":"`+password+`"}`)
+        if w.Code != http.StatusUnauthorized {
+            t.Fatalf("status = %d, want 401", w.Code)
+        }
+        if env := decodeEnvelope(t, w); env["error"] != "TOTP_REQUIRED" {
+            t.Fatalf("error = %v, want TOTP_REQUIRED", env["error"])
+        }
+    })
+
+    t.Run("wrong code", func(t *testing.T) {
+        w := postJSON(h.AdminLogin, "/server/{admin_path}/auth/login",
+            `{"username":"root","password":"`+password+`","totp_code":"000000"}`)
+        if w.Code != http.StatusUnauthorized {
+            t.Fatalf("status = %d, want 401", w.Code)
+        }
+        if env := decodeEnvelope(t, w); env["error"] != "TOTP_INVALID" {
+            t.Fatalf("error = %v, want TOTP_INVALID", env["error"])
+        }
+        if cookieNamed(w, "admin_session") != nil {
+            t.Fatal("a session cookie was issued without a valid TOTP code")
+        }
+    })
+}
+```
+
+### User login and registration (`src/handler/user_auth_handler_test.go`)
+
+```go
+package handler
+
+import (
+    "context"
+    "net/http"
+    "strings"
+    "testing"
+
+    "{MODULE}/src/model"
+)
+
+func TestUserLogin(t *testing.T) {
+    const password = "correct-horse-battery-staple"
+    active := &model.User{ID: 7, Username: "alice", Email: "alice@example.test", PasswordHash: mustHash(t, password)}
+    invited := &model.User{ID: 8, Username: "bob", Email: "bob@example.test", PasswordHash: ""}
+    banned := &model.User{ID: 9, Username: "mallory", Email: "m@example.test", PasswordHash: mustHash(t, password), Suspended: true}
+
+    tests := []struct {
+        name       string
+        body       string
+        lookup     func(ctx context.Context, login string) (*model.User, error)
+        wantStatus int
+        wantCode   string
+        wantCookie bool
+    }{
+        {
+            name:       "happy path by username",
+            body:       `{"login":"alice","password":"` + password + `"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return active, nil },
+            wantStatus: http.StatusOK,
+            wantCookie: true,
+        },
+        {
+            name:       "happy path by email",
+            body:       `{"login":"alice@example.test","password":"` + password + `"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return active, nil },
+            wantStatus: http.StatusOK,
+            wantCookie: true,
+        },
+        {
+            name:       "empty body is a bad request",
+            body:       `{}`,
+            lookup:     func(context.Context, string) (*model.User, error) { t.Fatal("unexpected lookup"); return nil, nil },
+            wantStatus: http.StatusBadRequest,
+            wantCode:   "INVALID_REQUEST",
+        },
+        {
+            name:       "wrong password",
+            body:       `{"login":"alice","password":"wrong"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return active, nil },
+            wantStatus: http.StatusUnauthorized,
+            wantCode:   "INVALID_CREDENTIALS",
+        },
+        {
+            name:       "unknown account is indistinguishable",
+            body:       `{"login":"ghost","password":"` + password + `"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return nil, ErrNotFound },
+            wantStatus: http.StatusUnauthorized,
+            wantCode:   "INVALID_CREDENTIALS",
+        },
+        {
+            name:       "invited account with no password set cannot log in",
+            body:       `{"login":"bob","password":"` + password + `"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return invited, nil },
+            wantStatus: http.StatusUnauthorized,
+            wantCode:   "INVALID_CREDENTIALS",
+        },
+        {
+            name:       "suspended account is refused after the password check",
+            body:       `{"login":"mallory","password":"` + password + `"}`,
+            lookup:     func(context.Context, string) (*model.User, error) { return banned, nil },
+            wantStatus: http.StatusForbidden,
+            wantCode:   "ACCOUNT_SUSPENDED",
+        },
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            h := newTestHandler(&stubStore{userByLogin: tc.lookup})
+            w := postJSON(h.UserLogin, "/api/{api_version}/auth/login", tc.body)
+
+            if w.Code != tc.wantStatus {
+                t.Fatalf("status = %d, want %d (body %q)", w.Code, tc.wantStatus, w.Body.String())
+            }
+            env := decodeEnvelope(t, w)
+            if tc.wantCode == "" {
+                if env["ok"] != true {
+                    t.Fatalf("ok = %v, want true", env["ok"])
+                }
+            } else if env["error"] != tc.wantCode {
+                t.Fatalf("error = %v, want %q", env["error"], tc.wantCode)
+            }
+
+            cookie := cookieNamed(w, "user_session")
+            if tc.wantCookie {
+                if cookie == nil {
+                    t.Fatal("user_session cookie was not set")
+                }
+                if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/" {
+                    t.Fatalf("cookie attributes = HttpOnly:%v Secure:%v SameSite:%v Path:%q",
+                        cookie.HttpOnly, cookie.Secure, cookie.SameSite, cookie.Path)
+                }
+            } else if cookie != nil {
+                t.Fatal("a session cookie was issued for a failed login")
+            }
+        })
+    }
+}
+
+func TestUserRegister(t *testing.T) {
+    notFound := func(context.Context, string) (*model.User, error) { return nil, ErrNotFound }
+    taken := func(u *model.User) func(context.Context, string) (*model.User, error) {
+        return func(context.Context, string) (*model.User, error) { return u, nil }
+    }
+    existing := &model.User{ID: 1, Username: "alice", Email: "alice@example.test"}
+
+    tests := []struct {
+        name        string
+        mode        string
+        body        string
+        byUsername  func(ctx context.Context, username string) (*model.User, error)
+        byEmail     func(ctx context.Context, email string) (*model.User, error)
+        wantStatus  int
+        wantCode    string
+        wantCreated bool
+    }{
+        {
+            name: "happy path creates the account and logs it in", mode: "open",
+            body:       `{"username":"newbie","email":"newbie@example.test","password":"correct-horse-battery-staple"}`,
+            byUsername: notFound, byEmail: notFound,
+            wantStatus: http.StatusCreated, wantCreated: true,
+        },
+        {
+            name: "private mode hides the route entirely", mode: "private",
+            body:       `{"username":"newbie","email":"newbie@example.test","password":"correct-horse-battery-staple"}`,
+            wantStatus: http.StatusNotFound, wantCode: "NOT_FOUND",
+        },
+        {
+            name: "invalid username", mode: "open",
+            body:       `{"username":"a","email":"newbie@example.test","password":"correct-horse-battery-staple"}`,
+            wantStatus: http.StatusBadRequest, wantCode: "USERNAME_INVALID",
+        },
+        {
+            name: "invalid email", mode: "open",
+            body:       `{"username":"newbie","email":"not-an-email","password":"correct-horse-battery-staple"}`,
+            wantStatus: http.StatusBadRequest, wantCode: "EMAIL_INVALID",
+        },
+        {
+            name: "weak password", mode: "open",
+            body:       `{"username":"newbie","email":"newbie@example.test","password":"short"}`,
+            wantStatus: http.StatusBadRequest, wantCode: "PASSWORD_INVALID",
+        },
+        {
+            name: "duplicate username", mode: "open",
+            body:       `{"username":"alice","email":"newbie@example.test","password":"correct-horse-battery-staple"}`,
+            byUsername: taken(existing), byEmail: notFound,
+            wantStatus: http.StatusConflict, wantCode: "USERNAME_TAKEN",
+        },
+        {
+            name: "duplicate email", mode: "open",
+            body:       `{"username":"newbie","email":"alice@example.test","password":"correct-horse-battery-staple"}`,
+            byUsername: notFound, byEmail: taken(existing),
+            wantStatus: http.StatusConflict, wantCode: "EMAIL_TAKEN",
+        },
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            var created *model.User
+            store := &stubStore{
+                userByUsername: tc.byUsername,
+                userByEmail:    tc.byEmail,
+                createUser: func(_ context.Context, u *model.User) (int64, error) {
+                    created = u
+                    return 42, nil
+                },
+            }
+            h := newTestHandler(store)
+            h.Auth.Users.Registration.Mode = tc.mode
+
+            w := postJSON(h.UserRegister, "/api/{api_version}/auth/register", tc.body)
+            if w.Code != tc.wantStatus {
+                t.Fatalf("status = %d, want %d (body %q)", w.Code, tc.wantStatus, w.Body.String())
+            }
+            env := decodeEnvelope(t, w)
+            if tc.wantCode != "" && env["error"] != tc.wantCode {
+                t.Fatalf("error = %v, want %q", env["error"], tc.wantCode)
+            }
+
+            if !tc.wantCreated {
+                if created != nil {
+                    t.Fatal("a user row was created for a rejected request")
+                }
+                return
+            }
+            if created == nil {
+                t.Fatal("no user row was created")
+            }
+            if created.PasswordHash == "" || created.PasswordHash == "correct-horse-battery-staple" {
+                t.Fatalf("password was not hashed: %q", created.PasswordHash)
+            }
+            if !model.CheckPassword(created.PasswordHash, "correct-horse-battery-staple") {
+                t.Fatal("stored hash does not verify against the submitted password")
+            }
+            if cookieNamed(w, "user_session") == nil {
+                t.Fatal("registration did not start a session")
+            }
+        })
+    }
+}
+
+// TestDecodeJSONBodyLimit proves the 1 MiB MaxBytesReader cap is enforced.
+func TestDecodeJSONBodyLimit(t *testing.T) {
+    h := newTestHandler(&stubStore{
+        userByLogin: func(context.Context, string) (*model.User, error) {
+            t.Fatal("an oversized body must never reach the store")
+            return nil, nil
+        },
+    })
+    body := `{"login":"alice","password":"` + strings.Repeat("A", 2<<20) + `"}`
+    w := postJSON(h.UserLogin, "/api/{api_version}/auth/login", body)
+    if w.Code != http.StatusBadRequest {
+        t.Fatalf("status = %d, want 400", w.Code)
+    }
+    if env := decodeEnvelope(t, w); env["error"] != "INVALID_JSON" {
+        t.Fatalf("error = %v, want INVALID_JSON", env["error"])
+    }
+}
+```
+
+### Rate limit and scope (`src/middleware/middleware_test.go`)
+
+These two categories live in the middleware package because Step 6 and Step 7
+own them; the handlers are wrapped by them at registration time (Step 11).
+
+```go
+package middleware
+
+import (
+    "context"
+    "encoding/json"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+)
+
+type stubRateLimitDB struct {
+    count    int64
+    countErr error
+    recorded int
+}
+
+func (s *stubRateLimitDB) CountRateLimitHits(context.Context, string, int64) (int64, error) {
+    return s.count, s.countErr
+}
+
+func (s *stubRateLimitDB) RecordRateLimitHit(context.Context, string, int64) error {
+    s.recorded++
+    return nil
+}
+
+func TestRateLimit(t *testing.T) {
+    tests := []struct {
+        name         string
+        db           *stubRateLimitDB
+        max          int
+        wantStatus   int
+        wantReached  bool
+        wantRecorded int
+    }{
+        {
+            name: "under the limit passes through",
+            db:   &stubRateLimitDB{count: 4}, max: 5,
+            wantStatus: http.StatusOK, wantReached: true, wantRecorded: 1,
+        },
+        {
+            name: "at the limit is rejected",
+            db:   &stubRateLimitDB{count: 5}, max: 5,
+            wantStatus: http.StatusTooManyRequests,
+        },
+        {
+            name: "over the limit is rejected",
+            db:   &stubRateLimitDB{count: 99}, max: 5,
+            wantStatus: http.StatusTooManyRequests,
+        },
+        {
+            name: "a store error fails closed",
+            db:   &stubRateLimitDB{countErr: context.DeadlineExceeded}, max: 5,
+            wantStatus: http.StatusServiceUnavailable,
+        },
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            reached := false
+            next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                reached = true
+                w.WriteHeader(http.StatusOK)
+            })
+            handler := RateLimit(tc.db, "auth.user_login", tc.max, 900)(next)
+
+            r := httptest.NewRequest(http.MethodPost, "/api/{api_version}/auth/login", nil)
+            r.RemoteAddr = "203.0.113.10:54321"
+            w := httptest.NewRecorder()
+            handler.ServeHTTP(w, r)
+
+            if w.Code != tc.wantStatus {
+                t.Fatalf("status = %d, want %d", w.Code, tc.wantStatus)
+            }
+            if reached != tc.wantReached {
+                t.Fatalf("handler reached = %v, want %v", reached, tc.wantReached)
+            }
+            if tc.db.recorded != tc.wantRecorded {
+                t.Fatalf("recorded hits = %d, want %d", tc.db.recorded, tc.wantRecorded)
+            }
+            if tc.wantStatus == http.StatusTooManyRequests && w.Header().Get("Retry-After") == "" {
+                t.Fatal("a 429 must carry a Retry-After header")
+            }
+        })
+    }
+}
+
+func TestRequireScope(t *testing.T) {
+    tests := []struct {
+        name       string
+        scopes     any
+        required   string
+        wantStatus int
+    }{
+        {name: "exact scope present", scopes: `["read","write"]`, required: "write", wantStatus: http.StatusOK},
+        {name: "scope absent", scopes: `["read"]`, required: "write", wantStatus: http.StatusForbidden},
+        {name: "no scopes at all", scopes: `[]`, required: "read", wantStatus: http.StatusForbidden},
+        {name: "no token in context", scopes: nil, required: "read", wantStatus: http.StatusForbidden},
+        {name: "prefix must not match", scopes: `["writer"]`, required: "write", wantStatus: http.StatusForbidden},
+    }
+
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                w.WriteHeader(http.StatusOK)
+            })
+            handler := RequireScope(tc.required)(next)
+
+            r := httptest.NewRequest(http.MethodGet, "/api/{api_version}/{feature}", nil)
+            if tc.scopes != nil {
+                r = r.WithContext(context.WithValue(r.Context(), CtxTokenScopes, tc.scopes))
+            }
+            w := httptest.NewRecorder()
+            handler.ServeHTTP(w, r)
+
+            if w.Code != tc.wantStatus {
+                t.Fatalf("status = %d, want %d", w.Code, tc.wantStatus)
+            }
+            if tc.wantStatus == http.StatusForbidden {
+                var env map[string]any
+                if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+                    t.Fatalf("response is not JSON: %v", err)
+                }
+                if env["error"] != "FORBIDDEN" {
+                    t.Fatalf("error = %v, want FORBIDDEN", env["error"])
+                }
+            }
+        })
+    }
+}
+```
+
+### Apply the same pattern everywhere else
+
+Every remaining Step 8 handler gets a table-driven test file built exactly like
+the two above — one `stubStore` hook per store call the handler makes, one table
+row per outcome:
+
+- `AdminLogout`, `AdminSession`, `AdminPasswordChange`, `AdminTOTPEnable`,
+  `AdminTOTPConfirm`, `AdminTOTPDisable`
+- `AdminInviteUser`, `AdminCreateUser`, `UserAcceptInvite`, `UserLogout`,
+  `UserMe`, `UserUpdateMe`, `UserPasswordChange`, `UserPasswordResetRequest`,
+  `UserPasswordResetConfirm`, `UserEmailVerify`
+- `ListTokens`, `CreateToken`, `RevokeToken`
+- `ListOrgs`, `CreateOrg`, `GetOrg`, `UpdateOrg`, `DeleteOrg`, `ListOrgMembers`,
+  `AddOrgMember`, `ChangeOrgMemberRole`, `RemoveOrgMember`, `CreateOrgInvite`,
+  `AcceptOrgInvite`
+- `ListDomains`, `AddDomain`, `GetDomain`, `DeleteDomain`, `VerifyDomain`
+
+For handlers behind `RequireAdmin`/`RequireUser`, inject the identity the
+middleware would have set before calling the handler:
+
+```go
+r = r.WithContext(context.WithValue(r.Context(), middleware.CtxUserID, int64(7)))
+```
+
+Fixed rules to assert in every relevant table: token endpoints never return
+`token_hash` and return the raw token exactly once, on creation; single-use
+tokens (invite, password reset, email verification) are rejected the second
+time; expired tokens are rejected; and one owner can never read or mutate
+another owner's org, member, or domain rows.
 
 ---
 

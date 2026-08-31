@@ -1245,199 +1245,1920 @@ Create `src/handlers/{feature}.rs` for each selected feature.
   not, so do not add one here — this is an intentional framework difference, not a bug)
 - JSON error: `{"ok":false,"error":"CODE","message":"human text"}`, same framing as above
 
-### Feature 1 — Admin auth handler (`src/handlers/admin_auth.rs`)
+Config paths below follow the structs from Step 12 (`state.cfg.server.auth.*`) plus the project's own `server.name`, `server.admin_path` and `server.base_url` values. Substitute the project's actual accessor path if its config struct nests differently.
 
-Routes and their implementations:
+### Shared handler helpers (`src/handlers/response.rs`)
 
 ```rust
+use axum::{
+    http::{header, HeaderMap, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
+    Json,
+};
+use serde_json::{json, Value};
+use std::net::SocketAddr;
+
+// ok returns 200 {"ok":true,"data":{...}}.
+pub fn ok(data: Value) -> Response {
+    (StatusCode::OK, Json(json!({"ok": true, "data": data}))).into_response()
+}
+
+// created returns 201 {"ok":true,"data":{...}}.
+pub fn created(data: Value) -> Response {
+    (StatusCode::CREATED, Json(json!({"ok": true, "data": data}))).into_response()
+}
+
+// ok_empty returns 200 {"ok":true} for handlers with no payload.
+pub fn ok_empty() -> Response {
+    (StatusCode::OK, Json(json!({"ok": true}))).into_response()
+}
+
+// err returns the standard error envelope.
+pub fn err(status: StatusCode, code: &str, message: &str) -> Response {
+    (
+        status,
+        Json(json!({"ok": false, "error": code, "message": message})),
+    )
+        .into_response()
+}
+
+// server_error is the generic 500 used whenever a DB call fails — it never
+// leaks the underlying error text to the client.
+pub fn server_error() -> Response {
+    err(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "SERVER_ERROR",
+        "Something went wrong. Please try again",
+    )
+}
+
+// session_cookie builds a session cookie with the mandatory security attributes.
+pub fn session_cookie(name: &str, value: &str, path: &str, max_age: i64) -> String {
+    format!("{name}={value}; Path={path}; Max-Age={max_age}; HttpOnly; Secure; SameSite=Strict")
+}
+
+// cleared_cookie builds the immediate-expiry form of the same cookie.
+pub fn cleared_cookie(name: &str, path: &str) -> String {
+    format!("{name}=; Path={path}; Max-Age=0; HttpOnly; Secure; SameSite=Strict")
+}
+
+// set_cookie appends a Set-Cookie header to an already-built response.
+pub fn set_cookie(res: &mut Response, cookie: &str) {
+    if let Ok(value) = HeaderValue::from_str(cookie) {
+        res.headers_mut().append(header::SET_COOKIE, value);
+    }
+}
+
+// cookie_value reads one cookie out of the request headers.
+pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+    let raw = headers.get(header::COOKIE)?.to_str().ok()?;
+    for part in raw.split(';') {
+        if let Some(value) = part.trim().strip_prefix(&format!("{name}=")) {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+// request_ip resolves the client IP for audit columns, applying the same
+// leftmost-proxy-header rule the Step 7 rate limiter uses.
+pub fn request_ip(headers: &HeaderMap, peer: SocketAddr) -> String {
+    if let Some(xff) = headers.get("X-Forwarded-For").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = xff.split(',').next() {
+            let trimmed = first.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    if let Some(real) = headers.get("X-Real-IP").and_then(|v| v.to_str().ok()) {
+        if !real.trim().is_empty() {
+            return real.trim().to_string();
+        }
+    }
+    peer.ip().to_string()
+}
+
+// user_agent reads the User-Agent header, defaulting to the empty string so the
+// NOT NULL session columns always get a value.
+pub fn user_agent(headers: &HeaderMap) -> String {
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string()
+}
+```
+
+### Feature 1 — Admin auth handler (`src/handlers/admin_auth.rs`)
+
+Routes: `POST /server/{admin_path}/auth/login` · `POST /server/{admin_path}/auth/logout` · `GET /server/{admin_path}/auth/session` · `POST /server/{admin_path}/auth/password/change` · `POST /server/{admin_path}/auth/totp/enable` · `POST /server/{admin_path}/auth/totp/confirm` · `POST /server/{admin_path}/auth/totp/disable`.
+
+Rate limits applied at the router: `auth.admin_login` (5/900s) on `login`, `auth.password_change` (3/3600s) on `change_password`, `auth.totp_verify` (10/300s) on `confirm_totp`.
+
+```rust
+use axum::{
+    extract::{ConnectInfo, State},
+    http::{HeaderMap, StatusCode},
+    response::Response,
+    Extension, Json,
+};
+use serde::Deserialize;
+use serde_json::json;
+use std::{net::SocketAddr, sync::Arc};
+
+use crate::handlers::response::{
+    cleared_cookie, cookie_value, err, ok, ok_empty, request_ip, server_error, session_cookie,
+    set_cookie, user_agent,
+};
+use crate::middlewares::auth::AdminId;
+use crate::models::admin::AdminSession;
+use crate::models::auth::{
+    check_password, dummy_password_hash, hash_password, new_session_id, new_totp_secret,
+    validate_totp,
+};
+use crate::models::user::validate_password;
+use crate::state::AppState;
+
+// Identical text for every credential failure — never distinguish
+// "no such admin" from "wrong password".
+const INVALID_CREDENTIALS: &str = "Invalid credentials";
+
+// The admin session cookie is scoped to the admin mount point only.
+fn admin_cookie_path(state: &AppState) -> String {
+    format!("/server/{}", state.cfg.server.admin_path)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+    #[serde(default)]
+    pub totp_code: String,
+}
+
 // POST /server/{admin_path}/auth/login
-// Body: {"username":"...","password":"..."}
-// Rate limit: 5 / 900s per IP (key "auth.admin_login")
-// Flow:
-//   1. Deserialize + validate body
-//   2. db.get_admin_by_username(username) — on not found, still run
-//      check_password(dummy_password_hash(), password)
-//   3. check_password(&admin.password_hash, password) — return 401 "Invalid credentials" if false
-//   4. If admin.totp_enabled: require "totp_code" in body; validate with auth::validate_totp(&admin.totp_secret, code)
-//   5. new_session_id() → insert admin_sessions row (expires = now + cfg.admin.session_timeout)
-//   6. Set-Cookie: admin_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/server/{admin_path}
-//   7. Update admins.last_login + last_login_ip
-//   8. Return {"ok":true,"data":{"admin_id":N,"username":"..."}}
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<LoginRequest>,
+) -> Response {
+    let found = match state.db.get_admin_by_username(&body.username).await {
+        Ok(found) => found,
+        Err(_) => return server_error(),
+    };
+
+    // Always verify a hash — the dummy keeps latency identical when no admin matched.
+    let stored = found
+        .as_ref()
+        .map(|a| a.password_hash.as_str())
+        .filter(|h| !h.is_empty())
+        .unwrap_or_else(dummy_password_hash);
+    let password_ok = check_password(stored, &body.password);
+
+    let Some(admin) = found else {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    };
+    if !password_ok || admin.password_hash.is_empty() {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    }
+
+    if admin.totp_enabled {
+        let Some(secret) = admin.totp_secret.as_deref() else {
+            return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+        };
+        if body.totp_code.is_empty() {
+            return err(
+                StatusCode::UNAUTHORIZED,
+                "TOTP_REQUIRED",
+                "Two-factor authentication code required",
+            );
+        }
+        if !validate_totp(secret, &body.totp_code) {
+            return err(StatusCode::UNAUTHORIZED, "TOTP_INVALID", "Invalid authenticator code");
+        }
+    }
+
+    let Ok(session_id) = new_session_id() else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    let ip = request_ip(&headers, peer);
+    let timeout = state.cfg.server.auth.admin.session_timeout;
+    let session = AdminSession {
+        id: session_id.clone(),
+        admin_id: admin.id,
+        ip: ip.clone(),
+        user_agent: user_agent(&headers),
+        created_at: now,
+        expires_at: now + timeout,
+        last_seen: now,
+    };
+    if state.db.create_admin_session(&session).await.is_err() {
+        return server_error();
+    }
+    // Audit columns only — a failure here must not deny an otherwise valid login.
+    let _ = state.db.update_admin_last_login(admin.id, now, &ip).await;
+
+    let mut res = ok(json!({"admin_id": admin.id, "username": admin.username}));
+    set_cookie(
+        &mut res,
+        &session_cookie("admin_session", &session_id, &admin_cookie_path(&state), timeout),
+    );
+    res
+}
 
 // POST /server/{admin_path}/auth/logout
-// Auth: require_admin middleware
-// Flow: delete admin_sessions row → clear cookie → return {"ok":true}
+pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if let Some(id) = cookie_value(&headers, "admin_session") {
+        if state.db.delete_admin_session(&id).await.is_err() {
+            return server_error();
+        }
+    }
+    let mut res = ok_empty();
+    set_cookie(&mut res, &cleared_cookie("admin_session", &admin_cookie_path(&state)));
+    res
+}
 
 // GET /server/{admin_path}/auth/session
-// Auth: require_admin middleware
-// Return: {"ok":true,"data":{"admin_id":N,"username":"...","expires_at":N}}
+pub async fn session(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    headers: HeaderMap,
+) -> Response {
+    let Some(id) = cookie_value(&headers, "admin_session") else {
+        return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Authentication required");
+    };
+    let session = match state.db.get_admin_session(&id).await {
+        Ok(Some(session)) => session,
+        Ok(None) => {
+            return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired");
+        }
+        Err(_) => return server_error(),
+    };
+    let admin = match state.db.get_admin(admin_id).await {
+        Ok(Some(admin)) => admin,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    ok(json!({
+        "admin_id": admin.id,
+        "username": admin.username,
+        "expires_at": session.expires_at,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
 
 // POST /server/{admin_path}/auth/password/change
-// Auth: require_admin middleware
-// Rate limit: 3 / 3600s per IP
-// Body: {"current_password":"...","new_password":"..."}
-// Flow: verify current → hash_password(new) → update admins.password_hash → return {"ok":true}
+pub async fn change_password(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    Json(body): Json<ChangePasswordRequest>,
+) -> Response {
+    let admin = match state.db.get_admin(admin_id).await {
+        Ok(Some(admin)) => admin,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    if !check_password(&admin.password_hash, &body.current_password) {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    }
+    if let Err(e) = validate_password(&body.new_password) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_PASSWORD", &e.to_string());
+    }
+    let Ok(hash) = hash_password(&body.new_password) else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    if state.db.update_admin_password(admin.id, &hash, now).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
 
 // POST /server/{admin_path}/auth/totp/enable
-// Auth: require_admin middleware
-// Flow: auth::new_totp_secret(&cfg.server.name, &admin.username) → store secret in admins.totp_secret (not yet enabled) → return the otpauth:// URI for the client to render as a QR code
+pub async fn enable_totp(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+) -> Response {
+    let admin = match state.db.get_admin(admin_id).await {
+        Ok(Some(admin)) => admin,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    let Ok((secret, otpauth_url)) = new_totp_secret(&state.cfg.server.name, &admin.username) else {
+        return server_error();
+    };
+    // Stored but not yet enabled — confirm_totp flips totp_enabled.
+    if state.db.set_admin_totp_secret(admin.id, &secret).await.is_err() {
+        return server_error();
+    }
+    ok(json!({"otpauth_url": otpauth_url}))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TotpCodeRequest {
+    pub code: String,
+}
 
 // POST /server/{admin_path}/auth/totp/confirm
-// Auth: require_admin middleware
-// Rate limit: 10 / 300s per IP (key "auth.totp_verify")
-// Body: {"code":"..."}
-// Flow: verify code against pending totp_secret → set totp_enabled=true → return {"ok":true}
+pub async fn confirm_totp(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    Json(body): Json<TotpCodeRequest>,
+) -> Response {
+    let admin = match state.db.get_admin(admin_id).await {
+        Ok(Some(admin)) => admin,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    let Some(secret) = admin.totp_secret.as_deref() else {
+        return err(StatusCode::BAD_REQUEST, "TOTP_NOT_PENDING", "Start enrollment first");
+    };
+    if !validate_totp(secret, &body.code) {
+        return err(StatusCode::UNAUTHORIZED, "TOTP_INVALID", "Invalid authenticator code");
+    }
+    if state.db.set_admin_totp_enabled(admin.id, true).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DisableTotpRequest {
+    pub password: String,
+    pub code: String,
+}
 
 // POST /server/{admin_path}/auth/totp/disable
-// Auth: require_admin middleware
-// Body: {"password":"...","code":"..."}
-// Flow: verify both password and TOTP code → set totp_enabled=false, totp_secret=NULL → return {"ok":true}
+pub async fn disable_totp(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    Json(body): Json<DisableTotpRequest>,
+) -> Response {
+    let admin = match state.db.get_admin(admin_id).await {
+        Ok(Some(admin)) => admin,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    if !check_password(&admin.password_hash, &body.password) {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    }
+    let Some(secret) = admin.totp_secret.as_deref() else {
+        return err(StatusCode::BAD_REQUEST, "TOTP_NOT_ENABLED", "Two-factor is not enabled");
+    };
+    if !validate_totp(secret, &body.code) {
+        return err(StatusCode::UNAUTHORIZED, "TOTP_INVALID", "Invalid authenticator code");
+    }
+    if state.db.clear_admin_totp(admin.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
 ```
 
 ### Feature 3 — User auth handler (`src/handlers/user_auth.rs`)
 
+Routes: `POST /api/{api_version}/auth/register` · `POST /server/{admin_path}/users/invite` · `POST /server/{admin_path}/users/create` · `POST /api/{api_version}/auth/invite/{token}/accept` · `POST /api/{api_version}/auth/login` · `POST /api/{api_version}/auth/logout` · `GET /api/{api_version}/auth/me` · `PUT /api/{api_version}/auth/me` · `POST /api/{api_version}/auth/password/change` · `POST /api/{api_version}/auth/password/reset/request` · `POST /api/{api_version}/auth/password/reset/confirm` · `POST /api/{api_version}/auth/email/verify`.
+
+Rate limits applied at the router: `auth.register` (5/3600s), `auth.invite_create` (20/3600s), `auth.invite_accept` (10/3600s), `auth.user_login` (5/900s), `auth.password_change` (3/3600s), `auth.password_reset_request` (3/3600s), `auth.password_reset_confirm` (5/3600s), `auth.email_verify` (5/3600s).
+
+The invite-accept body carries an `email` only for the pure-invite flow, where no `users` row exists yet and the NOT NULL/UNIQUE `users.email` column has to be filled at accept time; the admin direct-create flow already has the row and ignores it.
+
 ```rust
+use axum::{
+    extract::{ConnectInfo, Path, State},
+    http::{HeaderMap, StatusCode},
+    response::Response,
+    Extension, Json,
+};
+use serde::Deserialize;
+use serde_json::json;
+use std::{net::SocketAddr, sync::Arc};
+
+use crate::handlers::response::{
+    cleared_cookie, cookie_value, created, err, ok, ok_empty, request_ip, server_error,
+    session_cookie, set_cookie, user_agent,
+};
+use crate::middlewares::auth::{AdminId, UserId};
+use crate::models::auth::{
+    check_password, dummy_password_hash, hash_password, hash_token, new_session_id, new_token_raw,
+};
+use crate::models::user::{
+    validate_email, validate_password, validate_username, PasswordReset, UserInvite, UserSession,
+};
+use crate::state::AppState;
+
+const INVALID_CREDENTIALS: &str = "Invalid credentials";
+const INVITE_INVALID: &str = "This invite link is no longer valid";
+// Invite/activation tokens are namespaced apart from API tokens.
+const INVITE_TOKEN_PREFIX: &str = "inv_";
+// Password reset links live for one hour, email verification links for a day.
+const PASSWORD_RESET_TTL: i64 = 3600;
+const EMAIL_VERIFY_TTL: i64 = 86400;
+
+fn base_url(state: &AppState) -> String {
+    state.cfg.server.base_url.trim_end_matches('/').to_string()
+}
+
+// start_user_session creates the session row and returns the Set-Cookie value.
+async fn start_user_session(
+    state: &AppState,
+    user_id: i64,
+    headers: &HeaderMap,
+    peer: SocketAddr,
+) -> Option<String> {
+    let session_id = new_session_id().ok()?;
+    let now = chrono::Utc::now().timestamp();
+    let timeout = state.cfg.server.auth.users.session_timeout;
+    let ip = request_ip(headers, peer);
+    let session = UserSession {
+        id: session_id.clone(),
+        user_id,
+        ip: ip.clone(),
+        user_agent: user_agent(headers),
+        created_at: now,
+        expires_at: now + timeout,
+        last_seen: now,
+    };
+    state.db.create_user_session(&session).await.ok()?;
+    let _ = state.db.update_user_last_login(user_id, now, &ip).await;
+    Some(session_cookie("user_session", &session_id, "/", timeout))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+}
+
 // POST /api/{api_version}/auth/register
-// Only reachable when users.registration.mode == "open" — return 404 "not found" when mode == "private"
-// (check the config value first, before any body parsing or rate-limit consumption)
-// Rate limit: 5 / 3600s per IP (key "auth.register")
-// Body: {"username":"...","email":"...","password":"..."}
-// Flow:
-//   1. Validate username, email, password
-//   2. Check username and email are not already taken (use identical timing for both checks)
-//   3. hash_password(password) → insert users row
-//   4. If require_email_verification: send verification email with token
-//      (new_session_id() as the token, hash it with hash_token before storing)
-//   5. new_session_id() → insert user_sessions row
-//   6. Set-Cookie: user_session={id}; HttpOnly; Secure; SameSite=Strict; Path=/
-//   7. Return {"ok":true,"data":{"user_id":N,"username":"...","email_verification_required":bool}}
+pub async fn register(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<RegisterRequest>,
+) -> Response {
+    // Private mode hides the endpoint entirely — checked before any other work.
+    if state.cfg.server.auth.users.registration.mode != "open" {
+        return err(StatusCode::NOT_FOUND, "NOT_FOUND", "not found");
+    }
+    if let Err(e) = validate_username(&body.username) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_USERNAME", &e.to_string());
+    }
+    if let Err(e) = validate_email(&body.email) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_EMAIL", &e.to_string());
+    }
+    if let Err(e) = validate_password(&body.password) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_PASSWORD", &e.to_string());
+    }
 
-// POST /server/{admin_path}/users/invite
-// Auth: require_admin middleware (available in BOTH open and private mode — registration mode
-// controls only whether the public /auth/register form is reachable; it does not control the
-// admin's ability to add users. Server Admin account management and Regular User account
-// creation are separate scopes, so the admin can always invite or directly create a user,
-// in either mode.)
-// Rate limit: 20 / 3600s per IP (key "auth.invite_create" — the limiter buckets by client IP,
-// same as every other endpoint; there is no separate per-admin-ID counter)
-// Body: {"username":"..."}
-// Flow:
-//   1. Validate username; check not already taken (users table) and no pending invite for it
-//   2. new_token_raw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
-//   3. Return {"ok":true,"data":{"username":"...","invite_url":"https://.../auth/invite/{raw_token}","expires_at":N}}
-//   — the raw token is never stored, only its hash; admin copies/shares the URL manually
+    // Both lookups always run so a taken username and a taken email cost the same.
+    let by_username = match state.db.get_user_by_username(&body.username).await {
+        Ok(found) => found,
+        Err(_) => return server_error(),
+    };
+    let by_email = match state.db.get_user_by_email(&body.email).await {
+        Ok(found) => found,
+        Err(_) => return server_error(),
+    };
+    if by_username.is_some() {
+        return err(StatusCode::CONFLICT, "USERNAME_TAKEN", "That username is already taken");
+    }
+    if by_email.is_some() {
+        return err(
+            StatusCode::CONFLICT,
+            "EMAIL_TAKEN",
+            "An account with that email already exists",
+        );
+    }
 
-// POST /server/{admin_path}/users/create
-// Auth: require_admin middleware (available in both modes)
-// Body: {"username":"...","email":"..."}
-// Flow:
-//   1. Validate username + email; check neither already taken
-//   2. Insert users row with password_hash = '' (not yet activated — see Step 4 note)
-//   3. new_token_raw() → hash it → insert user_invites (invited_by=admin_id, max_uses=1, expires_at=now+7d default)
-//   4. If SMTP configured: email the activation link to the address automatically
-//   5. Return {"ok":true,"data":{"user_id":N,"username":"...","activation_url":"..." (only when SMTP not configured, for manual delivery)}}
+    let Ok(hash) = hash_password(&body.password) else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    let user_id = match state.db.create_user(&body.username, &body.email, &hash, now).await {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
 
-// The password-setup form page is served by the SSR route GET /auth/invite/{token} (see the
-// route table below), not a separate /api/ endpoint — that handler validates the token exists
-// and is unexpired/unused before rendering the form; on invalid/expired/used token it renders
-// the same generic "This invite link is no longer valid" state (never distinguish expired vs
-// used vs unknown).
+    let verification_required = state.cfg.server.auth.users.require_email_verification;
+    if verification_required {
+        let (Ok(raw), Ok(record_id)) = (new_session_id(), new_session_id()) else {
+            return server_error();
+        };
+        if state
+            .db
+            .create_email_verification(
+                &record_id,
+                user_id,
+                &body.email,
+                &hash_token(&raw),
+                now,
+                now + EMAIL_VERIFY_TTL,
+            )
+            .await
+            .is_err()
+        {
+            return server_error();
+        }
+        let link = format!("{}/auth/email/verify?token={}", base_url(&state), raw);
+        let _ = state
+            .mailer
+            .send(
+                &body.email,
+                "Verify your email address",
+                &format!("Confirm your address: {link}"),
+            )
+            .await;
+    }
+
+    let Some(cookie) = start_user_session(&state, user_id, &headers, peer).await else {
+        return server_error();
+    };
+    let mut res = created(json!({
+        "user_id": user_id,
+        "username": body.username,
+        "email_verification_required": verification_required,
+    }));
+    set_cookie(&mut res, &cookie);
+    res
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InviteRequest {
+    pub username: String,
+}
+
+// new_invite creates a user_invites row and returns the raw (never stored) token.
+async fn new_invite(state: &AppState, username: &str, admin_id: i64) -> Option<(String, i64)> {
+    let (raw, token_hash) = new_token_raw(INVITE_TOKEN_PREFIX).ok()?;
+    let id = new_session_id().ok()?;
+    let now = chrono::Utc::now().timestamp();
+    let expires_at = now + state.cfg.server.auth.users.invite_expiry;
+    let invite = UserInvite {
+        id,
+        username: username.to_string(),
+        invited_by: admin_id,
+        token_hash,
+        created_at: now,
+        expires_at,
+        max_uses: 1,
+        used_count: 0,
+    };
+    state.db.create_user_invite(&invite).await.ok()?;
+    Some((raw, expires_at))
+}
+
+// username_available checks both the users table and any pending invite.
+async fn username_available(state: &AppState, username: &str) -> Result<bool, ()> {
+    let taken = state.db.get_user_by_username(username).await.map_err(|_| ())?.is_some();
+    let pending = state
+        .db
+        .get_pending_user_invite_by_username(username)
+        .await
+        .map_err(|_| ())?
+        .is_some();
+    Ok(!taken && !pending)
+}
+
+// POST /server/{admin_path}/users/invite — available in open and private mode.
+pub async fn admin_invite_user(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    Json(body): Json<InviteRequest>,
+) -> Response {
+    if let Err(e) = validate_username(&body.username) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_USERNAME", &e.to_string());
+    }
+    match username_available(&state, &body.username).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return err(
+                StatusCode::CONFLICT,
+                "USERNAME_TAKEN",
+                "That username already has a pending or active account",
+            )
+        }
+        Err(_) => return server_error(),
+    }
+    let Some((raw, expires_at)) = new_invite(&state, &body.username, admin_id).await else {
+        return server_error();
+    };
+    created(json!({
+        "username": body.username,
+        "invite_url": format!("{}/auth/invite/{}", base_url(&state), raw),
+        "expires_at": expires_at,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateUserRequest {
+    pub username: String,
+    pub email: String,
+}
+
+// POST /server/{admin_path}/users/create — available in open and private mode.
+pub async fn admin_create_user(
+    State(state): State<Arc<AppState>>,
+    Extension(AdminId(admin_id)): Extension<AdminId>,
+    Json(body): Json<CreateUserRequest>,
+) -> Response {
+    if let Err(e) = validate_username(&body.username) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_USERNAME", &e.to_string());
+    }
+    if let Err(e) = validate_email(&body.email) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_EMAIL", &e.to_string());
+    }
+    match username_available(&state, &body.username).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return err(
+                StatusCode::CONFLICT,
+                "USERNAME_TAKEN",
+                "That username already has a pending or active account",
+            )
+        }
+        Err(_) => return server_error(),
+    }
+    match state.db.get_user_by_email(&body.email).await {
+        Ok(None) => {}
+        Ok(Some(_)) => {
+            return err(
+                StatusCode::CONFLICT,
+                "EMAIL_TAKEN",
+                "An account with that email already exists",
+            )
+        }
+        Err(_) => return server_error(),
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    // Empty password_hash = not yet activated; no login path accepts it.
+    let user_id = match state.db.create_user(&body.username, &body.email, "", now).await {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+    let Some((raw, _expires_at)) = new_invite(&state, &body.username, admin_id).await else {
+        return server_error();
+    };
+    let activation_url = format!("{}/auth/invite/{}", base_url(&state), raw);
+
+    if state.mailer.is_configured() {
+        let _ = state
+            .mailer
+            .send(
+                &body.email,
+                "Activate your account",
+                &format!("Set your password: {activation_url}"),
+            )
+            .await;
+        return created(json!({"user_id": user_id, "username": body.username}));
+    }
+    created(json!({
+        "user_id": user_id,
+        "username": body.username,
+        "activation_url": activation_url,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AcceptInviteRequest {
+    pub password: String,
+    #[serde(default)]
+    pub email: String,
+}
 
 // POST /api/{api_version}/auth/invite/{token}/accept
-// Rate limit: 10 / 3600s per IP
-// Body: {"password":"..."}
-// Flow:
-//   1. hash_token(token) → look up user_invites → validate not expired and used_count < max_uses
-//   2. hash_password(password) → update the corresponding users row's password_hash (matched by
-//      invite.username for the direct-create flow, or create the users row now for the invite flow)
-//   3. user_invites.used_count += 1
-//   4. new_session_id() → insert user_sessions row → Set-Cookie (same as register)
-//   5. Return {"ok":true,"data":{"user_id":N,"username":"..."}}
+pub async fn accept_invite(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(token): Path<String>,
+    headers: HeaderMap,
+    Json(body): Json<AcceptInviteRequest>,
+) -> Response {
+    let now = chrono::Utc::now().timestamp();
+    let invite = match state.db.get_user_invite(&hash_token(&token)).await {
+        Ok(Some(invite)) => invite,
+        // Unknown, expired and used all render the same generic state.
+        Ok(None) => return err(StatusCode::BAD_REQUEST, "INVITE_INVALID", INVITE_INVALID),
+        Err(_) => return server_error(),
+    };
+    if !invite.valid(now) {
+        return err(StatusCode::BAD_REQUEST, "INVITE_INVALID", INVITE_INVALID);
+    }
+    if let Err(e) = validate_password(&body.password) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_PASSWORD", &e.to_string());
+    }
+    let Ok(hash) = hash_password(&body.password) else {
+        return server_error();
+    };
+
+    let existing = match state.db.get_user_by_username(&invite.username).await {
+        Ok(found) => found,
+        Err(_) => return server_error(),
+    };
+    let user_id = match existing {
+        // Admin direct-create flow: the row exists with an empty password_hash.
+        Some(user) => {
+            if state.db.update_user_password(user.id, &hash, now).await.is_err() {
+                return server_error();
+            }
+            user.id
+        }
+        // Pure invite flow: the row is created now, so an address is required.
+        None => {
+            if let Err(e) = validate_email(&body.email) {
+                return err(StatusCode::BAD_REQUEST, "INVALID_EMAIL", &e.to_string());
+            }
+            match state.db.get_user_by_email(&body.email).await {
+                Ok(None) => {}
+                Ok(Some(_)) => {
+                    return err(
+                        StatusCode::CONFLICT,
+                        "EMAIL_TAKEN",
+                        "An account with that email already exists",
+                    )
+                }
+                Err(_) => return server_error(),
+            }
+            match state.db.create_user(&invite.username, &body.email, &hash, now).await {
+                Ok(id) => id,
+                Err(_) => return server_error(),
+            }
+        }
+    };
+
+    if state.db.increment_user_invite_uses(&invite.id).await.is_err() {
+        return server_error();
+    }
+    let Some(cookie) = start_user_session(&state, user_id, &headers, peer).await else {
+        return server_error();
+    };
+    let mut res = ok(json!({"user_id": user_id, "username": invite.username}));
+    set_cookie(&mut res, &cookie);
+    res
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UserLoginRequest {
+    // Username or email address.
+    pub login: String,
+    pub password: String,
+}
 
 // POST /api/{api_version}/auth/login
-// Rate limit: 5 / 900s per IP (key "auth.user_login")
-// Body: {"login":"...","password":"..."} — login = username OR email
-// Flow: same constant-time pattern as admin login; "Invalid credentials" for all failures
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<UserLoginRequest>,
+) -> Response {
+    let found = match state.db.get_user_by_login(&body.login).await {
+        Ok(found) => found,
+        Err(_) => return server_error(),
+    };
+    let stored = found
+        .as_ref()
+        .map(|u| u.password_hash.as_str())
+        .filter(|h| !h.is_empty())
+        .unwrap_or_else(dummy_password_hash);
+    let password_ok = check_password(stored, &body.password);
+
+    let Some(user) = found else {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    };
+    // Not-yet-activated and suspended accounts get the same answer as a bad password.
+    if !password_ok || user.password_hash.is_empty() || user.suspended {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    }
+
+    let Some(cookie) = start_user_session(&state, user.id, &headers, peer).await else {
+        return server_error();
+    };
+    let mut res = ok(json!({"user_id": user.id, "username": user.username}));
+    set_cookie(&mut res, &cookie);
+    res
+}
 
 // POST /api/{api_version}/auth/logout
-// Auth: require_user
-// Flow: delete user_sessions row → clear cookie → return {"ok":true}
+pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if let Some(id) = cookie_value(&headers, "user_session") {
+        if state.db.delete_user_session(&id).await.is_err() {
+            return server_error();
+        }
+    }
+    let mut res = ok_empty();
+    set_cookie(&mut res, &cleared_cookie("user_session", "/"));
+    res
+}
 
 // GET /api/{api_version}/auth/me
-// Auth: require_user
-// Return: {"ok":true,"data":{user object without password_hash}}
+pub async fn me(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+) -> Response {
+    match state.db.get_user(user_id).await {
+        // User serializes with password_hash skipped.
+        Ok(Some(user)) => match serde_json::to_value(&user) {
+            Ok(value) => ok(value),
+            Err(_) => server_error(),
+        },
+        Ok(None) => err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => server_error(),
+    }
+}
 
-// PUT /api/{api_version}/auth/me
-// Auth: require_user
-// Body: {"display_name":"...","bio":"...","avatar_url":"..."}
-// Updatable fields only — username/email change requires separate flow
+#[derive(Debug, Deserialize)]
+pub struct UpdateMeRequest {
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub bio: String,
+    #[serde(default)]
+    pub avatar_url: String,
+}
+
+// PUT /api/{api_version}/auth/me — profile fields only.
+pub async fn update_me(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Json(body): Json<UpdateMeRequest>,
+) -> Response {
+    let now = chrono::Utc::now().timestamp();
+    if state
+        .db
+        .update_user_profile(user_id, &body.display_name, &body.bio, &body.avatar_url, now)
+        .await
+        .is_err()
+    {
+        return server_error();
+    }
+    match state.db.get_user(user_id).await {
+        Ok(Some(user)) => match serde_json::to_value(&user) {
+            Ok(value) => ok(value),
+            Err(_) => server_error(),
+        },
+        Ok(None) => err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => server_error(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
 
 // POST /api/{api_version}/auth/password/change
-// Auth: require_user; Rate limit: 3 / 3600s
-// Body: {"current_password":"...","new_password":"..."}
+pub async fn change_password(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Json(body): Json<ChangePasswordRequest>,
+) -> Response {
+    let user = match state.db.get_user(user_id).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Session expired"),
+        Err(_) => return server_error(),
+    };
+    if user.password_hash.is_empty()
+        || !check_password(&user.password_hash, &body.current_password)
+    {
+        return err(StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+    }
+    if let Err(e) = validate_password(&body.new_password) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_PASSWORD", &e.to_string());
+    }
+    let Ok(hash) = hash_password(&body.new_password) else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    if state.db.update_user_password(user.id, &hash, now).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResetRequest {
+    pub email: String,
+}
 
 // POST /api/{api_version}/auth/password/reset/request
-// Rate limit: 3 / 3600s per IP
-// Body: {"email":"..."}
-// ALWAYS return {"ok":true,"data":{"message":"If an account exists, a reset link was sent"}}
-// regardless of whether the email exists — never confirm account existence
+pub async fn request_password_reset(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ResetRequest>,
+) -> Response {
+    // The response never varies — account existence is never confirmed.
+    let neutral = ok(json!({"message": "If an account exists, a reset link was sent"}));
+    if validate_email(&body.email).is_err() {
+        return neutral;
+    }
+    let Ok(Some(user)) = state.db.get_user_by_email(&body.email).await else {
+        return neutral;
+    };
+    let (Ok(raw), Ok(record_id)) = (new_session_id(), new_session_id()) else {
+        return neutral;
+    };
+    let now = chrono::Utc::now().timestamp();
+    let reset = PasswordReset {
+        id: record_id,
+        user_id: user.id,
+        token_hash: hash_token(&raw),
+        created_at: now,
+        expires_at: now + PASSWORD_RESET_TTL,
+        used: false,
+    };
+    if state.db.create_password_reset(&reset).await.is_ok() {
+        let link = format!("{}/auth/password/reset/confirm?token={}", base_url(&state), raw);
+        let _ = state
+            .mailer
+            .send(&user.email, "Reset your password", &format!("Reset link: {link}"))
+            .await;
+    }
+    neutral
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResetConfirmRequest {
+    pub token: String,
+    pub new_password: String,
+}
 
 // POST /api/{api_version}/auth/password/reset/confirm
-// Rate limit: 5 / 3600s per IP
-// Body: {"token":"...","new_password":"..."}
-// Flow: hash_token(token) → look up password_resets → validate not expired/used → update password → mark used
+pub async fn confirm_password_reset(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ResetConfirmRequest>,
+) -> Response {
+    let now = chrono::Utc::now().timestamp();
+    let reset = match state.db.get_password_reset(&hash_token(&body.token)).await {
+        Ok(Some(reset)) => reset,
+        Ok(None) => {
+            return err(
+                StatusCode::BAD_REQUEST,
+                "RESET_INVALID",
+                "This reset link has expired. Please request a new one",
+            )
+        }
+        Err(_) => return server_error(),
+    };
+    if reset.used {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "RESET_USED",
+            "This reset link has already been used",
+        );
+    }
+    if reset.expired(now) {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "RESET_EXPIRED",
+            "This reset link has expired. Please request a new one",
+        );
+    }
+    if let Err(e) = validate_password(&body.new_password) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_PASSWORD", &e.to_string());
+    }
+    let Ok(hash) = hash_password(&body.new_password) else {
+        return server_error();
+    };
+    if state.db.update_user_password(reset.user_id, &hash, now).await.is_err() {
+        return server_error();
+    }
+    if state.db.mark_password_reset_used(&reset.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyEmailRequest {
+    pub token: String,
+}
 
 // POST /api/{api_version}/auth/email/verify
-// Rate limit: 5 / 3600s per IP
-// Body: {"token":"..."}
-// Flow: hash_token(token) → look up email_verifications → mark verified → set users.email_verified=true
+pub async fn verify_email(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<VerifyEmailRequest>,
+) -> Response {
+    let now = chrono::Utc::now().timestamp();
+    let token_hash = hash_token(&body.token);
+    let record = match state.db.get_email_verification(&token_hash).await {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            return err(
+                StatusCode::BAD_REQUEST,
+                "VERIFICATION_INVALID",
+                "This verification link has expired. Please request a new one",
+            )
+        }
+        Err(_) => return server_error(),
+    };
+    let (user_id, _email, expires_at, used) = record;
+    if used || now > expires_at {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "VERIFICATION_EXPIRED",
+            "This verification link has expired. Please request a new one",
+        );
+    }
+    if state.db.set_user_email_verified(user_id, true).await.is_err() {
+        return server_error();
+    }
+    if state.db.mark_email_verification_used(&token_hash).await.is_err() {
+        return server_error();
+    }
+    ok(json!({"message": "Email address verified"}))
+}
 ```
 
 ### Feature 2 — API token handler (`src/handlers/token.rs`)
 
-```rust
-// GET /api/{api_version}/auth/tokens
-// Auth: require_user or require_admin (check which extension is set)
-// Return: list of tokens for the authenticated owner (never include token_hash)
+Routes: `GET /api/{api_version}/auth/tokens` · `POST /api/{api_version}/auth/tokens` · `DELETE /api/{api_version}/auth/tokens/{id}`. Each is behind `require_user` or `require_admin` — whichever extension the middleware set decides the owner.
 
-// POST /api/{api_version}/auth/tokens
-// Auth: require_user or require_admin
-// Body: {"name":"...","scopes":["read","write"],"expires_at":N_or_null}
-// Flow: new_token_raw(prefix) → insert api_tokens with hash → return raw token ONCE in response
-// Response: {"ok":true,"data":{"id":N,"name":"...","token":"raw...","scopes":[...]}}
-// — the "token" field never appears again after this response
+```rust
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::Response,
+    Extension, Json,
+};
+use serde::Deserialize;
+use serde_json::json;
+use std::sync::Arc;
+
+use crate::handlers::response::{created, err, ok, ok_empty, server_error};
+use crate::middlewares::auth::{AdminId, UserId};
+use crate::models::auth::new_token_raw;
+use crate::models::token::{ApiToken, TOKEN_PREFIX_ADMIN, TOKEN_PREFIX_USER};
+use crate::state::AppState;
+
+// owner resolves whichever identity middleware put in the request extensions.
+// Admin context wins when both are present (token auth sets only one).
+fn owner(admin: Option<Extension<AdminId>>, user: Option<Extension<UserId>>) -> Option<(String, i64)> {
+    if let Some(Extension(AdminId(id))) = admin {
+        return Some(("admin".to_string(), id));
+    }
+    if let Some(Extension(UserId(id))) = user {
+        return Some(("user".to_string(), id));
+    }
+    None
+}
+
+fn unauthenticated() -> Response {
+    err(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Authentication required")
+}
+
+// GET /api/{api_version}/auth/tokens
+pub async fn list_tokens(
+    State(state): State<Arc<AppState>>,
+    admin: Option<Extension<AdminId>>,
+    user: Option<Extension<UserId>>,
+) -> Response {
+    let Some((owner_type, owner_id)) = owner(admin, user) else {
+        return unauthenticated();
+    };
+    match state.db.list_api_tokens(&owner_type, owner_id).await {
+        // ApiToken serializes with token_hash skipped.
+        Ok(tokens) => match serde_json::to_value(&tokens) {
+            Ok(value) => ok(json!({"tokens": value})),
+            Err(_) => server_error(),
+        },
+        Err(_) => server_error(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTokenRequest {
+    pub name: String,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+}
+
+// POST /api/{api_version}/auth/tokens — the raw token is returned exactly once.
+pub async fn create_token(
+    State(state): State<Arc<AppState>>,
+    admin: Option<Extension<AdminId>>,
+    user: Option<Extension<UserId>>,
+    Json(body): Json<CreateTokenRequest>,
+) -> Response {
+    let Some((owner_type, owner_id)) = owner(admin, user) else {
+        return unauthenticated();
+    };
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return err(StatusCode::BAD_REQUEST, "INVALID_NAME", "Token name is required");
+    }
+    let prefix = if owner_type == "admin" { TOKEN_PREFIX_ADMIN } else { TOKEN_PREFIX_USER };
+    let Ok((raw, token_hash)) = new_token_raw(prefix) else {
+        return server_error();
+    };
+    let Ok(scopes) = serde_json::to_string(&body.scopes) else {
+        return err(StatusCode::BAD_REQUEST, "INVALID_SCOPES", "Scopes must be a list of strings");
+    };
+    let now = chrono::Utc::now().timestamp();
+    let default_expiry = state.cfg.server.auth.tokens.default_expiry;
+    // 0 means "never" — an explicit body value always wins.
+    let expires_at = body
+        .expires_at
+        .or(if default_expiry > 0 { Some(now + default_expiry) } else { None });
+
+    let token = ApiToken {
+        id: 0,
+        owner_type: owner_type.clone(),
+        owner_id,
+        token_hash,
+        name: name.clone(),
+        scopes: scopes.clone(),
+        created_at: now,
+        expires_at,
+        last_used: None,
+        revoked: false,
+    };
+    let id = match state.db.create_api_token(&token).await {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+    created(json!({
+        "id": id,
+        "name": name,
+        "token": raw,
+        "scopes": body.scopes,
+        "expires_at": expires_at,
+    }))
+}
 
 // DELETE /api/{api_version}/auth/tokens/{id}
-// Auth: require_user or require_admin — must be the owner of the token
-// Flow: verify ownership → set revoked=true → return {"ok":true}
+pub async fn revoke_token(
+    State(state): State<Arc<AppState>>,
+    admin: Option<Extension<AdminId>>,
+    user: Option<Extension<UserId>>,
+    Path(id): Path<i64>,
+) -> Response {
+    let Some((owner_type, owner_id)) = owner(admin, user) else {
+        return unauthenticated();
+    };
+    let token = match state.db.get_api_token_by_id(id).await {
+        Ok(Some(token)) => token,
+        Ok(None) => return err(StatusCode::NOT_FOUND, "TOKEN_NOT_FOUND", "Token not found"),
+        Err(_) => return server_error(),
+    };
+    // Non-owners get the same answer as a nonexistent token.
+    if token.owner_type != owner_type || token.owner_id != owner_id {
+        return err(StatusCode::NOT_FOUND, "TOKEN_NOT_FOUND", "Token not found");
+    }
+    if state.db.revoke_api_token(token.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
 ```
 
 ### Feature 4 — Org handler (`src/handlers/org.rs`)
 
+Routes: `GET|POST /api/{api_version}/orgs` · `GET|PUT|DELETE /api/{api_version}/orgs/{slug}` · `GET|POST /api/{api_version}/orgs/{slug}/members` · `PUT|DELETE /api/{api_version}/orgs/{slug}/members/{username}` · `POST /api/{api_version}/orgs/{slug}/invites` · `GET /api/{api_version}/orgs/invites/{token}`. All are behind `require_user`.
+
 ```rust
-// GET    /api/{api_version}/orgs                                → list user's orgs
-// POST   /api/{api_version}/orgs                                → create org (body: slug, display_name)
-// GET    /api/{api_version}/orgs/{slug}                         → get org details
-// PUT    /api/{api_version}/orgs/{slug}                         → update org (owner or org-admin only)
-// DELETE /api/{api_version}/orgs/{slug}                         → delete org (owner only)
-// GET    /api/{api_version}/orgs/{slug}/members                 → list members
-// POST   /api/{api_version}/orgs/{slug}/members                 → invite member (owner/org-admin)
-// PUT    /api/{api_version}/orgs/{slug}/members/{username}      → change role (owner/org-admin)
-// DELETE /api/{api_version}/orgs/{slug}/members/{username}      → remove member; member can remove self
-// POST   /api/{api_version}/orgs/{slug}/invites                 → send invite email (owner/org-admin)
-// GET    /api/{api_version}/orgs/invites/{token}                → accept invite (any logged-in user)
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::Response,
+    Extension, Json,
+};
+use serde::Deserialize;
+use serde_json::json;
+use std::sync::Arc;
+
+use crate::handlers::response::{created, err, ok, ok_empty, server_error};
+use crate::middlewares::auth::UserId;
+use crate::models::auth::{hash_token, new_session_id, new_token_raw};
+use crate::models::org::{validate_org_slug, Org, OrgInvite};
+use crate::state::AppState;
+
+const ORG_NOT_FOUND: &str = "Organization not found";
+const ORG_INVITE_PREFIX: &str = "oiv_";
+// Org invites live for 72 hours.
+const ORG_INVITE_TTL: i64 = 72 * 3600;
+
+fn not_found() -> Response {
+    err(StatusCode::NOT_FOUND, "ORG_NOT_FOUND", ORG_NOT_FOUND)
+}
+
+fn forbidden() -> Response {
+    err(StatusCode::FORBIDDEN, "FORBIDDEN", "You do not have permission to do that")
+}
+
+fn can_manage(role: &str) -> bool {
+    role == "owner" || role == "admin"
+}
+
+// load_org fetches the org plus the caller's role in it. A non-member is
+// treated exactly like a nonexistent org so membership is not enumerable.
+async fn load_org(state: &AppState, slug: &str, user_id: i64) -> Result<Option<(Org, String)>, ()> {
+    let Some(org) = state.db.get_org_by_slug(slug).await.map_err(|_| ())? else {
+        return Ok(None);
+    };
+    let Some(member) = state.db.get_org_member(org.id, user_id).await.map_err(|_| ())? else {
+        return Ok(None);
+    };
+    let role = member.role.clone();
+    Ok(Some((org, role)))
+}
+
+// GET /api/{api_version}/orgs
+pub async fn list_orgs(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+) -> Response {
+    match state.db.list_orgs_for_user(user_id).await {
+        Ok(orgs) => match serde_json::to_value(&orgs) {
+            Ok(value) => ok(json!({"orgs": value})),
+            Err(_) => server_error(),
+        },
+        Err(_) => server_error(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateOrgRequest {
+    pub slug: String,
+    pub display_name: String,
+}
+
+// POST /api/{api_version}/orgs
+pub async fn create_org(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Json(body): Json<CreateOrgRequest>,
+) -> Response {
+    let slug = body.slug.trim().to_lowercase();
+    if let Err(e) = validate_org_slug(&slug) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_SLUG", &e.to_string());
+    }
+    let display_name = body.display_name.trim();
+    if display_name.is_empty() {
+        return err(StatusCode::BAD_REQUEST, "INVALID_NAME", "Display name is required");
+    }
+    match state.db.get_org_by_slug(&slug).await {
+        Ok(None) => {}
+        Ok(Some(_)) => {
+            return err(
+                StatusCode::CONFLICT,
+                "ORG_SLUG_TAKEN",
+                "That organization name is already taken",
+            )
+        }
+        Err(_) => return server_error(),
+    }
+    let now = chrono::Utc::now().timestamp();
+    let org_id = match state.db.create_org(&slug, display_name, user_id, now).await {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+    if state.db.add_org_member(org_id, user_id, "owner", now).await.is_err() {
+        return server_error();
+    }
+    created(json!({"id": org_id, "slug": slug, "display_name": display_name}))
+}
+
+// GET /api/{api_version}/orgs/{slug}
+pub async fn get_org(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+) -> Response {
+    match load_org(&state, &slug, user_id).await {
+        Ok(Some((org, role))) => match serde_json::to_value(&org) {
+            Ok(value) => ok(json!({"org": value, "role": role})),
+            Err(_) => server_error(),
+        },
+        Ok(None) => not_found(),
+        Err(_) => server_error(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateOrgRequest {
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub avatar_url: String,
+}
+
+// PUT /api/{api_version}/orgs/{slug} — owner or org-admin only.
+pub async fn update_org(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+    Json(body): Json<UpdateOrgRequest>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    if !can_manage(&role) {
+        return forbidden();
+    }
+    let now = chrono::Utc::now().timestamp();
+    if state
+        .db
+        .update_org(org.id, &body.display_name, &body.description, &body.avatar_url, now)
+        .await
+        .is_err()
+    {
+        return server_error();
+    }
+    ok_empty()
+}
+
+// DELETE /api/{api_version}/orgs/{slug} — owner only.
+pub async fn delete_org(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    if role != "owner" {
+        return forbidden();
+    }
+    if state.db.delete_org(org.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+// GET /api/{api_version}/orgs/{slug}/members
+pub async fn list_members(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+) -> Response {
+    let (org, _role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    let members = match state.db.list_org_members(org.id).await {
+        Ok(members) => members,
+        Err(_) => return server_error(),
+    };
+    let mut out = Vec::with_capacity(members.len());
+    for member in members {
+        let username = match state.db.get_user(member.user_id).await {
+            Ok(Some(user)) => user.username,
+            Ok(None) => continue,
+            Err(_) => return server_error(),
+        };
+        out.push(json!({
+            "user_id": member.user_id,
+            "username": username,
+            "role": member.role,
+            "joined_at": member.joined_at,
+        }));
+    }
+    ok(json!({"members": out}))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddMemberRequest {
+    pub username: String,
+    pub role: String,
+}
+
+// POST /api/{api_version}/orgs/{slug}/members — owner/org-admin add an existing user.
+pub async fn add_member(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+    Json(body): Json<AddMemberRequest>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    if !can_manage(&role) {
+        return forbidden();
+    }
+    if body.role != "admin" && body.role != "member" {
+        return err(StatusCode::BAD_REQUEST, "INVALID_ROLE", "Role must be admin or member");
+    }
+    let target = match state.db.get_user_by_username(&body.username).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return err(StatusCode::NOT_FOUND, "MEMBER_NOT_FOUND", "Member not found"),
+        Err(_) => return server_error(),
+    };
+    let now = chrono::Utc::now().timestamp();
+    if state.db.add_org_member(org.id, target.id, &body.role, now).await.is_err() {
+        return server_error();
+    }
+    created(json!({"username": target.username, "role": body.role}))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChangeRoleRequest {
+    pub role: String,
+}
+
+// PUT /api/{api_version}/orgs/{slug}/members/{username} — owner/org-admin only.
+pub async fn change_member_role(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path((slug, username)): Path<(String, String)>,
+    Json(body): Json<ChangeRoleRequest>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    if !can_manage(&role) {
+        return forbidden();
+    }
+    if body.role != "admin" && body.role != "member" {
+        return err(StatusCode::BAD_REQUEST, "INVALID_ROLE", "Role must be admin or member");
+    }
+    let target = match state.db.get_user_by_username(&username).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return err(StatusCode::NOT_FOUND, "MEMBER_NOT_FOUND", "Member not found"),
+        Err(_) => return server_error(),
+    };
+    // The owner row is never demoted through this route.
+    if target.id == org.owner_id {
+        return forbidden();
+    }
+    match state.db.get_org_member(org.id, target.id).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return err(StatusCode::NOT_FOUND, "MEMBER_NOT_FOUND", "Member not found"),
+        Err(_) => return server_error(),
+    }
+    if state.db.update_org_member_role(org.id, target.id, &body.role).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+// DELETE /api/{api_version}/orgs/{slug}/members/{username} — managers, or the member themselves.
+pub async fn remove_member(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path((slug, username)): Path<(String, String)>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    let target = match state.db.get_user_by_username(&username).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return err(StatusCode::NOT_FOUND, "MEMBER_NOT_FOUND", "Member not found"),
+        Err(_) => return server_error(),
+    };
+    if target.id != user_id && !can_manage(&role) {
+        return forbidden();
+    }
+    // Removing the owner would orphan the org.
+    if target.id == org.owner_id {
+        return forbidden();
+    }
+    if state.db.remove_org_member(org.id, target.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OrgInviteRequest {
+    pub email: String,
+    pub role: String,
+}
+
+// POST /api/{api_version}/orgs/{slug}/invites — owner/org-admin only.
+pub async fn create_invite(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(slug): Path<String>,
+    Json(body): Json<OrgInviteRequest>,
+) -> Response {
+    let (org, role) = match load_org(&state, &slug, user_id).await {
+        Ok(Some(pair)) => pair,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    if !can_manage(&role) {
+        return forbidden();
+    }
+    if body.role != "admin" && body.role != "member" {
+        return err(StatusCode::BAD_REQUEST, "INVALID_ROLE", "Role must be admin or member");
+    }
+    if let Err(e) = crate::models::user::validate_email(&body.email) {
+        return err(StatusCode::BAD_REQUEST, "INVALID_EMAIL", &e.to_string());
+    }
+    let (Ok((raw, token_hash)), Ok(invite_id)) = (new_token_raw(ORG_INVITE_PREFIX), new_session_id())
+    else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    let invite = OrgInvite {
+        id: invite_id,
+        org_id: org.id,
+        email: body.email.clone(),
+        role: body.role.clone(),
+        invited_by: user_id,
+        token_hash,
+        created_at: now,
+        expires_at: now + ORG_INVITE_TTL,
+        accepted: false,
+    };
+    if state.db.create_org_invite(&invite).await.is_err() {
+        return server_error();
+    }
+    let link = format!(
+        "{}/api/{}/orgs/invites/{}",
+        state.cfg.server.base_url.trim_end_matches('/'),
+        state.cfg.server.api_version,
+        raw
+    );
+    let _ = state
+        .mailer
+        .send(
+            &body.email,
+            &format!("You have been invited to {}", org.display_name),
+            &format!("Accept the invite: {link}"),
+        )
+        .await;
+    created(json!({"email": body.email, "role": body.role, "expires_at": invite.expires_at}))
+}
+
+// GET /api/{api_version}/orgs/invites/{token} — any logged-in user accepts.
+pub async fn accept_invite(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(token): Path<String>,
+) -> Response {
+    let now = chrono::Utc::now().timestamp();
+    let invite = match state.db.get_org_invite(&hash_token(&token)).await {
+        Ok(Some(invite)) => invite,
+        Ok(None) => {
+            return err(StatusCode::BAD_REQUEST, "ORG_INVITE_EXPIRED", "This invite has expired")
+        }
+        Err(_) => return server_error(),
+    };
+    if invite.accepted || now > invite.expires_at {
+        return err(StatusCode::BAD_REQUEST, "ORG_INVITE_EXPIRED", "This invite has expired");
+    }
+    if state.db.add_org_member(invite.org_id, user_id, &invite.role, now).await.is_err() {
+        return server_error();
+    }
+    if state.db.mark_org_invite_accepted(&invite.id).await.is_err() {
+        return server_error();
+    }
+    ok(json!({
+        "org_id": invite.org_id,
+        "role": invite.role,
+        "message": "Invite accepted. Welcome to the organization",
+    }))
+}
 ```
 
 ### Feature 5 — Domain handler (`src/handlers/domain.rs`)
 
+Routes: `GET|POST /api/{api_version}/domains` · `GET|DELETE /api/{api_version}/domains/{domain}` · `POST /api/{api_version}/domains/{domain}/verify`. All are behind `require_user`.
+
 ```rust
-// GET    /api/{api_version}/domains                             → list user/org domains
-// POST   /api/{api_version}/domains                             → add domain (body: domain, owner_type, owner_id)
-// GET    /api/{api_version}/domains/{domain}                    → get domain status
-// DELETE /api/{api_version}/domains/{domain}                    → remove domain (owner only)
-// POST   /api/{api_version}/domains/{domain}/verify             → trigger DNS TXT verification
-//   Flow: hickory_resolver TXT lookup on "_verify."+domain, 10s timeout → check for verify_token value
-//   On success: set verified=true → optionally trigger Let's Encrypt (rustls-acme) for SSL
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::Response,
+    Extension, Json,
+};
+use hickory_resolver::{config::{ResolverConfig, ResolverOpts}, TokioAsyncResolver};
+use serde::Deserialize;
+use serde_json::json;
+use std::{sync::Arc, time::Duration};
+
+use crate::handlers::response::{created, err, ok, ok_empty, server_error};
+use crate::middlewares::auth::UserId;
+use crate::models::auth::{constant_time_eq_str, new_session_id};
+use crate::models::domain::{validate_domain, CustomDomain};
+use crate::state::AppState;
+
+const DOMAIN_NOT_FOUND: &str = "Domain not found";
+// DNS lookups are bounded so a slow resolver cannot pin a request open.
+const DNS_TIMEOUT: Duration = Duration::from_secs(10);
+
+fn not_found() -> Response {
+    err(StatusCode::NOT_FOUND, "DOMAIN_NOT_FOUND", DOMAIN_NOT_FOUND)
+}
+
+// owns checks the caller controls the domain: directly as a user, or through a
+// managing role in the owning org.
+async fn owns(state: &AppState, domain: &CustomDomain, user_id: i64) -> Result<bool, ()> {
+    if domain.owner_type == "user" {
+        return Ok(domain.owner_id == user_id);
+    }
+    let member = state.db.get_org_member(domain.owner_id, user_id).await.map_err(|_| ())?;
+    Ok(matches!(member, Some(m) if m.role == "owner" || m.role == "admin"))
+}
+
+// GET /api/{api_version}/domains
+pub async fn list_domains(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+) -> Response {
+    let mut all = match state.db.list_domains("user", user_id).await {
+        Ok(domains) => domains,
+        Err(_) => return server_error(),
+    };
+    let orgs = match state.db.list_orgs_for_user(user_id).await {
+        Ok(orgs) => orgs,
+        Err(_) => return server_error(),
+    };
+    for org in orgs {
+        match state.db.list_domains("org", org.id).await {
+            Ok(mut domains) => all.append(&mut domains),
+            Err(_) => return server_error(),
+        }
+    }
+    match serde_json::to_value(&all) {
+        Ok(value) => ok(json!({"domains": value})),
+        Err(_) => server_error(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddDomainRequest {
+    pub domain: String,
+    pub owner_type: String,
+    pub owner_id: i64,
+}
+
+// POST /api/{api_version}/domains
+pub async fn add_domain(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Json(body): Json<AddDomainRequest>,
+) -> Response {
+    let domain = match validate_domain(&body.domain) {
+        Ok(domain) => domain,
+        Err(e) => return err(StatusCode::BAD_REQUEST, "INVALID_DOMAIN", &e.to_string()),
+    };
+    if body.owner_type != "user" && body.owner_type != "org" {
+        return err(StatusCode::BAD_REQUEST, "INVALID_OWNER", "Owner must be user or org");
+    }
+    // Reuse the ownership rule by testing against a provisional record.
+    let provisional = CustomDomain {
+        id: 0,
+        domain: domain.clone(),
+        owner_type: body.owner_type.clone(),
+        owner_id: body.owner_id,
+        verified: false,
+        verify_token: String::new(),
+        ssl_enabled: false,
+        ssl_cert_path: None,
+        ssl_key_path: None,
+        ssl_expires_at: None,
+        created_at: 0,
+        updated_at: 0,
+    };
+    match owns(&state, &provisional, user_id).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return err(
+                StatusCode::FORBIDDEN,
+                "FORBIDDEN",
+                "You do not have permission to do that",
+            )
+        }
+        Err(_) => return server_error(),
+    }
+    match state.db.get_domain(&domain).await {
+        Ok(None) => {}
+        Ok(Some(_)) => {
+            return err(StatusCode::CONFLICT, "DOMAIN_TAKEN", "That domain is already registered")
+        }
+        Err(_) => return server_error(),
+    }
+    let Ok(verify_token) = new_session_id() else {
+        return server_error();
+    };
+    let now = chrono::Utc::now().timestamp();
+    let id = match state
+        .db
+        .create_domain(&domain, &body.owner_type, body.owner_id, &verify_token, now)
+        .await
+    {
+        Ok(id) => id,
+        Err(_) => return server_error(),
+    };
+    created(json!({
+        "id": id,
+        "domain": domain,
+        "verify_record": format!("_verify.{domain}"),
+        "verify_token": verify_token,
+    }))
+}
+
+// GET /api/{api_version}/domains/{domain}
+pub async fn get_domain(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(domain): Path<String>,
+) -> Response {
+    let record = match state.db.get_domain(&domain.to_lowercase()).await {
+        Ok(Some(record)) => record,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    match owns(&state, &record, user_id).await {
+        // Non-owners get the same answer as an unknown domain.
+        Ok(true) => {}
+        Ok(false) => return not_found(),
+        Err(_) => return server_error(),
+    }
+    match serde_json::to_value(&record) {
+        Ok(value) => ok(value),
+        Err(_) => server_error(),
+    }
+}
+
+// DELETE /api/{api_version}/domains/{domain}
+pub async fn delete_domain(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(domain): Path<String>,
+) -> Response {
+    let record = match state.db.get_domain(&domain.to_lowercase()).await {
+        Ok(Some(record)) => record,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    match owns(&state, &record, user_id).await {
+        Ok(true) => {}
+        Ok(false) => return not_found(),
+        Err(_) => return server_error(),
+    }
+    if state.db.delete_domain(record.id).await.is_err() {
+        return server_error();
+    }
+    ok_empty()
+}
+
+// POST /api/{api_version}/domains/{domain}/verify
+pub async fn verify_domain(
+    State(state): State<Arc<AppState>>,
+    Extension(UserId(user_id)): Extension<UserId>,
+    Path(domain): Path<String>,
+) -> Response {
+    let record = match state.db.get_domain(&domain.to_lowercase()).await {
+        Ok(Some(record)) => record,
+        Ok(None) => return not_found(),
+        Err(_) => return server_error(),
+    };
+    match owns(&state, &record, user_id).await {
+        Ok(true) => {}
+        Ok(false) => return not_found(),
+        Err(_) => return server_error(),
+    }
+
+    let resolver = match TokioAsyncResolver::tokio_from_system_conf() {
+        Ok(resolver) => resolver,
+        Err(_) => TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default()),
+    };
+    let lookup = tokio::time::timeout(
+        DNS_TIMEOUT,
+        resolver.txt_lookup(format!("_verify.{}.", record.domain)),
+    )
+    .await;
+    let matched = match lookup {
+        Ok(Ok(records)) => records.iter().any(|txt| {
+            txt.txt_data().iter().any(|chunk| {
+                constant_time_eq_str(&String::from_utf8_lossy(chunk), &record.verify_token)
+            })
+        }),
+        _ => false,
+    };
+    if !matched {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "DOMAIN_VERIFY_FAILED",
+            "DNS verification failed. Check the TXT record and try again",
+        );
+    }
+    let now = chrono::Utc::now().timestamp();
+    if state.db.set_domain_verified(record.id, true, now).await.is_err() {
+        return server_error();
+    }
+    ok(json!({"domain": record.domain, "verified": true, "message": "Domain verified"}))
+}
+```
+
+Once a domain is verified, SSL issuance is handled by the project's `rustls-acme` task (it picks up verified rows), not by this handler — the handler's job ends at flipping `verified`.
+
+### DB and mail surface these handlers require
+
+Beyond `AuthDb` (Step 6) and `RateLimitDb` (Step 7), the `db` module must expose:
+
+```rust
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait HandlerDb: Send + Sync {
+    // Feature 1 — admin auth
+    async fn get_admin(&self, id: i64) -> sqlx::Result<Option<crate::models::admin::Admin>>;
+    async fn get_admin_by_username(&self, username: &str) -> sqlx::Result<Option<crate::models::admin::Admin>>;
+    async fn create_admin_session(&self, session: &crate::models::admin::AdminSession) -> sqlx::Result<()>;
+    async fn delete_admin_session(&self, id: &str) -> sqlx::Result<()>;
+    async fn update_admin_last_login(&self, id: i64, at: i64, ip: &str) -> sqlx::Result<()>;
+    async fn update_admin_password(&self, id: i64, hash: &str, updated_at: i64) -> sqlx::Result<()>;
+    async fn set_admin_totp_secret(&self, id: i64, secret: &str) -> sqlx::Result<()>;
+    async fn set_admin_totp_enabled(&self, id: i64, enabled: bool) -> sqlx::Result<()>;
+    async fn clear_admin_totp(&self, id: i64) -> sqlx::Result<()>;
+
+    // Feature 3 — user accounts
+    async fn get_user(&self, id: i64) -> sqlx::Result<Option<crate::models::user::User>>;
+    async fn get_user_by_username(&self, username: &str) -> sqlx::Result<Option<crate::models::user::User>>;
+    async fn get_user_by_email(&self, email: &str) -> sqlx::Result<Option<crate::models::user::User>>;
+    // Matches username OR email in a single query.
+    async fn get_user_by_login(&self, login: &str) -> sqlx::Result<Option<crate::models::user::User>>;
+    async fn create_user(&self, username: &str, email: &str, password_hash: &str, now: i64) -> sqlx::Result<i64>;
+    async fn update_user_profile(&self, id: i64, display_name: &str, bio: &str, avatar_url: &str, now: i64) -> sqlx::Result<()>;
+    async fn update_user_password(&self, id: i64, hash: &str, now: i64) -> sqlx::Result<()>;
+    async fn update_user_last_login(&self, id: i64, at: i64, ip: &str) -> sqlx::Result<()>;
+    async fn set_user_email_verified(&self, id: i64, verified: bool) -> sqlx::Result<()>;
+    async fn create_user_session(&self, session: &crate::models::user::UserSession) -> sqlx::Result<()>;
+    async fn delete_user_session(&self, id: &str) -> sqlx::Result<()>;
+    async fn create_user_invite(&self, invite: &crate::models::user::UserInvite) -> sqlx::Result<()>;
+    async fn get_user_invite(&self, token_hash: &str) -> sqlx::Result<Option<crate::models::user::UserInvite>>;
+    // Unexpired and not exhausted only.
+    async fn get_pending_user_invite_by_username(&self, username: &str) -> sqlx::Result<Option<crate::models::user::UserInvite>>;
+    async fn increment_user_invite_uses(&self, id: &str) -> sqlx::Result<()>;
+    async fn create_password_reset(&self, reset: &crate::models::user::PasswordReset) -> sqlx::Result<()>;
+    async fn get_password_reset(&self, token_hash: &str) -> sqlx::Result<Option<crate::models::user::PasswordReset>>;
+    async fn mark_password_reset_used(&self, id: &str) -> sqlx::Result<()>;
+    async fn create_email_verification(&self, id: &str, user_id: i64, email: &str, token_hash: &str, created_at: i64, expires_at: i64) -> sqlx::Result<()>;
+    // (user_id, email, expires_at, used) — the email_verifications table has no model struct.
+    async fn get_email_verification(&self, token_hash: &str) -> sqlx::Result<Option<(i64, String, i64, bool)>>;
+    async fn mark_email_verification_used(&self, token_hash: &str) -> sqlx::Result<()>;
+
+    // Feature 2 — API tokens
+    async fn list_api_tokens(&self, owner_type: &str, owner_id: i64) -> sqlx::Result<Vec<crate::models::token::ApiToken>>;
+    // Ignores token.id and returns the newly assigned row id.
+    async fn create_api_token(&self, token: &crate::models::token::ApiToken) -> sqlx::Result<i64>;
+    async fn get_api_token_by_id(&self, id: i64) -> sqlx::Result<Option<crate::models::token::ApiToken>>;
+    async fn revoke_api_token(&self, id: i64) -> sqlx::Result<()>;
+
+    // Feature 4 — orgs/teams
+    async fn list_orgs_for_user(&self, user_id: i64) -> sqlx::Result<Vec<crate::models::org::Org>>;
+    async fn get_org_by_slug(&self, slug: &str) -> sqlx::Result<Option<crate::models::org::Org>>;
+    async fn create_org(&self, slug: &str, display_name: &str, owner_id: i64, now: i64) -> sqlx::Result<i64>;
+    async fn update_org(&self, id: i64, display_name: &str, description: &str, avatar_url: &str, now: i64) -> sqlx::Result<()>;
+    async fn delete_org(&self, id: i64) -> sqlx::Result<()>;
+    async fn list_org_members(&self, org_id: i64) -> sqlx::Result<Vec<crate::models::org::OrgMember>>;
+    async fn get_org_member(&self, org_id: i64, user_id: i64) -> sqlx::Result<Option<crate::models::org::OrgMember>>;
+    // Upsert on (org_id, user_id).
+    async fn add_org_member(&self, org_id: i64, user_id: i64, role: &str, joined_at: i64) -> sqlx::Result<()>;
+    async fn update_org_member_role(&self, org_id: i64, user_id: i64, role: &str) -> sqlx::Result<()>;
+    async fn remove_org_member(&self, org_id: i64, user_id: i64) -> sqlx::Result<()>;
+    async fn create_org_invite(&self, invite: &crate::models::org::OrgInvite) -> sqlx::Result<()>;
+    async fn get_org_invite(&self, token_hash: &str) -> sqlx::Result<Option<crate::models::org::OrgInvite>>;
+    async fn mark_org_invite_accepted(&self, id: &str) -> sqlx::Result<()>;
+
+    // Feature 5 — custom domains
+    async fn list_domains(&self, owner_type: &str, owner_id: i64) -> sqlx::Result<Vec<crate::models::domain::CustomDomain>>;
+    async fn get_domain(&self, domain: &str) -> sqlx::Result<Option<crate::models::domain::CustomDomain>>;
+    async fn create_domain(&self, domain: &str, owner_type: &str, owner_id: i64, verify_token: &str, now: i64) -> sqlx::Result<i64>;
+    async fn delete_domain(&self, id: i64) -> sqlx::Result<()>;
+    async fn set_domain_verified(&self, id: i64, verified: bool, now: i64) -> sqlx::Result<()>;
+}
+```
+
+`state.mailer` is the project's existing mail service behind this minimal contract — when the project has none yet, add it with an SMTP-backed implementation whose `is_configured()` returns false until SMTP settings are present:
+
+```rust
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait Mailer: Send + Sync {
+    fn is_configured(&self) -> bool;
+    async fn send(&self, to: &str, subject: &str, body: &str) -> anyhow::Result<()>;
+}
 ```
 
 ---
@@ -1988,15 +3709,562 @@ Find the project's i18n translation files (`find src -name "*.json" -path "*/i18
 
 ## Step 14 — Tests
 
-Create `src/handlers/{feature}_test.rs` (or `tests/{feature}_handler.rs` under the crate's `tests/` integration-test directory, matching whichever pattern the project already uses) alongside each handler. Use `#[tokio::test]` with table-driven cases via a `Vec<(name, input, expected)>` loop, or `rstest` if that crate is already a dependency.
+Create `src/handlers/{feature}_test.rs` (or `tests/{feature}_handler.rs` under the crate's `tests/` integration-test directory, matching whichever pattern the project already uses) alongside each handler. Drive the real router with `tower::ServiceExt::oneshot` so the middleware from Steps 6 and 7 runs exactly as it does in production.
 
-Every handler test suite includes:
-- Happy-path: correct inputs → expected status + body shape
-- Invalid inputs: missing fields, malformed JSON → 400
-- Auth failure: no cookie/token, expired, revoked → 401
-- Wrong credentials: always same 401 body regardless of whether user exists or password is wrong
-- Rate limit: call the endpoint `max+1` times → last call returns 429 with `Retry-After`
-- Scope check (token routes): valid token missing required scope → 403
+Every handler test suite covers the same six categories: happy path, invalid input, auth failure, wrong credentials, rate limit, and (for token routes) scope check. The two suites below apply them to the most security-sensitive handlers — admin login and user login/register. Copy the same harness and the same six cases for every other handler in Step 8: swap the route, the body, and the seeded fixture; the structure does not change.
+
+### Shared test harness (`tests/common/mod.rs`)
+
+```rust
+use axum::{
+    body::Body,
+    extract::ConnectInfo,
+    http::{HeaderMap, Request, StatusCode},
+    middleware,
+    routing::{get, post},
+    Router,
+};
+use serde_json::Value;
+use std::{net::SocketAddr, sync::Arc};
+use tower::ServiceExt;
+
+use {project_name}::config::Config;
+use {project_name}::db::Db;
+use {project_name}::handlers::{admin_auth, token, user_auth};
+use {project_name}::middlewares::auth::{require_admin, require_scope, require_token, require_user};
+use {project_name}::middlewares::rate_limit::rate_limit_for;
+use {project_name}::state::AppState;
+
+pub struct TestResponse {
+    pub status: StatusCode,
+    pub headers: HeaderMap,
+    pub body: Value,
+}
+
+impl TestResponse {
+    // set_cookie returns the first Set-Cookie header, if any.
+    pub fn set_cookie(&self) -> Option<String> {
+        self.headers
+            .get(axum::http::header::SET_COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    }
+}
+
+// test_state builds an AppState over a fresh in-memory database. Substitute the
+// project's own connect/migrate entry points from Step 1 if they are named
+// differently — everything else in these tests is unchanged.
+pub async fn test_state() -> Arc<AppState> {
+    let db = Db::connect("sqlite::memory:").await.expect("open test db");
+    db.migrate().await.expect("apply schema");
+    let mut cfg = Config::default();
+    cfg.server.admin_path = "admin".to_string();
+    cfg.server.base_url = "https://test.local".to_string();
+    Arc::new(AppState::for_tests(cfg, db))
+}
+
+// test_router mounts the routes under test with the same middleware stack and
+// rate-limit keys Step 11 registers in production.
+pub fn test_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route(
+            "/server/admin/auth/login",
+            post(admin_auth::login).layer(middleware::from_fn_with_state(
+                state.clone(),
+                rate_limit_for("auth.admin_login", 5, 900),
+            )),
+        )
+        .route(
+            "/server/admin/auth/session",
+            get(admin_auth::session)
+                .layer(middleware::from_fn_with_state(state.clone(), require_admin)),
+        )
+        .route("/api/v1/auth/register", post(user_auth::register))
+        .route(
+            "/api/v1/auth/login",
+            post(user_auth::login).layer(middleware::from_fn_with_state(
+                state.clone(),
+                rate_limit_for("auth.user_login", 5, 900),
+            )),
+        )
+        .route(
+            "/api/v1/auth/tokens",
+            post(token::create_token)
+                .layer(middleware::from_fn(require_scope("write")))
+                .layer(middleware::from_fn_with_state(state.clone(), require_token)),
+        )
+        .route(
+            "/api/v1/auth/me",
+            get(user_auth::me)
+                .layer(middleware::from_fn_with_state(state.clone(), require_user)),
+        )
+        .with_state(state)
+}
+
+// json_post builds a JSON request; `cookie` attaches a session when present.
+pub fn json_post(path: &str, body: Value, cookie: Option<&str>) -> Request<Body> {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header(axum::http::header::CONTENT_TYPE, "application/json");
+    if let Some(cookie) = cookie {
+        builder = builder.header(axum::http::header::COOKIE, cookie);
+    }
+    builder.body(Body::from(body.to_string())).expect("build request")
+}
+
+pub fn get_request(path: &str, cookie: Option<&str>) -> Request<Body> {
+    let mut builder = Request::builder().method("GET").uri(path);
+    if let Some(cookie) = cookie {
+        builder = builder.header(axum::http::header::COOKIE, cookie);
+    }
+    builder.body(Body::empty()).expect("build request")
+}
+
+// call runs one request through the router. ConnectInfo is injected directly
+// because oneshot bypasses into_make_service_with_connect_info.
+pub async fn call(app: &Router, mut req: Request<Body>) -> TestResponse {
+    req.extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+    let res = app.clone().oneshot(req).await.expect("router call");
+    let status = res.status();
+    let headers = res.headers().clone();
+    let bytes = axum::body::to_bytes(res.into_body(), 64 * 1024).await.expect("read body");
+    let body = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    TestResponse { status, headers, body }
+}
+```
+
+### Admin login suite (`tests/admin_auth_handler.rs`)
+
+```rust
+mod common;
+
+use axum::{body::Body, http::{Request, StatusCode}};
+use serde_json::json;
+
+use common::{call, get_request, json_post, test_router, test_state};
+use {project_name}::models::auth::hash_password;
+
+// seed_admin inserts one admin with a known password.
+async fn seed_admin(state: &{project_name}::state::AppState, username: &str, password: &str) {
+    let hash = hash_password(password).expect("hash");
+    let now = chrono::Utc::now().timestamp();
+    state.db.create_admin(username, "admin@test.local", &hash, now).await.expect("seed admin");
+}
+
+#[tokio::test]
+async fn admin_login_happy_path_sets_hardened_cookie() {
+    let state = test_state().await;
+    seed_admin(&state, "root", "correct-horse").await;
+    let app = test_router(state);
+
+    let res = call(
+        &app,
+        json_post(
+            "/server/admin/auth/login",
+            json!({"username": "root", "password": "correct-horse"}),
+            None,
+        ),
+    )
+    .await;
+
+    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.body["ok"], json!(true));
+    assert_eq!(res.body["data"]["username"], json!("root"));
+    let cookie = res.set_cookie().expect("session cookie");
+    assert!(cookie.starts_with("admin_session="));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("Secure"));
+    assert!(cookie.contains("SameSite=Strict"));
+    assert!(cookie.contains("Path=/server/admin"));
+}
+
+#[tokio::test]
+async fn admin_login_rejects_malformed_and_missing_fields() {
+    let state = test_state().await;
+    seed_admin(&state, "root", "correct-horse").await;
+    let app = test_router(state);
+
+    let cases = vec![
+        ("malformed json", Body::from("{not json")),
+        ("missing password", Body::from(json!({"username": "root"}).to_string())),
+        ("wrong field types", Body::from(json!({"username": 1, "password": 2}).to_string())),
+    ];
+    for (name, body) in cases {
+        let req = Request::builder()
+            .method("POST")
+            .uri("/server/admin/auth/login")
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .expect("build request");
+        let res = call(&app, req).await;
+        assert_eq!(res.status, StatusCode::BAD_REQUEST, "case: {name}");
+    }
+}
+
+#[tokio::test]
+async fn admin_session_requires_authentication() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let no_cookie = call(&app, get_request("/server/admin/auth/session", None)).await;
+    assert_eq!(no_cookie.status, StatusCode::UNAUTHORIZED);
+
+    let bogus = call(
+        &app,
+        get_request("/server/admin/auth/session", Some("admin_session=deadbeef")),
+    )
+    .await;
+    assert_eq!(bogus.status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn admin_login_is_identical_for_unknown_user_and_wrong_password() {
+    let state = test_state().await;
+    seed_admin(&state, "root", "correct-horse").await;
+    let app = test_router(state);
+
+    let unknown = call(
+        &app,
+        json_post(
+            "/server/admin/auth/login",
+            json!({"username": "nobody", "password": "correct-horse"}),
+            None,
+        ),
+    )
+    .await;
+    let wrong = call(
+        &app,
+        json_post(
+            "/server/admin/auth/login",
+            json!({"username": "root", "password": "wrong-password"}),
+            None,
+        ),
+    )
+    .await;
+
+    assert_eq!(unknown.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(wrong.status, unknown.status);
+    assert_eq!(wrong.body, unknown.body);
+    assert_eq!(unknown.body["message"], json!("Invalid credentials"));
+    assert!(unknown.set_cookie().is_none());
+}
+
+#[tokio::test]
+async fn admin_login_rate_limits_after_five_attempts() {
+    let state = test_state().await;
+    seed_admin(&state, "root", "correct-horse").await;
+    let app = test_router(state);
+
+    // The limiter allows 5 per 900s; the sixth call is refused.
+    for _ in 0..5 {
+        let res = call(
+            &app,
+            json_post(
+                "/server/admin/auth/login",
+                json!({"username": "root", "password": "wrong-password"}),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    }
+    let limited = call(
+        &app,
+        json_post(
+            "/server/admin/auth/login",
+            json!({"username": "root", "password": "correct-horse"}),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(limited.body["error"], json!("RATE_LIMITED"));
+    assert!(limited.headers.contains_key("Retry-After"));
+}
+
+#[tokio::test]
+async fn token_route_rejects_token_without_required_scope() {
+    let state = test_state().await;
+    seed_admin(&state, "root", "correct-horse").await;
+    let raw = seed_api_token(&state, "admin", 1, &["read"]).await;
+    let app = test_router(state);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/auth/tokens")
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {raw}"))
+        .body(Body::from(json!({"name": "ci", "scopes": ["read"]}).to_string()))
+        .expect("build request");
+    let res = call(&app, req).await;
+
+    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    assert_eq!(res.body["error"], json!("FORBIDDEN"));
+}
+
+// seed_api_token inserts a token with the given scopes and returns the raw value.
+async fn seed_api_token(
+    state: &{project_name}::state::AppState,
+    owner_type: &str,
+    owner_id: i64,
+    scopes: &[&str],
+) -> String {
+    use {project_name}::models::auth::new_token_raw;
+    use {project_name}::models::token::{ApiToken, TOKEN_PREFIX_ADMIN};
+
+    let (raw, token_hash) = new_token_raw(TOKEN_PREFIX_ADMIN).expect("token");
+    let token = ApiToken {
+        id: 0,
+        owner_type: owner_type.to_string(),
+        owner_id,
+        token_hash,
+        name: "seed".to_string(),
+        scopes: serde_json::to_string(scopes).expect("scopes"),
+        created_at: chrono::Utc::now().timestamp(),
+        expires_at: None,
+        last_used: None,
+        revoked: false,
+    };
+    state.db.create_api_token(&token).await.expect("seed token");
+    raw
+}
+```
+
+### User register/login suite (`tests/user_auth_handler.rs`)
+
+```rust
+mod common;
+
+use axum::{body::Body, http::{Request, StatusCode}};
+use serde_json::json;
+
+use common::{call, get_request, json_post, test_router, test_state};
+use {project_name}::handlers::response::session_cookie;
+use {project_name}::models::auth::hash_password;
+
+fn register_body(username: &str, email: &str, password: &str) -> serde_json::Value {
+    json!({"username": username, "email": email, "password": password})
+}
+
+#[tokio::test]
+async fn register_happy_path_creates_session() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let res = call(
+        &app,
+        json_post(
+            "/api/v1/auth/register",
+            register_body("alice", "alice@test.local", "hunter2-hunter2"),
+            None,
+        ),
+    )
+    .await;
+
+    assert_eq!(res.status, StatusCode::CREATED);
+    assert_eq!(res.body["ok"], json!(true));
+    assert_eq!(res.body["data"]["username"], json!("alice"));
+    let cookie = res.set_cookie().expect("session cookie");
+    assert!(cookie.starts_with("user_session="));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("Secure"));
+    assert!(cookie.contains("SameSite=Strict"));
+    assert!(cookie.contains("Path=/"));
+}
+
+#[tokio::test]
+async fn register_rejects_invalid_input() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let cases = vec![
+        ("short password", register_body("bob", "bob@test.local", "short"), StatusCode::BAD_REQUEST),
+        ("bad email", register_body("bob", "not-an-email", "hunter2-hunter2"), StatusCode::BAD_REQUEST),
+        ("bad username", register_body("b", "bob@test.local", "hunter2-hunter2"), StatusCode::BAD_REQUEST),
+    ];
+    for (name, body, expected) in cases {
+        let res = call(&app, json_post("/api/v1/auth/register", body, None)).await;
+        assert_eq!(res.status, expected, "case: {name}");
+        assert_eq!(res.body["ok"], json!(false), "case: {name}");
+    }
+
+    let malformed = Request::builder()
+        .method("POST")
+        .uri("/api/v1/auth/register")
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{"))
+        .expect("build request");
+    assert_eq!(call(&app, malformed).await.status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn register_rejects_taken_username_and_email() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let first = call(
+        &app,
+        json_post(
+            "/api/v1/auth/register",
+            register_body("carol", "carol@test.local", "hunter2-hunter2"),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(first.status, StatusCode::CREATED);
+
+    let dup_username = call(
+        &app,
+        json_post(
+            "/api/v1/auth/register",
+            register_body("carol", "other@test.local", "hunter2-hunter2"),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(dup_username.status, StatusCode::CONFLICT);
+    assert_eq!(dup_username.body["error"], json!("USERNAME_TAKEN"));
+
+    let dup_email = call(
+        &app,
+        json_post(
+            "/api/v1/auth/register",
+            register_body("carol2", "carol@test.local", "hunter2-hunter2"),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(dup_email.status, StatusCode::CONFLICT);
+    assert_eq!(dup_email.body["error"], json!("EMAIL_TAKEN"));
+}
+
+#[tokio::test]
+async fn user_login_happy_path_and_me_route() {
+    let state = test_state().await;
+    let hash = hash_password("hunter2-hunter2").expect("hash");
+    let now = chrono::Utc::now().timestamp();
+    state
+        .db
+        .create_user("dave", "dave@test.local", &hash, now)
+        .await
+        .expect("seed user");
+    let app = test_router(state);
+
+    let login = call(
+        &app,
+        json_post(
+            "/api/v1/auth/login",
+            json!({"login": "dave@test.local", "password": "hunter2-hunter2"}),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(login.status, StatusCode::OK);
+    let cookie = login.set_cookie().expect("session cookie");
+    let cookie_pair = cookie.split(';').next().expect("cookie pair").to_string();
+
+    let me = call(&app, get_request("/api/v1/auth/me", Some(&cookie_pair))).await;
+    assert_eq!(me.status, StatusCode::OK);
+    assert_eq!(me.body["data"]["username"], json!("dave"));
+    // The hash must never be serialized to a client.
+    assert!(me.body["data"].get("password_hash").is_none());
+}
+
+#[tokio::test]
+async fn user_login_is_identical_for_unknown_user_and_wrong_password() {
+    let state = test_state().await;
+    let hash = hash_password("hunter2-hunter2").expect("hash");
+    let now = chrono::Utc::now().timestamp();
+    state
+        .db
+        .create_user("erin", "erin@test.local", &hash, now)
+        .await
+        .expect("seed user");
+    let app = test_router(state);
+
+    let unknown = call(
+        &app,
+        json_post(
+            "/api/v1/auth/login",
+            json!({"login": "nobody@test.local", "password": "hunter2-hunter2"}),
+            None,
+        ),
+    )
+    .await;
+    let wrong = call(
+        &app,
+        json_post(
+            "/api/v1/auth/login",
+            json!({"login": "erin@test.local", "password": "wrong-password"}),
+            None,
+        ),
+    )
+    .await;
+
+    assert_eq!(unknown.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(wrong.status, unknown.status);
+    assert_eq!(wrong.body, unknown.body);
+    assert_eq!(unknown.body["message"], json!("Invalid credentials"));
+}
+
+#[tokio::test]
+async fn me_route_rejects_missing_and_expired_sessions() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let missing = call(&app, get_request("/api/v1/auth/me", None)).await;
+    assert_eq!(missing.status, StatusCode::UNAUTHORIZED);
+
+    let stale = call(&app, get_request("/api/v1/auth/me", Some("user_session=deadbeef"))).await;
+    assert_eq!(stale.status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn user_login_rate_limits_after_five_attempts() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    for _ in 0..5 {
+        let res = call(
+            &app,
+            json_post(
+                "/api/v1/auth/login",
+                json!({"login": "nobody@test.local", "password": "wrong-password"}),
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    }
+    let limited = call(
+        &app,
+        json_post(
+            "/api/v1/auth/login",
+            json!({"login": "nobody@test.local", "password": "wrong-password"}),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(limited.headers.contains_key("Retry-After"));
+}
+
+// Pure unit check — the cookie builder every session path shares.
+#[test]
+fn session_cookie_carries_all_security_attributes() {
+    let cookie = session_cookie("user_session", "abc123", "/", 2592000);
+    assert!(cookie.contains("user_session=abc123"));
+    assert!(cookie.contains("Path=/"));
+    assert!(cookie.contains("Max-Age=2592000"));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("Secure"));
+    assert!(cookie.contains("SameSite=Strict"));
+}
+```
+
+Private-registration mode is covered the same way: build a second `test_state()` with `cfg.server.auth.users.registration.mode = "private"`, post the same register body, and assert `StatusCode::NOT_FOUND`. Every remaining handler in Step 8 — invite, accept-invite, password change, password reset request/confirm, email verify, token list/revoke, org CRUD and membership, domain add/verify — gets its own file following this exact harness and the same six categories.
 
 ---
 
