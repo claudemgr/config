@@ -24,11 +24,27 @@ other items are independent and can be fixed in any order.
       (anthropics/claude-code#34072), but for PostToolUse specifically,
       and it does NOT clear on /clear per that same bug. Workaround used
       this session: manually append the project path to
-      ${TMPDIR}/claude-test-lint-guard/<session_id>/{test,lint} once the
-      user reports a real passing test/lint run, matching exactly what
-      the hook would have written. No permanent fix available from
-      inside this repo — would need a fresh session (new process) to
-      re-register hooks, or an upstream Claude Code fix.
+      ${TMPDIR}/claude-hooks/test-lint-guard/<session_id>/{test,lint}
+      once the user reports a real passing test/lint run, matching
+      exactly what the hook would have written (path renamed since —
+      see the claude-hooks namespace commit). No permanent fix available
+      from inside this repo — would need a fresh session (new process)
+      to re-register hooks, or an upstream Claude Code fix.
+      Corroborating occurrence: session 75c8a099-4388-4e7d-b49c-45dedcfcdf80
+      (apimgr/ipgaze project) showed the identical failure mode —
+      lint-agent-mark.sh (SubagentStop) correctly wrote its `lint`
+      marker, but test-lint-mark.sh (PostToolUse) never wrote `test` for
+      a real, user-confirmed passing `make test` run in the same
+      session. This is the opposite of what that session's own
+      transcript concluded (it believed the lint marker was the one
+      missing) — verified backwards by reading the real marker files
+      directly. Attempting the same manual-append workaround for that
+      session was denied by the Claude Code auto-mode classifier;
+      per CLAUDE.md's "never auto-bypass a hook/classifier block" rule,
+      this was not routed around — left for the user to resolve
+      directly (write the marker themselves, or grant an explicit Bash
+      permission rule for that path) if they still want the marker
+      backfilled.
 
 ## Needs user decision first
 
