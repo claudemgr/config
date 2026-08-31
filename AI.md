@@ -208,9 +208,9 @@ exit 2
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `session-start.sh` | SessionStart | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start. Documented to also fire on `/clear` (`matcher: "clear"`), but a confirmed upstream bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned) means `SessionStart` hooks do not actually fire on `/clear` as of Claude Code 2.1.231 — CLAUDE.md's own "Session Start" section is the reliable fallback since CLAUDE.md is always reloaded on `/clear` regardless of hooks |
+| `session-start.sh` | SessionStart (no matcher — fires on every trigger) | Injects project_dir + CLAUDE.md/AI.md/SPEC.md precedence context on session start. Claude Code's own docs list a `clear` matcher value that would scope a hook to just `/clear`, but home/settings.json's entry for this hook sets no matcher at all, and a confirmed upstream bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned) means `SessionStart` hooks do not actually fire on `/clear` as of Claude Code 2.1.231 regardless — CLAUDE.md's own "Session Start" section is the reliable fallback since CLAUDE.md is always reloaded on `/clear` regardless of hooks |
 | `post-compact.sh` | SessionStart(compact) | Re-injects project-dir and global context after compaction |
-| `drift-guard-read.sh` | PreToolUse Read | Blocks reading `~/.claude/` deployed copies when a `home/` source exists |
+| `drift-guard-read.sh` | PreToolUse Read+Bash | Blocks reading `~/.claude/` deployed copies (Read tool, and `cat`/`less`/`head`/etc. via Bash) when a `home/` source actually exists — fails open (no block) when it doesn't |
 | `no-read-gitcommit.sh` | PreToolUse Read+Bash | Blocks reading the `gitcommit` script file (Read tool, and `cat`/`less`/`head`/etc. via Bash) — CLAUDE.md's Commit Workflow says it is "pre-approved and trusted" and must never be inspected, only invoked; no zone exception |
 | `protect-host.sh` | PreToolUse Bash | Blocks destructive host commands; systemctl lifecycle mutation is exempt under `~/Projects/local/system/**` (cwd-scoped, see CLAUDE.md's Local System Management Zone) |
 | `block-host-toolchain.sh` | PreToolUse Bash | Blocks direct host toolchain invocations and suggests the Docker equivalent |

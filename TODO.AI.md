@@ -60,18 +60,6 @@ independent and can be fixed in any order.
       other hook that has no equivalent fallback (e.g.
       `drift-guard-read.sh`, `spec-guard-mark.sh`).
 
-## Session hooks
-
-- [ ] 42: drift-guard-read.sh never checks a home/ source actually
-      exists before redirecting (its own @@Description:12 and
-      AI.md:213 say it should).
-- [ ] 43: drift-guard-read.sh is Read-only; `cat ~/.claude/memory/...`
-      bypasses it entirely (no-read-gitcommit.sh and
-      bash-content-scan.sh both close the equivalent gap on their
-      own hooks — this one doesn't).
-- [ ] 44: AI.md:211 documents `matcher: "clear"` on session-start.sh,
-      which home/settings.json does not have.
-
 ## Template repos (ship as generated projects' AI.md)
 
 - [ ] 45: go/API.md:1607,3285-3321, rust/API.md:1595,3269-3305,

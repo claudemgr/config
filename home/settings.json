@@ -231,6 +231,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/drift-guard-read.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/protect-host.sh",
             "timeout": 10
           },
