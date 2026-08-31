@@ -171,8 +171,11 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       — session_id takes the -XXXXXX uniqueness role since the marker must
       stay reconstructable by session_id alone; org/internal_name namespacing
       now matches the mandated shape.
-- [ ] `trailing-newline-guard.sh:70` — exempts `.pem`/`.key`/`.crt`/`.der`;
+- [x] `trailing-newline-guard.sh:70` — exempts `.pem`/`.key`/`.crt`/`.der`;
       spec requires trailing newline on PEM keys specifically.
+      Fixed: dropped `.pem`/`.key`/`.crt` from `EXEMPT_EXT` — they're text
+      (base64/PEM-armored), not binary; `.der`/`.p12`/`.pfx` stay exempt as
+      genuinely binary encodings, per `file_ending_conventions.md:12`.
 - [ ] `no-todo-comments.sh:76-92` — runs on every file type, not just
       code; a Markdown `# TODO` heading or `* key = value` bullet false-
       positives as commented-out code.
