@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
-# @@Description      :  PreToolUse Read+Bash hook: blocks reading the commit wrapper's script file (Read tool and cat/less/head/etc via Bash), a previously prose-only rule.
-# @@Changelog        :  Narrowed READ_VERBS to display/pager/editor tools only — dropped cp/diff, which are file-manipulation/comparison tools, not display tools.
+# @@Description      :  PreToolUse Read+Grep+Bash hook: blocks reading the commit wrapper script (Read/Grep tools, cat/less/head/etc via Bash), a previously prose-only rule.
+# @@Changelog        :  Added the Grep matcher — Grep on the gitcommit path bypassed the Read-only guard entirely.
 # @@TODO             :  None
 # @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
@@ -78,6 +78,14 @@ if tool_name == "Read":
         sys.exit(2)
     sys.exit(0)
 
+if tool_name == "Grep":
+    grep_path = payload.get("tool_input", {}).get("path", "") or ""
+    if is_gitcommit_path(grep_path):
+        print(msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(2)
+    sys.exit(0)
+
 if tool_name != "Bash":
     sys.exit(0)
 
@@ -90,7 +98,8 @@ if not cmd or not re.search(r"gitcommit", cmd):
 # are file-manipulation/comparison tools, not display tools, so they are
 # out of this rule's scope per the audit's Priority 2 classification.
 READ_VERBS = {"cat", "less", "more", "head", "tail", "vim", "vi", "nano",
-              "view", "bat", "sed", "awk", "grep", "xxd", "od", "strings"}
+              "view", "bat", "sed", "awk", "grep", "rg", "xxd", "od",
+              "strings", "nl", "tac", "cut", "wc", "file", ".", "source"}
 
 for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub_cmd = sub_cmd.strip()

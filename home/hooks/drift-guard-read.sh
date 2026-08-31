@@ -127,7 +127,8 @@ if not cmd:
     sys.exit(0)
 
 READ_VERBS = {"cat", "less", "more", "head", "tail", "vim", "vi", "nano",
-              "view", "bat", "sed", "awk", "grep", "xxd", "od", "strings"}
+              "view", "bat", "sed", "awk", "grep", "rg", "xxd", "od",
+              "strings", "nl", "tac", "cut", "wc", "file", ".", "source"}
 
 for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub_cmd = sub_cmd.strip()
