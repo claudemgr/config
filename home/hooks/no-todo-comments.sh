@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302420-git
+##@Version           :  202608302148-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 21:00 EDT
 # @@File             :  no-todo-comments.sh
-# @@Description        :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK markers and a narrow commented-out-code heuristic, enforcing previously prose-only CLAUDE.md rules.
-# @@Changelog        :  Scoped comment-prefix matching to HTML comments only for .md files — Markdown headings/bullets aren't comment syntax.
+# @@Description      :  PreToolUse Write+Edit hook: blocks TODO/FIXME/HACK markers and a narrow commented-out-code heuristic, enforcing previously prose-only CLAUDE.md rules.
+# @@Changelog        :  AUDIT.AI.md is now exempt alongside TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md — it's the same kind of tracking doc, not committed code.
 # @@TODO             :  None
 # @@Other            :  Never matches `# @@TODO : None` or mid-sentence mentions; TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md are exempt; commented-code detection is conservative.
 # @@Resource         :  CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302420-git"
+VERSION="202608302148-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -53,7 +53,7 @@ content = tool_input.get("content", "") if tool_name == "Write" else tool_input.
 if not content:
     sys.exit(0)
 
-EXEMPT_BASENAMES = {"TODO.AI.md", "TODO.md", "PLAN.AI.md", "PLAN.md", "COMMIT_MESS"}
+EXEMPT_BASENAMES = {"TODO.AI.md", "TODO.md", "PLAN.AI.md", "PLAN.md", "AUDIT.AI.md", "COMMIT_MESS"}
 if os.path.basename(file_path) in EXEMPT_BASENAMES:
     sys.exit(0)
 

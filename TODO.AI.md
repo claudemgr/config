@@ -154,10 +154,15 @@ other items are independent and can be fixed in any order.
       trailing comment now correctly blocks; genuine `# noqa`, CI SHA-pin
       lines, genuine inline comments, and own-line comments all still
       behave as before.
-- [ ] 19: no-todo-comments.sh:72,91-97 — `#`/`*` in COMMENT_PREFIX
-      blocks Markdown headings/list items; home/CLAUDE.md:114 scopes
-      the rule to committed code, and AUDIT.AI.md isn't exempted
-      alongside TODO.AI.md.
+- [x] 19 (FIXED): the `#`/`*` Markdown heading/bullet false-positive was
+      already fixed on inspection (`is_markdown` scopes COMMENT_PREFIX to
+      HTML comments only for `.md` files). Added AUDIT.AI.md to
+      EXEMPT_BASENAMES alongside TODO.AI.md/TODO.md/PLAN.AI.md/PLAN.md —
+      home/CLAUDE.md:114 scopes the no-TODO rule to committed code, and
+      AUDIT.AI.md is a tracking doc, not code. Verified live: AUDIT.AI.md
+      with a "TODO:" line passes (exit 0); TODO.AI.md still passes
+      (regression check); a real code TODO comment still blocks (exit 2);
+      a Markdown "# TODO list" heading still passes (regression check).
 
 ## Secrets
 
