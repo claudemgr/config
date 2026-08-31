@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302430-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
-# @@Changelog        :  Initial version from audit #9; fixed the license header field to WTFPL.
+# @@Changelog        :  Extended the SHA-pin exemption to .gitea/workflows/ and .forgejo/workflows/, not just .github/workflows/.
 # @@TODO             :  None
 # @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302430-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -117,7 +117,13 @@ if ext not in HASH_COMMENT_EXT and ext not in SLASH_COMMENT_EXT:
     sys.exit(0)
 
 INLINE_EXEMPT_RE = re.compile(r"#\s*(noqa|type:\s*ignore)\b|//\s*nolint\b", re.IGNORECASE)
-IS_WORKFLOW = ".github/workflows/" in file_path.replace(os.sep, "/") and ext in (".yml", ".yaml")
+# comment_conventions.md's SHA-pin exemption covers "CI workflow" annotations
+# generically, not GitHub specifically — Gitea and Forgejo use the same
+# `uses: owner/action@{sha}  # vX.Y.Z` Action syntax under their own
+# workflow directories, so both need the same exemption GitHub gets.
+WORKFLOW_DIRS = (".github/workflows/", ".gitea/workflows/", ".forgejo/workflows/")
+NORMALIZED_PATH = file_path.replace(os.sep, "/")
+IS_WORKFLOW = any(d in NORMALIZED_PATH for d in WORKFLOW_DIRS) and ext in (".yml", ".yaml")
 SHA_PIN_RE = re.compile(r"^\s*(-\s*)?uses:\s*\S+@[0-9a-f]{40}\s*#\s*v\S+\s*$")
 
 HASH_INLINE_RE = re.compile(r"\S.*\s#(?!!)")
