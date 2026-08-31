@@ -359,7 +359,7 @@ if matched_name is None:
     sys.exit(0)
 
 msg = (
-    f"CONFIRM REQUIRED before writing: {file_path}\n\n"
+    f"BLOCKED: confirm required before writing {file_path}\n\n"
     f"Reason: matches forbidden-file pattern — {reason}\n\n"
     "Per project conventions this file should not be created without explicit user approval.\n\n"
     "Please ask the user:\n"

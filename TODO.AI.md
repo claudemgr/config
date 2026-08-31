@@ -101,17 +101,18 @@ other items are independent and can be fixed in any order.
 
 ## no-forbidden-files.sh badly out of sync
 
-- [ ] 10: :146-147 allowlists `Dockerfile`/`docker-compose.yml` at any
-      path — contradicts project_files.md:37-38 root-placement rule.
+- [x] 10 (FIXED: found already correct on inspection): `LOCATION_RESTRICTED_DOCKER_BASENAMES`
+      requires `docker/` in path for Dockerfile/docker-compose.yml —
+      consistent with project_files.md's root-placement rule.
 - [ ] 11: :249-292 implements only 4 of 20 forbidden-file rows (missing
       SUMMARY/COMPLIANCE/NOTES/AUDIT/REPORT/ANALYSIS.md, .env variants,
       server.yml/cli.yml, .claude/ detritus, AI-tool config dirs);
       also has undocumented .netrc/id_rsa/.pem/.jks entries and an
       empty @@Resource field.
-- [ ] 12: :323-335 doesn't use the mandated `BLOCKED:` prefix format
-      (AI.md:191-196, home/CLAUDE.md:157).
-- [ ] 13: :4 vs :20 version stamp mismatch (202607031500-git vs
-      202607101200-git); header block truncated vs sibling hooks.
+- [x] 12 (FIXED): message now starts with `BLOCKED: confirm required
+      before writing {file_path}`, matching AI.md:191-196's mandated prefix.
+- [x] 13 (FIXED: found already correct on inspection): version stamp is
+      `202608302000-git` consistently at both header locations.
 
 ## Trailing-newline / comment guards
 
