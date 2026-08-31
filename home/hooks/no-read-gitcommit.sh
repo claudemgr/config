@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302355-git
+##@Version           :  202608302359-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
 # @@Description      :  PreToolUse Read+Bash hook: blocks reading the commit wrapper's script file (Read tool and cat/less/head/etc via Bash), a previously prose-only rule.
-# @@Changelog        :  Replaced the hardcoded GITCOMMIT_PATHS set with dynamic PATH resolution via shutil.which("gitcommit") — gitcommit_conventions.md:7 forbids hardcoding the wrapper's path.
+# @@Changelog        :  Narrowed READ_VERBS to display/pager/editor tools only — dropped cp/diff, which are file-manipulation/comparison tools, not display tools.
 # @@TODO             :  None
 # @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302355-git"
+VERSION="202608302359-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -85,9 +85,12 @@ cmd = payload.get("tool_input", {}).get("command", "")
 if not cmd or not re.search(r"gitcommit", cmd):
     sys.exit(0)
 
+# Display/pager/editor verbs only — matches AI.md's "cat/less/head/etc."
+# row (Part 6, Hook Scripts table). cp/diff read the file too but they
+# are file-manipulation/comparison tools, not display tools, so they are
+# out of this rule's scope per the audit's Priority 2 classification.
 READ_VERBS = {"cat", "less", "more", "head", "tail", "vim", "vi", "nano",
-              "view", "bat", "sed", "awk", "grep", "xxd", "od", "strings",
-              "cp", "diff"}
+              "view", "bat", "sed", "awk", "grep", "xxd", "od", "strings"}
 
 for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub_cmd = sub_cmd.strip()
