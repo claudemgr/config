@@ -94,28 +94,11 @@ For an existing repo, run Mode B.
 
 ## Mode B — Update to current templates
 
-### Step 1 — Sync `.env.scripts` and Dockerfile ARG/LABEL lines
+`gen-dockerfile --update` in place is retired for this flow. Every regeneration goes
+through a scratch tree first — nothing is written into the repo until the scratch tree
+has been merged with the repo's project-specific values and diffed.
 
-```bash
-gen-dockerfile --update --nogit --dir .
-```
-
-This rewrites `.env.scripts` against the current dotenv template (adds new vars, drops
-removed ones, preserves project-specific values) and updates ARG/LABEL lines in
-`Dockerfile` — plus every `Dockerfile.*` variant when `REPO_TYPE=base`. Nothing else is
-touched.
-
-Capture removed vars for Step 5:
-
-```bash
-removed_vars="$(git diff .env.scripts | grep -- '^-[A-Z_][A-Z0-9_]*=' | sed 's/^-//' | cut -d= -f1)"
-printf 'Removed vars: %s\n' "$removed_vars"
-```
-
-### Step 2 — Regenerate rootfs files from a temp dir
-
-Generate a complete fresh tree; every file it produces is the authoritative replacement
-for its counterpart — stale copies may call removed functions and fail at runtime.
+### Step 1 — Generate a full fresh tree in a temp dir
 
 ```bash
 tmpdir="$(mktemp -d "/tmp/gen-${name}-XXXXXX")"
@@ -126,32 +109,58 @@ else
   template="$(grep -- 'using the' Dockerfile | head -1 | sed 's/.*using the \([^ ]*\) template.*/\1/')"
 fi
 
-gen-dockerfile --dir "$tmpdir" --nogit --template "$template" --repo "$name" --org "$org"
+gen-dockerfile --dir "$tmpdir/$name" --nogit --template "$template" --repo "$name" --org "$org"
 ```
 
-Copy every generated file that already exists in this repo — files not already present
-are NOT added:
+`$tmpdir/$name` now holds a complete, vanilla template output — `Dockerfile`/
+`Dockerfile.*`, `.env.scripts`, and every `rootfs/**` file. Treat it as the reference to
+merge against, not something to copy over the repo yet.
+
+Capture removed vars for Step 6 (compare the repo's current `.env.scripts` keys against
+the fresh tree's):
 
 ```bash
-find "$tmpdir/rootfs" -type f | while read -r src; do
-  rel="${src#"$tmpdir/rootfs/"}"
-  dest="rootfs/$rel"
-  if [ -f "$dest" ]; then
-    cp -f "$src" "$dest"
-  fi
-done
-
-rm -rf "$tmpdir"
+removed_vars="$(comm -23 \
+  <(grep -oE -- '^[A-Z_][A-Z0-9_]*=' .env.scripts | sed 's/=$//' | sort -u) \
+  <(grep -oE -- '^[A-Z_][A-Z0-9_]*=' "$tmpdir/$name/.env.scripts" | sed 's/=$//' | sort -u))"
+printf 'Removed vars: %s\n' "$removed_vars"
 ```
 
-**`05-custom.sh` guard — never blind-copy it.** The upstream stub is empty; a repo whose
-`05-custom.sh` has a real body (toolchain installs, app setup) owns that content — it
-exists only in the repo's git history. Diff the temp-dir version against the repo version
-first; if the temp-dir version is materially shorter/emptier, keep the existing body and
-pull forward only boilerplate (version-stamp header, `set` line, shellcheck-disable
-line). Apply the same rule to any other `0*.sh` containing real logic beyond the stub.
+### Step 2 — Merge project-specific values into the fresh tree
 
-### Step 3 — Update app-specific bin scripts
+Before anything is copied back to the repo, port every project-specific value from the
+repo's current files into their `$tmpdir/$name` counterparts:
+
+- **`.env.scripts`** — copy forward every `ENV_*` value that legitimately differs from the
+  template default (`ENV_REGISTRY_ORG`, `ENV_REGISTRY_PUSH`, `ENV_GIT_REPO_URL`, service
+  port, version pins, etc.).
+- **`Dockerfile`/`Dockerfile.*`** — copy forward repo-specific ARG/ENV defaults and any
+  hand-tuned RUN steps. **Never re-add a `VOLUME` instruction** — `dockersrc/{name}`
+  images never declare one (DOCKERSRC.md PART 0 and PART 5); if the repo's current
+  Dockerfile still has one, this is where it gets dropped, not carried forward.
+- **rootfs files** — same `05-custom.sh` guard as always: the upstream stub is empty; a
+  repo whose `05-custom.sh` has a real body (toolchain installs, app setup) owns that
+  content — it exists only in the repo's git history. Diff the fresh-tree version against
+  the repo version; if the fresh-tree version is materially shorter/emptier, keep the
+  existing body in `$tmpdir/$name/...` and pull forward only boilerplate (version-stamp
+  header, `set` line, shellcheck-disable line). Apply the same rule to any other `0*.sh`
+  containing real logic beyond the stub.
+
+### Step 3 — Copy the merged tree into the repo, then diff
+
+```bash
+cp -RTf "$tmpdir/$name/." "$PWD/"
+git status --porcelain
+git diff --stat
+```
+
+Review the diff line by line: confirm every project-specific value from Step 2 survived,
+confirm every `Dockerfile`/`Dockerfile.*` matches the current rules (no `VOLUME`, correct
+OCI label canon — DOCKERSRC.md PART 0), and confirm no file outside `rootfs/`,
+`Dockerfile*`, `.env.scripts`, and `.gitea/workflows/` was touched. Do not `rm -rf
+"$tmpdir"` yet — Step 5 still needs it.
+
+### Step 4 — Update app-specific bin scripts
 
 Scripts in `rootfs/usr/local/bin/` that gen-dockerfile does not generate are repo-owned.
 For each, read the `# @@Template` header line:
@@ -166,10 +175,11 @@ For each, read the `# @@Template` header line:
 
 Syntax-check each edit: `sh -n` for sh scripts, `bash -n` for bash scripts.
 
-### Step 4 — Regenerate `init.d/*.sh`
+### Step 5 — Regenerate `init.d/*.sh` in the temp tree, then copy in and diff
 
-init.d scripts are regenerated, never patched in place. For each `*.sh` in
-`rootfs/usr/local/etc/docker/init.d/` with `@@Template : other/start-service`:
+init.d scripts are regenerated, never patched in place — same scratch-tree-first
+principle as Steps 1-3. For each `*.sh` in `rootfs/usr/local/etc/docker/init.d/` with
+`@@Template : other/start-service`:
 
 **1. Record app-specific content.** Diff the existing script against
 `$TEMPLATE_DIR/scripts/other/start-service`. Everything present in the script but absent
@@ -177,28 +187,50 @@ from the template is app-specific: `SERVICE_NAME=`, `EXEC_CMD_BIN=`, `EXEC_CMD_A
 directory variables, `SERVICE_USER`/`SERVICE_GROUP`, extra exports, env-file sourcing,
 custom code inside function bodies, and app-specific functions defined at the top.
 
-**2. Regenerate:**
+**2. Regenerate into the temp tree** (`$tmpdir` from Step 1, still present):
 
 ```bash
+tmp_init_d_dir="$tmpdir/$name/rootfs/usr/local/etc/docker/init.d"
 init_d_dir="rootfs/usr/local/etc/docker/init.d"
 filename="$(basename "$init_script")"
 svcname="$(grep -- '^SERVICE_NAME=' "$init_script" | cut -d= -f2 | tr -d '"')"
-GEN_SCRIPT_OVERWRITE="Y" GEN_SCRIPT_EDITFILE="N" gen-script --dir "$init_d_dir" --name "$svcname" other/start-service "$filename"
+pre="${filename%%-*}"
+GEN_SCRIPT_OVERWRITE="Y" GEN_SCRIPT_EDITFILE="N" gen-script other/start-service --dir "$tmp_init_d_dir" --name "$svcname" "${pre}-${svcname}.sh"
 ```
+
+`{pre}` is the ordering prefix (`000`, `010`, … `zzz`) that fixes this service's position
+in start order relative to the others — reuse the existing script's prefix so order
+doesn't shift; only pick a new slot for a brand-new service.
 
 The output is bash — it must use `set -eo pipefail`; if gen-script emits `set -e` only:
 
 ```bash
-sed -i 's/^set -e$/set -eo pipefail/' "$init_d_dir/$filename"
+sed -i 's/^set -e$/set -eo pipefail/' "$tmp_init_d_dir/${pre}-${svcname}.sh"
 ```
 
-**3. Restore all recorded app-specific content.** `SERVICE_NAME` is already correct via
-`--name`. Restore single-line values with scoped `sed -i "s|^KEY=.*|KEY=\"value\"|"`;
-splice multi-line bodies and custom functions back into the same function/section they
-occupied. The final script must only call functions defined in the current
-`functions/entrypoint.sh` or in itself, and must pass `bash -n`.
+**3. Restore all recorded app-specific content into the temp-tree copy.**
+`SERVICE_NAME` is already correct via `--name`. Restore single-line values with scoped
+`sed -i "s|^KEY=.*|KEY=\"value\"|"`; splice multi-line bodies and custom functions back
+into the same function/section they occupied. The script must only call functions defined
+in the current `functions/entrypoint.sh` or in itself, and must pass `bash -n` —
+verify inside the temp tree before copying.
 
-### Step 5 — Audit for dead references
+**4. Copy into the repo and diff:**
+
+```bash
+cp -f "$tmp_init_d_dir/"*.sh "$init_d_dir/"
+git diff --stat -- "$init_d_dir"
+```
+
+Confirm every project-specific value landed, each script sits under the right
+`{pre}-{name}.sh` filename, and no service was dropped or merged. Once every init.d
+script is copied and diffed, the temp tree is no longer needed:
+
+```bash
+rm -rf "$tmpdir"
+```
+
+### Step 6 — Audit for dead references
 
 **5a — Dead env vars.** For each var in `$removed_vars`:
 
@@ -240,14 +272,14 @@ For each dead call: check for a rename in the current template (e.g. `__get_ip` 
 any block that only makes sense with it. When unsure, check `$TEMPLATE_DIR/scripts/` for
 the current equivalent. Fix every hit before proceeding.
 
-### Step 6 — Update README.md
+### Step 7 — Update README.md
 
 Rewrite `README.md` to the standard layout in the repo's `AI.md` (PART 6) — base layout
 for `REPO_TYPE=base`, app layout for `REPO_TYPE=app`. Use the existing file as the base;
 fix stale image names, orgs, and ports. Read `SERVICE_PORT` from `.env.scripts`; omit all
 `-p`/`ports:` sections when it is empty.
 
-### Step 7 — Clean up non-standard rootfs directories
+### Step 8 — Clean up non-standard rootfs directories and dead files
 
 Only `root/`, `tmp/`, and `usr/` are valid at the `rootfs/` root:
 
@@ -261,7 +293,17 @@ the AI.md PART 1 map (`etc`/`config` → `tmp/etc`, `data`/`var` → `tmp/var`, 
 `rootfs/usr/local/share/template-files/` if present — retired with the
 `DEFAULT_TEMPLATE_DIR` variable family.
 
-### Step 8 — Verify
+**Dead-file removal — general rule.** Any repo file that the current template no longer
+produces, and that is not hand-crafted/repo-owned content (per the `05-custom.sh` guard in
+Step 2 and the ownership table in DOCKERSRC.md PART 1), is dead and must be removed.
+**Exception: template files always stay.** A file that exists specifically as a
+placeholder/reference template (e.g. an unused `0*.sh` stub, a disabled service's
+`{pre}-{name}.sh` kept for a service that isn't wired up yet) is never deleted just
+because it isn't currently exercised — it may be needed again later. Only remove files
+that are genuinely obsolete (superseded by a renamed/replaced template output), not files
+that are merely inactive.
+
+### Step 9 — Verify
 
 ```bash
 for f in rootfs/usr/local/bin/*; do
@@ -285,7 +327,7 @@ Fix all failures. Then confirm the OCI label canon holds across every
 (base repos), `image.source` = `image.documentation` = the repo's real GitHub URL, and no
 retired labels (`base.name`, `schema-version`, duplicates) present.
 
-### Step 9 — Report
+### Step 10 — Report
 
 Report back: repo type, mode run, every file changed and why, verification results, and
 anything preserved by the `05-custom.sh`/hand-crafted guards. Do NOT commit — the main
