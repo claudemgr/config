@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302355-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
 # @@Description      :  PreToolUse Read+Bash hook: blocks reading the commit wrapper's script file (Read tool and cat/less/head/etc via Bash), a previously prose-only rule.
-# @@Changelog        :  Initial version enforcing the previously prose-only never-read-gitcommit rule; fixed the license header field to WTFPL.
+# @@Changelog        :  Replaced the hardcoded GITCOMMIT_PATHS set with dynamic PATH resolution via shutil.which("gitcommit") — gitcommit_conventions.md:7 forbids hardcoding the wrapper's path.
 # @@TODO             :  None
 # @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302355-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -36,6 +36,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import sys
 
 raw = os.environ.get("NO_READ_GITCOMMIT_HOOK_INPUT", "")
@@ -46,17 +47,21 @@ except json.JSONDecodeError:
 
 tool_name = payload.get("tool_name", "")
 
-GITCOMMIT_PATHS = {
-    "/usr/local/bin/gitcommit",
-    "/usr/local/share/CasjaysDev/scripts/bin/gitcommit",
-}
+# gitcommit_conventions.md:7 forbids hardcoding the gitcommit path (e.g.
+# /usr/local/bin/gitcommit) verbatim - it may live in ~/.local/bin,
+# /usr/bin, or elsewhere depending on the machine, and "it's always in
+# PATH" per that same rule. Resolve it from PATH instead of a fixed list.
+GITCOMMIT_RESOLVED = None
+_which = shutil.which("gitcommit")
+if _which:
+    GITCOMMIT_RESOLVED = os.path.realpath(_which)
 
 
 def is_gitcommit_path(path):
-    if not path:
+    if not path or not GITCOMMIT_RESOLVED:
         return False
     resolved = os.path.realpath(path)
-    return path in GITCOMMIT_PATHS or resolved in GITCOMMIT_PATHS or os.path.basename(path) == "gitcommit" and resolved in GITCOMMIT_PATHS
+    return path == GITCOMMIT_RESOLVED or resolved == GITCOMMIT_RESOLVED
 
 
 msg = (
