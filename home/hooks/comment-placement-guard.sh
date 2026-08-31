@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302142-git
+##@Version           :  202608302147-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 23:00 EDT
 # @@File             :  comment-placement-guard.sh
 # @@Description      :  PreToolUse Write+Edit hook: blocks comment syntax in .json files and inline trailing comments in common source files, a previously prose-only rule.
-# @@Changelog        :  Enforces the <=180-char comment length limit on own-line comments; the limit was previously never checked.
+# @@Changelog        :  Quote-aware comment-marker scan replaces whole-line regex; closes the INLINE_EXEMPT_RE bypass-via-string-contents vector and the quoted-# false-positive bug.
 # @@TODO             :  None
 # @@Other            :  String-aware JSON check; narrow extension-list inline check; exempts `# noqa`/`# type: ignore`/`// nolint` and CI SHA-pin annotations.
 # @@Resource         :  CLAUDE.md - Code & Files, comment_conventions.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302142-git"
+VERSION="202608302147-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -152,10 +152,51 @@ NORMALIZED_PATH = file_path.replace(os.sep, "/")
 IS_WORKFLOW = any(d in NORMALIZED_PATH for d in WORKFLOW_DIRS) and ext in (".yml", ".yaml")
 SHA_PIN_RE = re.compile(r"^\s*(-\s*)?uses:\s*\S+@[0-9a-f]{40}\s*#\s*v\S+\s*$")
 
-HASH_INLINE_RE = re.compile(r"\S.*\s#(?!!)")
-SLASH_INLINE_RE = re.compile(r"\S.*\s//")
-
 MAX_COMMENT_LEN = 180
+
+
+def find_unquoted_marker(line, marker):
+    """Return the index of the first unquoted comment marker on the line,
+    tracking single/double-quote state so a '#' or '//' inside a string
+    literal is never mistaken for a comment start. Returns -1 if none."""
+    in_squote = False
+    in_dquote = False
+    i = 0
+    n = len(line)
+    while i < n:
+        c = line[i]
+        if in_squote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == "'":
+                in_squote = False
+            i += 1
+            continue
+        if in_dquote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_dquote = False
+            i += 1
+            continue
+        if c == "'":
+            in_squote = True
+            i += 1
+            continue
+        if c == '"':
+            in_dquote = True
+            i += 1
+            continue
+        if marker == "#":
+            if c == "#" and not (i + 1 < n and line[i + 1] == "!"):
+                return i
+        elif c == "/" and i + 1 < n and line[i + 1] == "/":
+            return i
+        i += 1
+    return -1
+
 
 for lineno, line in enumerate(content.split("\n"), start=1):
     stripped = line.lstrip()
@@ -165,16 +206,20 @@ for lineno, line in enumerate(content.split("\n"), start=1):
         if len(line) > MAX_COMMENT_LEN:
             findings.append(f"line {lineno}: comment exceeds {MAX_COMMENT_LEN} chars ({len(line)}): {line.strip()[:80]}...")
         continue
-    if INLINE_EXEMPT_RE.search(line):
+
+    marker = "#" if ext in HASH_COMMENT_EXT else "//" if ext in SLASH_COMMENT_EXT else None
+    if marker is None:
+        continue
+    idx = find_unquoted_marker(line, marker)
+    if idx < 1 or line[idx - 1] not in (" ", "\t"):
+        continue
+
+    comment_text = line[idx:]
+    if INLINE_EXEMPT_RE.search(comment_text):
         continue
     if IS_WORKFLOW and SHA_PIN_RE.match(line):
         continue
-
-    if ext in HASH_COMMENT_EXT and HASH_INLINE_RE.search(line):
-        findings.append(f"line {lineno}: inline comment (must be on its own line above): {line.strip()[:80]}")
-        continue
-    if ext in SLASH_COMMENT_EXT and SLASH_INLINE_RE.search(line):
-        findings.append(f"line {lineno}: inline comment (must be on its own line above): {line.strip()[:80]}")
+    findings.append(f"line {lineno}: inline comment (must be on its own line above): {line.strip()[:80]}")
 
 if not findings:
     sys.exit(0)

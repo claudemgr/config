@@ -145,9 +145,15 @@ other items are independent and can be fixed in any order.
 - [x] 17 (FIXED): own-line comments (`#`/`//`-led lines) now blocked
       when they exceed 180 chars. Verified live: a 202-char comment
       blocks with exit 2; a short comment still passes with exit 0.
-- [ ] 18: comment-placement-guard.sh:135,139 — `INLINE_EXEMPT_RE`
-      searched against the whole line (bypass vector via string
-      contents); also fires on `#` inside quoted strings.
+- [x] 18 (FIXED): added a quote-aware `find_unquoted_marker()` scanner that
+      tracks single/double-quote state so a `#`/`//` inside a string literal
+      is never mistaken for a comment start; `INLINE_EXEMPT_RE` now searches
+      only the actual comment substring instead of the whole line, closing
+      the bypass vector. Verified live: a quoted `#` inside a string no
+      longer blocks; `"# noqa"` as string content followed by a real
+      trailing comment now correctly blocks; genuine `# noqa`, CI SHA-pin
+      lines, genuine inline comments, and own-line comments all still
+      behave as before.
 - [ ] 19: no-todo-comments.sh:72,91-97 — `#`/`*` in COMMENT_PREFIX
       blocks Markdown headings/list items; home/CLAUDE.md:114 scopes
       the rule to committed code, and AUDIT.AI.md isn't exempted
