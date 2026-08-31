@@ -75,7 +75,13 @@ def strip_heredoc_bodies(text):
             line = lines[i]
             out.append(line)
             delims = []
+            # A pipe, command substitution, or backtick on the line can route
+            # a "data" heredoc body into a shell downstream of a non-shell
+            # head (e.g. `cat <<EOF | bash`) - never elide on such lines.
+            risky_line = bool(re.search(r"\||\$\(|`", line))
             for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                if risky_line:
+                    continue
                 head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
                 if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
                     delims.append(m.group(2))
