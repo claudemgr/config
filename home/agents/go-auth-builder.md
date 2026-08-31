@@ -886,7 +886,7 @@ func RateLimit(db RateLimitDB, key string, max int, windowSecs int64) func(http.
                 return
             }
             if count >= int64(max) {
-                retryAfter := windowSecs - (now - windowStart)
+                retryAfter := windowSecs
                 w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
                 w.Header().Set("Content-Type", "application/json")
                 w.WriteHeader(429)

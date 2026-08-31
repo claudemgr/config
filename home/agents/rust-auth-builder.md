@@ -1005,7 +1005,7 @@ pub fn rate_limit_for(
                 Err(_) => return next.run(req).await,
             };
             if count >= max {
-                let retry_after = window_secs - (now - window_start);
+                let retry_after = window_secs;
                 let body = json!({
                     "ok": false,
                     "error": "RATE_LIMITED",
