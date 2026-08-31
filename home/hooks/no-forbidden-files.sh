@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311400-git
+##@Version           :  202608311530-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Root-only forbidden-dirname check now skips non-language (script/spec-collection) repos.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311400-git"
+VERSION="202608311530-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -306,13 +306,50 @@ FORBIDDEN_REPORT_BASENAMES = {
 }
 
 # Root-only forbidden directories (project_files.md's Forbidden
-# Directories table) — checked relative to the hook's cwd, since lib/,
-# build/, etc. are only forbidden at repo root (nested, e.g. src/lib/,
-# is acceptable).
+# Directories table) — checked relative to the file's own git repo root
+# (root_rel_path above), since lib/, build/, etc. are only forbidden at
+# repo root (nested, e.g. src/lib/, is acceptable — root_rel_path already
+# only ever holds the path relative to repo root, so a nested dir never
+# matches here regardless of depth).
+#
+# project_files.md's own rationale column ("Config is embedded,
+# runtime-generated in OS dirs", "Use proper language package structure")
+# is written for a {lang}/{framework} shippable-binary project — it does
+# not hold for a script-collection or spec-collection repo, which has no
+# compiled runtime, no OS install dirs, and often legitimately ships a
+# root-level config/ or data/ directory as part of what it distributes
+# (see project_type_conventions.md's script-collection/spec-collection
+# sections). Skip this specific check — and only this check, every other
+# forbidden-file/credential/vendor check below still applies — when the
+# repo has none of the manifest files that mark it as a language project.
 FORBIDDEN_ROOT_DIRNAMES = {
     "config", "data", "logs", "tmp", "temp", "test-data",
     "build", "dist", "out", "lib", "libs", "utils", "common",
 }
+
+LANGUAGE_PROJECT_MANIFESTS = {
+    "go.mod", "Cargo.toml", "package.json", "pyproject.toml",
+    "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
+    "CMakeLists.txt", "Gemfile", "composer.json", "mix.exs",
+    "Package.swift", "pubspec.yaml", "build.zig", "dune-project",
+    "build.sbt", "project.clj", "deps.edn", "*.csproj", "*.sln",
+}
+
+def is_language_project(root):
+    if not root or not os.path.isdir(root):
+        # Unknown repo root — fail toward the stricter, pre-existing
+        # behavior rather than silently widening the exception.
+        return True
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        return True
+    for name in entries:
+        if name in LANGUAGE_PROJECT_MANIFESTS:
+            return True
+        if name.endswith(".csproj") or name.endswith(".sln"):
+            return True
+    return False
 
 FORBIDDEN_EXTENSIONS = {
     # private keys / certificates
@@ -369,7 +406,7 @@ def is_forbidden(fp, bn, root_rel):
     for pat, label in FORBIDDEN_PATH_PATTERNS:
         if re.search(pat, fp_lower):
             return fp, label
-    if root_rel is not None:
+    if root_rel is not None and is_language_project(hook_cwd):
         top = root_rel.split("/", 1)[0].lower()
         if top in FORBIDDEN_ROOT_DIRNAMES:
             return root_rel, f"{top}/ at repo root is a forbidden directory"

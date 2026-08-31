@@ -90,6 +90,8 @@ Writing any of these requires explicit user confirmation first, regardless of di
 
 **Note:** `src/data/` is allowed for static files embedded in the binary. Only root-level `data/` is forbidden.
 
+**Scope:** this table assumes a {lang}/{framework} shippable-binary project (its rationale column — "embedded, runtime-generated in OS dirs", "proper language package structure" — presumes a compiled runtime and an OS install target). It does not apply to `script-collection` or `spec-collection` repos (`~/.claude/memory/project_type_conventions.md`), which have no compiled runtime and can legitimately ship a root-level `config/`, `data/`, `lib/`, etc. as part of what they distribute — `no-forbidden-files.sh` detects this by checking for a language manifest file (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`, etc.) at the repo root and skips this directory check when none is present.
+
 ## `docker/rootfs/` Contents
 
 `docker/rootfs/` mirrors the Linux FHS — it is `COPY`'d into the image at `/`. Acceptable paths inside it:
