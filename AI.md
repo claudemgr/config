@@ -195,12 +195,20 @@ echo "BLOCKED: {reason why it was blocked}"
 exit 2
 ```
 
-**Input:** Hook receives tool input as JSON on stdin. Parse with `jq`.
+**Input:** Hook receives tool input as JSON on stdin. Parse with `jq` — a
+few hooks (e.g. `block-host-toolchain.sh`) parse with `python3` instead
+where its parsing/quoting needs exceed what a `jq` one-liner can express
+cleanly; either is fine as long as a missing interpreter fails the hook
+open (exit 0), never closed.
 
 **Rules:**
 - Hooks must be fast — they run synchronously before/after every matching tool call
 - Never do network I/O in a hook
-- Never write to files from a hook (except append-only logs)
+- Never write to files from a hook, except append-only logs and the
+  small session-marker files under `${TMPDIR:-/tmp}/claude-hooks/`
+  that gate hooks (`spec-guard-mark.sh`, `test-lint-mark.sh`,
+  `lint-agent-mark.sh`) use to record session state for a paired
+  PreToolUse gate to check — never a project file
 - Always handle `jq` parse failures gracefully — malformed input must not crash the hook
 - Test hooks by piping sample JSON to them directly: `echo '{...}' | ./hooks/myhook.sh`
 
@@ -243,7 +251,7 @@ exit 2
   "PreToolUse": [
     {
       "matcher": "Bash",
-      "hooks": [{ "type": "command", "command": "~/.claude/hooks/protect-host.sh" }]
+      "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/protect-host.sh" }]
     }
   ]
 }
@@ -275,7 +283,7 @@ Controls Claude Code permissions and hook wiring. Structure:
 - Explicit `allow` entries are required for sensitive paths — Claude Code has built-in sensitivity overrides that `allow` globs alone may not bypass (e.g. `.git/**` paths need explicit entries)
 - Sensitive files with explicit allows: `.git/COMMIT_MESS`, `.git/COMMIT_EDITMSG`, `CLAUDE.md`, `settings.json`, `settings.local.json`, `.env`, `app.env`, `default.env`
 - `deny` takes precedence over `allow`
-- Hook commands use `~/.claude/hooks/` paths — never relative paths
+- Hook commands use `$HOME/.claude/hooks/` paths — never relative paths, and never a literal `~` (unreliable in a JSON command string; `$HOME` expands correctly)
 
 ---
 

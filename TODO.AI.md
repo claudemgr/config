@@ -80,21 +80,6 @@ independent and can be fixed in any order.
       but no `--rm` and isn't detached — enforce-docker-rm.sh:220 blocks
       it.
 
-## Cross-cutting
-
-- [ ] 49: AI.md:203 "Never write to files from a hook (except
-      append-only logs)" is contradicted by test-lint-mark.sh:75,
-      spec-guard-mark.sh:67, lint-agent-mark.sh:63, which each mkdir/
-      chmod/prune a marker dir. Needs an explicit marker-file carve-out
-      in AI.md:203, not hook deletion (AI.md:237 relies on the rule
-      elsewhere).
-- [ ] 50: AI.md:198 says hooks parse with `jq`; block-host-toolchain.sh
-      and several others use python3 instead — a host without python3
-      silently no-ops those gates (exit 0).
-- [ ] 51: AI.md:278 documents `~/.claude/hooks/` paths; home/
-      settings.json uses `$HOME/.claude/hooks/` for all 35 wirings —
-      functionally identical, literally mismatched.
-
 ## Git/commit hook group (zone-git-commit-push.sh, no-subagent-commit.sh,
 ## no-history-rewrite.sh, no-destructive-bypass.sh, no-read-gitcommit.sh,
 ## no-force-push.sh, enforce-gitcommit-shape.sh)
