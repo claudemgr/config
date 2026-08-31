@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302400-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  lint-agent-mark.sh
 # @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint finishes, since it never runs as a host command.
-# @@Changelog        :  Initial version closing an audit #7 enforcement gap; fixed the license header field to WTFPL.
+# @@Changelog        :  Marker dir moved from unnamespaced claude-test-lint-guard to claudemgr/config/test-lint-guard, per tempdir_conventions.md's org/internal_name namespacing rule.
 # @@TODO             :  None
 # @@Other            :  No pass/fail field exists for a finished subagent, so completion itself counts as satisfied; writes the same marker enforce-test-lint-gate.sh checks.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh, home/hooks/enforce-test-lint-gate.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302400-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -45,12 +45,21 @@ LINT_AGENT_MARK_PROJECT=$(git -C "${LINT_AGENT_MARK_CWD:-.}" rev-parse --show-to
   || LINT_AGENT_MARK_PROJECT="$LINT_AGENT_MARK_CWD"
 [ -z "$LINT_AGENT_MARK_PROJECT" ] && exit 0
 
-LINT_AGENT_MARK_DIR="${TMPDIR:-/tmp}/claude-test-lint-guard/${LINT_AGENT_MARK_SESSION_ID}"
+# tempdir_conventions.md's mandated shape is {project_org}/{internal_name}-XXXXXX,
+# but the -XXXXXX random mktemp suffix is for one-shot unique dirs; this marker
+# must be a deterministic, reconstructable path so enforce-test-lint-gate.sh's
+# reader can look it up again by session_id alone (and so it matches the same
+# path test-lint-mark.sh writes). session_id already serves the uniqueness
+# role -XXXXXX would, so it replaces that suffix here while still satisfying
+# the org/internal_name namespacing the rule requires. Per IDEA.md, this
+# project's frozen internal org is claudemgr and its frozen internal name
+# is config.
+LINT_AGENT_MARK_DIR="${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard/${LINT_AGENT_MARK_SESSION_ID}"
 mkdir -p "$LINT_AGENT_MARK_DIR"
-chmod 700 "${TMPDIR:-/tmp}/claude-test-lint-guard" "$LINT_AGENT_MARK_DIR" 2>/dev/null || true
+chmod 700 "${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard" "$LINT_AGENT_MARK_DIR" 2>/dev/null || true
 
 # Prune marker dirs older than 1 day — scoped only to this tool's own temp namespace
-find "${TMPDIR:-/tmp}/claude-test-lint-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
+find "${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
 
 LINT_AGENT_MARK_MARKER="$LINT_AGENT_MARK_DIR/lint"
 grep -qxF -- "$LINT_AGENT_MARK_PROJECT" "$LINT_AGENT_MARK_MARKER" 2>/dev/null \

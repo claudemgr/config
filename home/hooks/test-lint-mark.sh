@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302319-git
+##@Version           :  202608302400-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
-# @@Changelog        :  Narrowed the script-collection manifest list to match project_type_conventions.md's authoritative set.
+# @@Changelog        :  Marker dir moved to claudemgr/config/test-lint-guard per tempdir_conventions.md's namespacing rule.
 # @@TODO             :  None
 # @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302319-git"
+VERSION="202608302400-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -84,12 +84,19 @@ if [ "$TEST_LINT_MARK_IS_BASHN" = "1" ] && [ "$TEST_LINT_MARK_IS_TEST" != "1" ];
 fi
 [ "$TEST_LINT_MARK_IS_TEST" = "1" ] || [ "$TEST_LINT_MARK_IS_LINT" = "1" ] || exit 0
 
-TEST_LINT_MARK_DIR="${TMPDIR:-/tmp}/claude-test-lint-guard/${TEST_LINT_MARK_SESSION_ID}"
+# tempdir_conventions.md's mandated shape is {project_org}/{internal_name}-XXXXXX,
+# but the -XXXXXX random mktemp suffix is for one-shot unique dirs; this marker
+# must be a deterministic, reconstructable path so enforce-test-lint-gate.sh's
+# reader can look it up again by session_id alone. session_id already serves
+# the uniqueness role -XXXXXX would, so it replaces that suffix here while
+# still satisfying the org/internal_name namespacing the rule requires
+# (IDEA.md: internal_org=claudemgr, internal_name=config).
+TEST_LINT_MARK_DIR="${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard/${TEST_LINT_MARK_SESSION_ID}"
 mkdir -p "$TEST_LINT_MARK_DIR"
-chmod 700 "${TMPDIR:-/tmp}/claude-test-lint-guard" "$TEST_LINT_MARK_DIR" 2>/dev/null || true
+chmod 700 "${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard" "$TEST_LINT_MARK_DIR" 2>/dev/null || true
 
 # Prune marker dirs older than 1 day — scoped only to this tool's own temp namespace
-find "${TMPDIR:-/tmp}/claude-test-lint-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
+find "${TMPDIR:-/tmp}/claudemgr/config/test-lint-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
 
 if [ "$TEST_LINT_MARK_IS_TEST" = "1" ]; then
   TEST_LINT_MARK_TEST_MARKER="$TEST_LINT_MARK_DIR/test"
