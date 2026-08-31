@@ -45,6 +45,20 @@ independent and can be fixed in any order.
       directly (write the marker themselves, or grant an explicit Bash
       permission rule for that path) if they still want the marker
       backfilled.
+      UPDATE: `enforce-test-lint-gate.sh` now also scans the PreToolUse
+      payload's own `transcript_path` for a passing test/lint Bash call
+      this session, independent of whether `test-lint-mark.sh`'s
+      PostToolUse marker ever got written — this directly mitigates the
+      specific test/lint-gate false-block symptom described above
+      without depending on a fix to the underlying registration bug.
+      Verified via `echo '{...}' | bash enforce-test-lint-gate.sh`
+      (AI.md's documented hook-test method): marker-only path still
+      passes unchanged, and a synthetic transcript with no markers at
+      all now satisfies both the test and lint gate on its own. Item
+      stays open because the underlying PostToolUse/SubagentStop
+      registration bug is still upstream-open and can still affect any
+      other hook that has no equivalent fallback (e.g.
+      `drift-guard-read.sh`, `spec-guard-mark.sh`).
 
 ## Gate/marker hooks
 

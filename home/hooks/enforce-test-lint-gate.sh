@@ -50,6 +50,7 @@ if payload.get("tool_name", "") != "Bash":
 
 cmd = payload.get("tool_input", {}).get("command", "")
 session_id = payload.get("session_id", "")
+transcript_path = payload.get("transcript_path", "")
 if not cmd or not session_id or not re.search(r"\bgitcommit\b", cmd):
     sys.exit(0)
 
@@ -103,6 +104,72 @@ def marked(marker_file, project):
         return False
 
 
+# Fallback for the confirmed upstream bug (anthropics/claude-code#36310,
+# open): PostToolUse on Bash sometimes never spawns, so test-lint-mark.sh's
+# marker is never written even though the command genuinely passed.
+# transcript_path (documented in Claude Code's hook payload) is written by
+# the CLI itself, independent of PostToolUse firing, so scanning it directly
+# gives a reliable second signal that a Bash command ran and passed this
+# session. This only runs when the command already matched `gitcommit`
+# above, so it never adds cost to ordinary Bash calls.
+TEST_CMD_RE = re.compile(
+    r"\bmake\s+test\b|\bgo\s+test\b|\bcargo\s+test\b|\bpytest\b|\bnpm\s+(run\s+)?test\b"
+)
+BASHN_RE = re.compile(r"\bbash\s+-n\b")
+LINT_CMD_RE = re.compile(r"\bscript-lint\b|\bgo-lint\b|\brust-lint\b")
+
+
+def transcript_pass(transcript_path, project, allow_bashn_as_test):
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return False, False
+    tool_use_cmds = {}
+    test_ok = False
+    lint_ok = False
+    try:
+        with open(transcript_path, errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                etype = entry.get("type")
+                if etype == "assistant":
+                    for c in entry.get("message", {}).get("content", []) or []:
+                        if c.get("type") == "tool_use" and c.get("name") == "Bash":
+                            cmd_ = c.get("input", {}).get("command", "")
+                            if cmd_:
+                                tool_use_cmds[c.get("id")] = cmd_
+                elif etype == "user":
+                    entry_cwd = entry.get("cwd", "")
+                    try:
+                        entry_project = os.path.realpath(entry_cwd) if entry_cwd else ""
+                    except OSError:
+                        entry_project = ""
+                    if entry_project != project:
+                        continue
+                    tur = entry.get("toolUseResult", {}) or {}
+                    if tur.get("interrupted"):
+                        continue
+                    for c in entry.get("message", {}).get("content", []) or []:
+                        if c.get("type") != "tool_result" or c.get("is_error"):
+                            continue
+                        cmd_ = tool_use_cmds.get(c.get("tool_use_id"))
+                        if not cmd_:
+                            continue
+                        if TEST_CMD_RE.search(cmd_):
+                            test_ok = True
+                        if allow_bashn_as_test and BASHN_RE.search(cmd_):
+                            test_ok = True
+                        if LINT_CMD_RE.search(cmd_):
+                            lint_ok = True
+    except OSError:
+        return False, False
+    return test_ok, lint_ok
+
+
 def has_shell_scripts(root):
     # project_type_conventions.md's spec-collection rule scans "anywhere in
     # its tree", unqualified — no depth limit. A bare deploy-only install.sh
@@ -145,8 +212,16 @@ for target in targets:
             )
         continue
 
+    manifests_present = any(
+        os.path.isfile(os.path.join(project, m))
+        for m in ("go.mod", "Cargo.toml", "package.json", "pyproject.toml")
+    )
+    transcript_test_ok, transcript_lint_ok = transcript_pass(
+        transcript_path, project, allow_bashn_as_test=not manifests_present
+    )
+
     missing = []
-    if not marked(os.path.join(marker_dir, "test"), project):
+    if not marked(os.path.join(marker_dir, "test"), project) and not transcript_test_ok:
         missing.append("test gate")
     # Only Go/Rust/shell have a defined lint agent (go-lint/rust-lint/
     # script-lint) — a Node- or Python-only project (package.json/
@@ -157,7 +232,11 @@ for target in targets:
         or os.path.isfile(os.path.join(project, "Cargo.toml"))
         or has_shell_scripts(project)
     )
-    if has_defined_lint_target and not marked(os.path.join(marker_dir, "lint"), project):
+    if (
+        has_defined_lint_target
+        and not marked(os.path.join(marker_dir, "lint"), project)
+        and not transcript_lint_ok
+    ):
         missing.append("lint gate")
     if missing:
         blocked.append(f"{project}: {' and '.join(missing)} has not run (and passed) this session")
