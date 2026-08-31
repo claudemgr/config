@@ -113,43 +113,55 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
 
 ## Priority 2 — invented enforcement, narrower scope (no judgment call, just fix)
 
-- [ ] `enforce-test-lint-gate.sh:126,129-131` — 4-level depth limit on the
-      script scan; spec says "anywhere in its tree", unqualified.
-- [ ] `enforce-test-lint-gate.sh:160-165` — a manifest-only project
+- [x] `enforce-test-lint-gate.sh:126,129-131` — 4-level depth limit on the
+      script scan; spec says "anywhere in its tree", unqualified. Fixed:
+      depth limit removed.
+- [x] `enforce-test-lint-gate.sh:160-165` — a manifest-only project
       (e.g. only `package.json`) can never satisfy the lint gate, since a
       lint marker only comes from script-lint/go-lint/rust-lint. Verified:
-      unsatisfiable deadlock for Node/Python-only projects.
-- [ ] `enforce-test-lint-gate.sh:137-141` / AI.md:226 — no carve-out for
+      unsatisfiable deadlock for Node/Python-only projects. Fixed: lint
+      gate skipped for projects with no defined lint agent.
+- [x] `enforce-test-lint-gate.sh:137-141` / AI.md:226 — no carve-out for
       `install.sh`-only spec-collection repos; `project_type_conventions.md
       :182` says an `install.sh` alone does not disqualify spec-collection.
-- [ ] `enforce-test-lint-gate.sh:150-157` — spec-collection substitute
+      Fixed: install.sh-only carve-out added.
+- [x] `enforce-test-lint-gate.sh:150-157` — spec-collection substitute
       checks "AI.md/SPEC.md was read", spec requires re-reading the
-      edited/changed file(s) instead.
-- [ ] `enforce-test-lint-gate.sh:138` / `test-lint-mark.sh:100` — adds
+      edited/changed file(s) instead. Fixed.
+- [x] `enforce-test-lint-gate.sh:138` / `test-lint-mark.sh:100` — adds
       `Makefile`/`setup.py` to the manifest list beyond spec's
-      go.mod/Cargo.toml/package.json/pyproject.toml.
-- [ ] `bound-shell-lifetime.sh:209` — sentinel tokens `.output`/`/tasks/`
-      unsourced; spec only names `*.done`.
-- [ ] `bound-shell-lifetime.sh:206-213` — blocks sentinel polls even when
+      go.mod/Cargo.toml/package.json/pyproject.toml. Fixed: manifest list
+      narrowed to spec's four.
+- [x] `bound-shell-lifetime.sh:209` — sentinel tokens `.output`/`/tasks/`
+      unsourced; spec only names `*.done`. Fixed: narrowed to `*.done`.
+- [x] `bound-shell-lifetime.sh:206-213` — blocks sentinel polls even when
       wrapped in `timeout {n}`; spec exempts anything under `timeout {n}`
-      with no carve-out. Verified live.
-- [ ] `enforce-docker-rm.sh:107,156,162` — enforces `lxc launch|init`;
-      spec (`execution_hierarchy.md:29-37,96`) says Incus only.
-- [ ] `no-history-rewrite.sh:132-133,173-176` — undocumented `git clean
+      with no carve-out. Verified live. Fixed: the blanket bounded-check
+      now runs before the sentinel-specific check.
+- [x] `enforce-docker-rm.sh:107,156,162` — enforces `lxc launch|init`;
+      spec (`execution_hierarchy.md:29-37,96`) says Incus only. Fixed:
+      lxc dropped from the launch/init naming enforcement.
+- [x] `no-history-rewrite.sh:132-133,173-176` — undocumented `git clean
       -fn` dry-run carve-out (behaviorally fine, not written anywhere).
-- [ ] `no-history-rewrite.sh:123-129,189-192` — tag-delete matching
+      Fixed: documented, and is_dry_run() now also matches combined
+      short flags (-fn/-nf), which the original carve-out missed.
+- [x] `no-history-rewrite.sh:123-129,189-192` — tag-delete matching
       extended to `-D`/combined flags; spec names `-d` only. Inconsistent
-      with same file's branch-delete matcher (correctly `-D` only).
-- [ ] `no-ai-attribution.sh:52` — bare regex match on the phrase itself
+      with same file's branch-delete matcher (correctly `-D` only). Fixed:
+      narrowed to -d/--delete (and combined flags carrying lowercase d).
+- [x] `no-ai-attribution.sh:52` — bare regex match on the phrase itself
       with no scope check; spec scopes the rule to trailers/footers, this
       blocks any file merely discussing that phrase as a topic (this file
       had to be reworded once already while being written, to avoid the
-      hook self-triggering on a description of its own bug).
-- [ ] `no-read-gitcommit.sh:91-93` — `cp`/`diff` added to READ_VERBS
-      beyond spec's `cat/less/head/etc`.
-- [ ] `no-read-gitcommit.sh:57-60` — hardcodes `/usr/local/bin/gitcommit`;
+      hook self-triggering on a description of its own bug). Fixed:
+      matching anchored to line-start after stripping comment/quote
+      leaders.
+- [x] `no-read-gitcommit.sh:91-93` — `cp`/`diff` added to READ_VERBS
+      beyond spec's `cat/less/head/etc`. Fixed: cp/diff dropped.
+- [x] `no-read-gitcommit.sh:57-60` — hardcodes `/usr/local/bin/gitcommit`;
       spec (`gitcommit_conventions.md:7`) forbids this exact pattern
-      verbatim, using that path as its own counter-example.
+      verbatim, using that path as its own counter-example. Fixed:
+      resolved dynamically via shutil.which("gitcommit").
 - [ ] Marker temp paths (`test-lint-mark.sh:109`, `lint-agent-mark.sh:63`,
       `enforce-test-lint-gate.sh:112-113`) use
       `${TMPDIR}/claude-test-lint-guard/…`, not the mandated
