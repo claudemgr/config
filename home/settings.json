@@ -34,7 +34,6 @@
     "auto-mode-setup": "off"
   },
   "permissions": {
-    "disableAutoMode": false,
     "allow": [
       "Bash(**)",
       "Read(**)",
