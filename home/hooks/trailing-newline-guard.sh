@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302410-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  trailing-newline-guard.sh
 # @@Description      :  PostToolUse Write+Edit hook: enforces the trailing-newline rule read-only, blocking with a remediation message instead of rewriting the file.
-# @@Changelog        :  Initial version enforcing the previously unenforced trailing-newline rule; fixed the license header field to WTFPL.
+# @@Changelog        :  Dropped .pem/.key/.crt from the binary exemption list — they're text/PEM-armored, not binary.
 # @@TODO             :  None
 # @@Other            :  Skips secret/token files, VERSION, lockfiles, binary content, empty files, nonexistent paths; applies everywhere.
 # @@Resource         :  file_ending_conventions.md, CLAUDE.md - Code & Files
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302410-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -57,8 +57,13 @@ EXEMPT_LOCKFILES = {
     "package-lock.json", "yarn.lock", "Cargo.lock", "go.sum",
     "pnpm-lock.yaml", "composer.lock",
 }
+# .pem/.key/.crt are text (base64/PEM armor), not binary — file_ending_
+# conventions.md:12 explicitly requires the trailing newline on PEM keys.
+# .der/.p12/.pfx are genuinely binary encodings (DER, PKCS#12) and stay
+# exempt; .token stays exempt as a single-value secret file per that same
+# doc's Exceptions table.
 EXEMPT_EXT = {
-    ".token", ".pem", ".key", ".crt", ".der", ".p12", ".pfx",
+    ".token", ".der", ".p12", ".pfx",
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".bmp",
     ".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".pdf",
     ".woff", ".woff2", ".ttf", ".eot", ".otf",
