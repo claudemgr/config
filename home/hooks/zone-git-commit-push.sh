@@ -53,6 +53,47 @@ cmd = d.get("tool_input", {}).get("command", "") or ""
 if not cmd:
     sys.exit(0)
 
+HEREDOC_SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "mksh", "ash"}
+HEREDOC_CONTAINER_TOOLS = {"docker", "docker-compose", "podman", "podman-compose",
+                           "kubectl", "incus", "lxc", "machinectl", "systemd-nspawn",
+                           "vagrant", "multipass", "distrobox", "toolbox", "virsh",
+                           "nsenter", "chroot"}
+
+
+def strip_heredoc_bodies(text):
+    # Non-shell heredoc bodies are data, not commands - drop them before scanning
+    # so a cat/tee/python3 heredoc that merely MENTIONS a blocked command is not a
+    # false positive. Bodies fed to a host shell (bash <<EOF) stay fully scanned;
+    # container/VM-mediated shells (docker exec -i c bash <<EOF) are exempt - the
+    # body runs inside the disposable guest. Fails open to the original text on
+    # any parse error so scanning never silently weakens.
+    try:
+        out = []
+        lines = text.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            out.append(line)
+            delims = []
+            for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
+                if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
+                    delims.append(m.group(2))
+            i += 1
+            for delim in delims:
+                while i < len(lines):
+                    if lines[i].strip() == delim:
+                        out.append(lines[i])
+                        i += 1
+                        break
+                    i += 1
+        return "\n".join(out)
+    except Exception:
+        return text
+
+
+cmd = strip_heredoc_bodies(cmd)
+
 # Cheap pre-filter: nothing resembling git anywhere -> allow.
 if not re.search(r"\bgit\b", cmd):
     sys.exit(0)

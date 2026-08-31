@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Sunday, August 30, 2026 12:00 EDT
 # @@File             :  no-subagent-commit.sh
-# @@Description      :  PreToolUse hook: blocks the commit wrapper/git commit/git push when tool_input.agent_id is present, enforcing the "agents never commit" rule.
-# @@Changelog        :  Initial version enforcing the previously unenforced no-subagent-commit rule; restored the executable bit.
+# @@Description      :  PreToolUse hook: blocks the commit wrapper/git commit/git push when the top-level agent_id field is present, enforcing the "agents never commit" rule.
+# @@Changelog        :  Corrected the header's agent_id field path (top-level, not under tool_input) after confirming via Claude Code's own hooks docs.
 # @@TODO             :  None
 # @@Other            :  Applies everywhere including the zone — the zone's raw-git exception bypasses the commit wrapper for the main session, not a subagent's own authority.
 # @@Resource         :  CLAUDE.md - Agent Usage - "Agents never commit"
@@ -57,6 +57,47 @@ if not d.get("agent_id", ""):
 cmd = d.get("tool_input", {}).get("command", "") or ""
 if not cmd:
     sys.exit(0)
+
+HEREDOC_SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "mksh", "ash"}
+HEREDOC_CONTAINER_TOOLS = {"docker", "docker-compose", "podman", "podman-compose",
+                           "kubectl", "incus", "lxc", "machinectl", "systemd-nspawn",
+                           "vagrant", "multipass", "distrobox", "toolbox", "virsh",
+                           "nsenter", "chroot"}
+
+
+def strip_heredoc_bodies(text):
+    # Non-shell heredoc bodies are data, not commands - drop them before scanning
+    # so a cat/tee/python3 heredoc that merely MENTIONS a blocked command is not a
+    # false positive. Bodies fed to a host shell (bash <<EOF) stay fully scanned;
+    # container/VM-mediated shells (docker exec -i c bash <<EOF) are exempt - the
+    # body runs inside the disposable guest. Fails open to the original text on
+    # any parse error so scanning never silently weakens.
+    try:
+        out = []
+        lines = text.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            out.append(line)
+            delims = []
+            for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
+                if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
+                    delims.append(m.group(2))
+            i += 1
+            for delim in delims:
+                while i < len(lines):
+                    if lines[i].strip() == delim:
+                        out.append(lines[i])
+                        i += 1
+                        break
+                    i += 1
+        return "\n".join(out)
+    except Exception:
+        return text
+
+
+cmd = strip_heredoc_bodies(cmd)
 
 # Cheap pre-filter: nothing resembling git/gitcommit anywhere -> allow.
 if not re.search(r"\bgit\b|\bgitcommit\b", cmd):
