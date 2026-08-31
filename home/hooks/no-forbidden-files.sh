@@ -13,7 +13,7 @@
 # @@Changelog        :  Reconciled against project_files.md's Forbidden Files/Directories tables and fixed deny/allow ordering.
 # @@TODO             :  Better docs
 # @@Other            :
-# @@Resource         :
+# @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -269,6 +269,8 @@ FORBIDDEN_BASENAMES = {
     "secrets.json", "secrets.yaml", "secrets.yml",
     "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
     ".ds_store", "thumbs.db", "desktop.ini",
+    ".env", "app.env", "default.env",
+    "server.yml", "cli.yml",
 }
 
 # Report-only / redundant doc basenames forbidden by project_files.md's
@@ -315,6 +317,18 @@ FORBIDDEN_PATH_PATTERNS = [
     (r"/\.ssh/id_(?!.*\.pub$)", "SSH private key"),
     (r"(^|/)vendor/", "vendor/ directory is forbidden — use language module system"),
     (r"(^|/)node_modules/", "node_modules/ is forbidden — never committed"),
+    (r"(^|/)\.claude/settings\.local\.json$", "personal Claude Code overrides — gitignored, never committed"),
+    (r"(^|/)\.claude/(backups|cache|file-history|projects)/", ".claude/ runtime directory — gitignored, never committed"),
+    (r"(^|/)\.claude/history\.jsonl$", ".claude/ runtime file — gitignored, never committed"),
+    (r"(^|/)\.claude/statsfile$", ".claude/ runtime file — gitignored, never committed"),
+    (r"(^|/)\.claude/[^/]*\.lock$", ".claude/ runtime lockfile — gitignored, never committed"),
+    (r"(^|/)\.cursor/settings\.json$", "personal Cursor settings — gitignored, never committed"),
+    (r"(^|/)\.windsurf/settings\.json$", "personal Windsurf settings — gitignored, never committed"),
+    (r"(^|/)\.aider\.(chat\.history\.md|input\.history|llm\.history)$", "Aider personal history — gitignored, never committed"),
+    (r"(^|/)\.aider\.tags\.cache\.v3/", "Aider symbol cache — gitignored, never committed"),
+    (r"(^|/)\.continue/(dev_data|index)/", "Continue personal data/index — gitignored, never committed"),
+    (r"(^|/)\.continue/session\.json$", "Continue personal session — gitignored, never committed"),
+    (r"(^|/)\.codeium/", "Codeium auth/cache — gitignored, never committed"),
 ]
 
 def is_forbidden(fp, bn, root_rel):

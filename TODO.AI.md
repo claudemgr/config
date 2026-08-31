@@ -104,11 +104,21 @@ other items are independent and can be fixed in any order.
 - [x] 10 (FIXED: found already correct on inspection): `LOCATION_RESTRICTED_DOCKER_BASENAMES`
       requires `docker/` in path for Dockerfile/docker-compose.yml —
       consistent with project_files.md's root-placement rule.
-- [ ] 11: :249-292 implements only 4 of 20 forbidden-file rows (missing
-      SUMMARY/COMPLIANCE/NOTES/AUDIT/REPORT/ANALYSIS.md, .env variants,
-      server.yml/cli.yml, .claude/ detritus, AI-tool config dirs);
-      also has undocumented .netrc/id_rsa/.pem/.jks entries and an
-      empty @@Resource field.
+- [x] 11 (FIXED): SUMMARY/COMPLIANCE/NOTES/AUDIT/REPORT/ANALYSIS.md and
+      CONTRIBUTING/CODE_OF_CONDUCT/SECURITY/PULL_REQUEST_TEMPLATE were
+      already implemented (FORBIDDEN_REPORT_BASENAMES,
+      LOCATION_RESTRICTED_DOC_BASENAMES) on inspection. Added the
+      remaining missing rows: `.env`/`app.env`/`default.env`,
+      `server.yml`/`cli.yml` to FORBIDDEN_BASENAMES; `.claude/` detritus
+      (settings.local.json, backups/, cache/, file-history/,
+      history.jsonl, projects/, statsFile, *.lock) and AI-tool config
+      dirs (.cursor/settings.json, .windsurf/settings.json, .aider.*,
+      .continue/*, .codeium/) as new FORBIDDEN_PATH_PATTERNS entries.
+      .netrc/id_rsa/.pem/.jks are documented in project_files.md:61,64,69
+      — the "undocumented" audit finding was already stale. Fixed the
+      empty @@Resource field to point at home/memory/project_files.md.
+      Verified live: `.env` and `.claude/settings.local.json` both now
+      block with exit 2; README.md still passes with exit 0.
 - [x] 12 (FIXED): message now starts with `BLOCKED: confirm required
       before writing {file_path}`, matching AI.md:191-196's mandated prefix.
 - [x] 13 (FIXED: found already correct on inspection): version stamp is
