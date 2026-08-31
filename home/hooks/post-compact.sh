@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302205-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  post-compact.sh
 # @@Description      :  SessionStart(compact) hook: re-inject project-dir and global context after compaction
-# @@Changelog        :  Registered as the SessionStart compact matcher and cleared the spec-guard marker on compaction.
+# @@Changelog        :  Cleanup path moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard, matching spec-guard-mark.sh's new write path.
 # @@TODO             :
 # @@Other            :  Compaction drops old context; this re-anchors Claude to the project without a full re-read, which previously re-triggered compaction in a loop.
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302205-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -26,7 +26,7 @@ POST_COMPACT_INPUT="$(cat)"
 # Clear this session's spec-guard marker so AI.md/SPEC.md must be re-read after compaction
 if command -v jq >/dev/null 2>&1; then
   POST_COMPACT_SESSION_ID=$(printf '%s' "$POST_COMPACT_INPUT" | jq -r '.session_id // ""')
-  [ -n "$POST_COMPACT_SESSION_ID" ] && rm -rf -- "${TMPDIR:-/tmp}/claude-spec-guard/${POST_COMPACT_SESSION_ID}"
+  [ -n "$POST_COMPACT_SESSION_ID" ] && rm -rf -- "${TMPDIR:-/tmp}/claude-hooks/spec-guard/${POST_COMPACT_SESSION_ID}"
 fi
 
 POST_COMPACT_PROJECT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0

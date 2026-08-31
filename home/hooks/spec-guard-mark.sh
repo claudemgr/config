@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302205-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard-mark.sh
 # @@Description      :  PostToolUse hook: record that AI.md/SPEC.md was read this session, per project
-# @@Changelog        :  Added the template-repo root-level *.md fallback for spec-collection projects without AI.md/SPEC.md.
+# @@Changelog        :  Marker dir moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard — a shared infra namespace, not a project/repo name, since this hook is deployed globally.
 # @@TODO             :
 # @@Other              :  Pairs with spec-guard.sh (checks this marker) and enforce-test-lint-gate.sh (reuses it for the spec-collection branch).
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302205-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -58,12 +58,12 @@ case "$SPEC_GUARD_MARK_BASENAME" in
   *) exit 0 ;;
 esac
 
-SPEC_GUARD_MARK_DIR="${TMPDIR:-/tmp}/claude-spec-guard/${SPEC_GUARD_MARK_SESSION_ID}"
+SPEC_GUARD_MARK_DIR="${TMPDIR:-/tmp}/claude-hooks/spec-guard/${SPEC_GUARD_MARK_SESSION_ID}"
 mkdir -p "$SPEC_GUARD_MARK_DIR"
-chmod 700 "${TMPDIR:-/tmp}/claude-spec-guard" "$SPEC_GUARD_MARK_DIR" 2>/dev/null || true
+chmod 700 "${TMPDIR:-/tmp}/claude-hooks/spec-guard" "$SPEC_GUARD_MARK_DIR" 2>/dev/null || true
 
 # Prune marker dirs older than 1 day — scoped only to this tool's own temp namespace
-find "${TMPDIR:-/tmp}/claude-spec-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
+find "${TMPDIR:-/tmp}/claude-hooks/spec-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
 
 SPEC_GUARD_MARK_MARKER="$SPEC_GUARD_MARK_DIR/read"
 grep -qxF -- "$SPEC_GUARD_MARK_PROJECT" "$SPEC_GUARD_MARK_MARKER" 2>/dev/null || printf '%s\n' "$SPEC_GUARD_MARK_PROJECT" >>"$SPEC_GUARD_MARK_MARKER"

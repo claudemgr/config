@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202608302205-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard.sh
 # @@Description      :  PreToolUse hook: block Edit/Write on project files until AI.md/SPEC.md was read this session
-# @@Changelog        :  Added broken-bootstrap detection for a CLAUDE.md loader present without AI.md/SPEC.md; fixed the license header field to WTFPL.
+# @@Changelog        :  Marker path moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard, matching spec-guard-mark.sh's new write path.
 # @@TODO             :
 # @@Other            :  Fires only in a git repo with AI.md/SPEC.md; a CLAUDE.md loader without either is a broken bootstrap, blocked distinctly; meta/spec files are exempt.
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202608302205-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -64,7 +64,7 @@ elif [ ! -f "$SPEC_GUARD_PROJECT/SPEC.md" ]; then
   exit 0
 fi
 
-SPEC_GUARD_MARKER="${TMPDIR:-/tmp}/claude-spec-guard/${SPEC_GUARD_SESSION_ID}/read"
+SPEC_GUARD_MARKER="${TMPDIR:-/tmp}/claude-hooks/spec-guard/${SPEC_GUARD_SESSION_ID}/read"
 grep -qxF -- "$SPEC_GUARD_PROJECT" "$SPEC_GUARD_MARKER" 2>/dev/null && exit 0
 
 SPEC_GUARD_MSG="BLOCKED: Spec guard — AI.md/SPEC.md for this project has not been read yet this session.
