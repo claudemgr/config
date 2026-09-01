@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311530-git
+##@Version           :  202608311600-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Root-only forbidden-dirname check now skips non-language (script/spec-collection) repos.
+# @@Changelog        :  Docker-specific projects exempt from docker/ location check at repo root.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311530-git"
+VERSION="202608311600-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -335,6 +335,28 @@ LANGUAGE_PROJECT_MANIFESTS = {
     "build.sbt", "project.clj", "deps.edn", "*.csproj", "*.sln",
 }
 
+def is_docker_image_project(root):
+    # dockersrc (base image) and casjaysdevdocker (app image) repos are
+    # docker-specific projects — the whole repo IS the docker build context,
+    # so gen-dockerfile places Dockerfile/Dockerfile.{ver}/.dockerignore and
+    # any docker-compose.yml at the REPO ROOT by design (DOCKERSRC.md PART 1:
+    # Standard tree), never under a docker/ subdirectory. .env.scripts is the
+    # generated marker unique to this template family; a Dockerfile.{ver}
+    # variant file is the base-repo-specific signal (dockersrc-bootstrap.md's
+    # REPO_TYPE detection uses the same signal).
+    if not root or not os.path.isdir(root):
+        return False
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        return False
+    if ".env.scripts" in entries:
+        return True
+    for name in entries:
+        if name.lower().startswith("dockerfile."):
+            return True
+    return False
+
 def is_language_project(root):
     if not root or not os.path.isdir(root):
         # Unknown repo root — fail toward the stricter, pre-existing
@@ -425,9 +447,13 @@ if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOC_BASENAME
         matched_name, reason = basename, "doc file only auto-allowed under .github/ or docs/"
 
 # Docker/Container files belong under docker/ (project_files.md) — anywhere
-# else, including repo root, needs confirmation.
+# else, including repo root, needs confirmation. Exception: docker-specific
+# projects (dockersrc/casjaysdevdocker image repos) legitimately place these
+# files at the repo root itself — see is_docker_image_project() above.
 if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOCKER_BASENAMES:
-    if not re.search(r"(^|/)docker/", norm_path):
+    at_repo_root = root_rel_path is not None and "/" not in root_rel_path
+    docker_project_root_exempt = at_repo_root and is_docker_image_project(hook_cwd)
+    if not re.search(r"(^|/)docker/", norm_path) and not docker_project_root_exempt:
         matched_name, reason = basename, "Dockerfile/compose file only allowed under docker/"
 
 if matched_name is None:
