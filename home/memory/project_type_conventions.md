@@ -21,6 +21,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | `cli` | command-line tool, one-shot invocation, scripting target |
 | `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
 | `spec-collection` | root is entirely Markdown (spec/template/doc files consumed by AI tooling or humans) plus README.md/LICENSE.md/.gitignore; no source code directory at all — not even scripts; e.g. `claudemgr/config`, `claudemgr/go`, `claudemgr/rust`, `claudemgr/android`, `claudemgr/docker`, `claudemgr/mgr` |
+| `packaging` | distro/platform packaging — repo content is package build metadata (`debian/`, `{name}.spec`, `PKGBUILD`, `APKBUILD`, Homebrew formula, `snapcraft.yaml`, flatpak manifest, AppImage recipe, `flake.nix`) for software whose source is maintained elsewhere |
 | `library` | importable package/crate, no binary entrypoint |
 | `agent` / `worker` | background job processor, queue consumer, scheduled task |
 
@@ -191,6 +192,118 @@ Applies to: repos whose entire content is Markdown specification/template/docume
 - **Verification:** re-read the edited file(s) and diff against the intended content per the Self-Validation rule — the "test" for a spec repo is that the prose is correct and internally consistent (cross-references resolve, terminology matches across sibling files), not that a command exits 0.
 - **Consistency sweep:** when a rule changes in one file that has sibling copies (e.g. a `home/**` rule that also appears in `{lang}/AI.md` templates), grep every sibling for the same pattern and update them together — see `~/Projects/github/claudemgr/config/AI.md § Part 9` for the claudemgr-specific alignment rule.
 - If `install.sh` exists, it still follows `~/.claude/memory/script_conventions.md` for its own code style, but that does not make the surrounding repo a `script-collection`.
+
+---
+
+## Type: `packaging`
+
+Applies to: distro/platform packaging repos — the content is package build
+metadata for software whose source is maintained elsewhere (upstream). Distinct
+from `library`/`cli`: this repo does not contain the program, it contains the
+recipe that turns an upstream release into an installable package.
+
+Two repo shapes, both valid:
+
+- **Single-package repo** — one upstream project, one or more formats side by
+  side at the root (`debian/` + `{name}.spec` + `PKGBUILD` + `APKBUILD` in one
+  repo). Each format's metadata lives in its native location per the matrix
+  below; nothing is nested under a per-format wrapper directory unless the
+  format itself mandates one (`debian/`, `snap/`).
+- **Package collection** — an org or monorepo of many packages, one repo/dir
+  per package in a flat, distro-native layout, plus ONE central tooling repo
+  carrying the shared build scripts, build image, and any CI. Reference:
+  `~/Projects/github/rpm-devel/` — per-package repos are spec-at-root with no
+  wrapper infrastructure (its `tools/LAYOUT.md` codifies this: no `SPEC/`,
+  `SOURCES/`, Makefile, or `.github/` per package); the driver script, build
+  image, and image-build workflow live in `tools/` and `.github/`. Never add
+  per-package Makefiles or workflows to a collection that centralizes them.
+  Intra-collection build dependencies are resolved through a local package
+  repo (e.g. a `createrepo_c`-refreshed mock repo) rebuilt after each
+  successful build — build order matters; document it in the tooling repo.
+
+### Format matrix
+
+| Format | Metadata | Build tool | Lint gate | Build container |
+|--------|----------|------------|-----------|-----------------|
+| deb (apt) | `debian/` (`control`, `rules`, `changelog`, `copyright`) | `dpkg-buildpackage` / `sbuild` | `lintian` | `debian:latest` / `ubuntu:latest` |
+| rpm | `{name}.spec` at root | `rpmbuild -bs` → `mock` per target | `rpmlint` | `ghcr.io/rpm-devel/build:latest` (mock inside; fallback `fedora:latest`) |
+| arch | `PKGBUILD` | `makepkg` | `namcap` | `archlinux:latest` |
+| alpine (apk) | `APKBUILD` | `abuild` | `apkbuild-lint` (atools) | `alpine:latest` |
+| homebrew | `Formula/{name}.rb` | `brew install --build-from-source` | `brew audit --strict` + `brew style` | `homebrew/brew:latest` |
+| snap | `snap/snapcraft.yaml` | `snapcraft` | `snapcraft lint` | `ubuntu:latest` + snapcraft |
+| flatpak | `{app.id}.yml` / `.json` manifest | `flatpak-builder` | `flatpak-builder-lint` | `fedora:latest` + flatpak-builder |
+| appimage | `AppImageBuilder.yml` | `appimage-builder` / `appimagetool` | `appimagelint` | `ubuntu:latest` |
+| nix | `flake.nix` / `default.nix` | `nix build` | `nix flake check` + `statix` | `nixos/nix:latest` |
+
+A repo declares its formats in `IDEA.md`; only declared formats are built and
+gated — never add a format the user didn't ask for.
+
+### Versioning & changelogs
+- **Package version = upstream version**, verbatim. The packaging revision
+  (`Release:` / `pkgrel=` / debian `-N` suffix) increments for packaging-only
+  changes and resets to 1 on every upstream version bump.
+- **Changelog entries describe the PACKAGING change, not upstream changes**
+  (`%changelog`, `debian/changelog`, commit messages) — e.g. "Source0 URL
+  verified", "add ExclusiveArch", never a paraphrase of upstream release notes.
+- Preserve inherited changelog history (e.g. Fedora dist-git `%changelog`)
+  verbatim; append, never rewrite.
+- No git tags required — release identity lives in the package metadata.
+
+### Sources & patches
+- **Never commit upstream tarballs when they are fetchable** — fetch at build
+  time by pinned full URL (`spectool -g`, `uscan`, `makepkg`/`abuild` source
+  arrays). Commit a tarball only when it is genuinely unfetchable, and say why
+  in the changelog.
+- **Every remote source has a pinned checksum** — `sha512sums=`/`sha256sums=`
+  (arch/alpine), a `sources` lookaside file (rpm), `debian/watch` plus the
+  upstream signing key where upstream signs releases.
+- Patches live where the format expects them (repo root for flat rpm layout,
+  `debian/patches/` with quilt series) — descriptive upstream-style names, each
+  with a one-line header comment stating what it does and why.
+- Cross-distro differences go in conditionals inside ONE recipe
+  (`%if 0%{?rhel} >= 10`, `%if 0%{?suse_version}`, `%bcond_with`) — never
+  forked per-distro copies of the same spec.
+
+### Build discipline
+- **Never build on the host** — every format builds in its container from the
+  matrix above (Build & Execution hierarchy applies in full); rpm additionally
+  runs `mock` inside the container for a clean chroot per target.
+- Target architectures default to x86_64 + aarch64 (the global
+  `linux/amd64` + `linux/arm64` rule; rpm codifies it as
+  `ExclusiveArch: x86_64 aarch64`).
+- `makepkg` and `abuild` refuse to run as root — inside the (root) container,
+  create a builder user and invoke them via `sudo -u builder`; this coexists
+  with the CI `options: "--user 0:0"` container-job rule, which governs the
+  job container's exec user, not the build tool's.
+- Signing: packages and repo indexes are GPG-signed; keys and passphrases are
+  never committed (`sensitive_data.md` applies — no packaging exemption).
+- Publishing uses the format's native indexer (`createrepo_c`, `reprepro` /
+  `aptly`, `repo-add`, `apk index`) and is driven by the tooling scripts, not
+  ad hoc uploads.
+
+### Makefile and CI/CD — optional, not exempt
+- Unlike `script-collection`/`spec-collection`, this type is NOT exempt from
+  `makefile_conventions.md`/`cicd_conventions.md` — they are **optional**: a
+  packaging repo without a Makefile or workflows is valid (driver scripts or a
+  collection's central tooling repo run the builds), and when either IS added
+  it follows its convention file in full (SHA-pinned actions,
+  `options: "--user 0:0"` on container jobs, etc.).
+- When a Makefile exists: one target per declared format (`make deb`,
+  `make rpm`, `make arch`, `make apk`, …), `make lint` runs every applicable
+  format linter, `make test` = lint + a containerized build of at least one
+  primary target.
+- In a package collection, Makefile/CI belong to the central tooling repo
+  only — per-package repos stay flat.
+
+### What replaces the standard gates
+- **Test gate:** the format linters from the matrix plus a containerized build
+  of at least one declared format must pass before commit (`make test` when a
+  Makefile exists; otherwise run the linter + build directly). A metadata-only
+  change that provably cannot affect the built package (README, comments) may
+  gate on lint alone.
+- **Lint gate:** the per-format linters above. Any helper scripts the repo
+  ships (`*.sh`) still get `bash -n` + `script-lint` on top — the packaging
+  type covers the package metadata, not a lint exemption for its scripts.
 
 ---
 

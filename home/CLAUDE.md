@@ -176,6 +176,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - **Coverage and test output never go to the project tree** — full `{project_org}/{internal_name}-XXXXXX/` tempdir structure: `~/.claude/memory/tempdir_conventions.md`
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
 - **Script-collection and spec-collection projects are exempt from this section** — no Makefile, no Docker toolchain build, no CI/CD workflow by default; detection criteria and replacement gates: `~/.claude/memory/project_type_conventions.md § Type: script-collection` / `§ Type: spec-collection`
+- **Packaging projects (distro/platform package metadata repos): Makefile and CI/CD are optional, not exempt** — builds still always run in per-format containers with format linters as the gate; format matrix and rules: `~/.claude/memory/project_type_conventions.md § Type: packaging`
 
 ## UI/UX
 - Designer-level intent · dark mode default (support dark/light/auto) · never hardcode colors — CSS custom properties (web) or shared theme struct (desktop/TUI)
