@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311430-git
+##@Version           :  202609020139-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 12:00 EDT
 # @@File             :  no-subagent-commit.sh
 # @@Description      :  PreToolUse hook: blocks the commit wrapper/git commit/git push when the top-level agent_id field is present, enforcing the "agents never commit" rule.
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
 # @@TODO             :  None
 # @@Other            :  Applies everywhere including the zone — the zone's raw-git exception bypasses the commit wrapper for the main session, not a subagent's own authority.
 # @@Resource         :  CLAUDE.md - Agent Usage - "Agents never commit"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311430-git"
+VERSION="202609020139-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -51,6 +51,31 @@ try:
     d = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
+
+# A JSON scalar or array parses cleanly but has no .get(), so the block
+# below would raise AttributeError and exit non-zero. Part 6 requires a
+# hook to fail open on any unusable payload, never to surface an error.
+if not isinstance(d, dict):
+    sys.exit(0)
+
+# Same reasoning one level down: normalise a non-object tool_input /
+# tool_response to an empty dict so every downstream .get() chain below
+# stays safe without each call site needing its own type check.
+for _field in ("tool_input", "tool_response"):
+    if _field in d and not isinstance(d[_field], dict):
+        d[_field] = {}
+
+# Every field below is documented as a string but arrives as arbitrary JSON.
+# A list `command` or a numeric `cwd` reaches a str-only call (.split(),
+# .startswith(), os.path.*) and raises TypeError -> exit 1, which Claude Code
+# reports as a hook error on an ordinary tool call. Drop any non-string value
+# so the hook no-ops on it instead, per Part 6's "Fail open, always".
+for _obj in (d, d.get("tool_input") or {}, d.get("tool_response") or {}):
+    for _key in ("command", "file_path", "cwd", "session_id", "transcript_path",
+                 "content", "new_string", "old_string", "pattern", "path",
+                 "agent_type", "last_assistant_message"):
+        if _key in _obj and not isinstance(_obj[_key], str):
+            _obj[_key] = ""
 
 if d.get("tool_name", "") != "Bash":
     sys.exit(0)

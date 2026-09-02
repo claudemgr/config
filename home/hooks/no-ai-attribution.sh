@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302319-git
+##@Version           :  202609020210-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Tuesday, May 13, 2026 00:00 EDT
 # @@File             :  no-ai-attribution.sh
 # @@Description      :  Claude Code PreToolUse hook - block AI attribution phrases in written content
-# @@Changelog        :  Anchored matching to line-start after stripping comment/quote leaders, so prose discussing the phrase no longer false-positives as a trailer.
+# @@Changelog        :  Streams the content through one sed+grep pass instead of per line, and writes the BLOCKED reason to both streams.
 # @@TODO             :  See project issues
 # @@Other            :  Fires on Write and Edit tool use; blocks attribution trailers/comments only
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302319-git"
+VERSION="202609020210-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -89,13 +89,23 @@ CONTENT="$(printf '%s' "$INPUT" | __extract_content)"
 # start of each line, after stripping common comment/quote/blockquote
 # leaders, so a genuine standalone trailer line still blocks but a
 # mid-sentence mention or quoted example does not.
-while IFS= read -r LINE; do
-  STRIPPED="$(printf '%s' "$LINE" | sed -E 's/^[[:space:]]*(#|\/\/|<!--|\*|-|>)+[[:space:]]*//; s/^[[:space:]]*["'"'"'`]+//')"
-  if printf '%s' "$STRIPPED" | grep -qiE -- "^(${ATTRIBUTION_PATTERN})"; then
-    printf 'BLOCKED: AI attribution phrase detected in file content.\n' >&2
-    printf 'Remove lines like "Generated %s Claude", "Co%sAuthored%sBy: Claude", or "AI%sgenerated".\n' 'by' '-' '-' '-' >&2
-    exit 2
-  fi
-done <<<"$CONTENT"
+# sed and grep are both line-oriented, so streaming the whole content through
+# each of them once is identical in meaning to testing one line at a time —
+# `sed` strips leaders per line and `^` still anchors per line. The previous
+# per-line `while read` spawned a sed AND a grep for every line, which grew
+# quadratically: an 8KB file took ~24s against this hook's 10s settings.json
+# timeout, so any sizable Write/Edit failed as a hook error instead of passing.
+if printf '%s\n' "$CONTENT" \
+  | sed -E 's/^[[:space:]]*(#|\/\/|<!--|\*|-|>)+[[:space:]]*//; s/^[[:space:]]*["'"'"'`]+//' \
+  | grep -qiE -- "^(${ATTRIBUTION_PATTERN})"; then
+  # AI.md Part 6's blocking-output format writes the reason to both streams:
+  # stderr so Claude Code feeds it back as the block reason, stdout so the
+  # same text is also captured in the session transcript.
+  printf 'BLOCKED: AI attribution phrase detected in file content.\n'
+  printf 'Remove lines like "Generated %s Claude", "Co%sAuthored%sBy: Claude", or "AI%sgenerated".\n' 'by' '-' '-' '-'
+  printf 'BLOCKED: AI attribution phrase detected in file content.\n' >&2
+  printf 'Remove lines like "Generated %s Claude", "Co%sAuthored%sBy: Claude", or "AI%sgenerated".\n' 'by' '-' '-' '-' >&2
+  exit 2
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 exit 0

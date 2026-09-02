@@ -350,6 +350,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.ensure-build-image.outputs.image }}
+      options: "--user 0:0"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - run: go build ./...
@@ -359,6 +360,7 @@ jobs:
 Every job that uses the build image must follow this pattern:
 - `needs: ensure-build-image`
 - `container: image: ${{ needs.ensure-build-image.outputs.image }}`
+- `options: "--user 0:0"` on the `container:` block — the runner (and actions/checkout's post-job cleanup) execs into the job container (e.g. `cat /etc/*release` OS diagnostics) as a user the image's `/etc/passwd` may not define, failing/flaking the job after all real work passed; numeric `0:0` needs no passwd lookup, so it is immune regardless of the image's user table. This applies to EVERY `container:` job (casjaysdev images included), not just `ensure-build-image` consumers
 
 ### Required workflow: `.github/workflows/build-toolchain.yml`
 

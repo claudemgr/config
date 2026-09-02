@@ -33,17 +33,26 @@ fi
 # $(cat) is required here — hook stdin is a socket; $(</dev/stdin) re-opens it and fails with ENXIO
 TEST_LINT_MARK_INPUT="$(cat)"
 
-TEST_LINT_MARK_TOOL=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_name // ""')
+# Fail open on an empty, malformed, or non-object payload. Without this, jq
+# exits 4/5 and `set -e` propagates that code, which Claude Code surfaces as a
+# "hook error" instead of the silent no-op Part 6 requires on a parse failure.
+if ! printf '%s' "$TEST_LINT_MARK_INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  exit 0
+fi
+
+TEST_LINT_MARK_TOOL=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_name) catch "" // ""')
 [ "$TEST_LINT_MARK_TOOL" = "Bash" ] || exit 0
 
-TEST_LINT_MARK_EXIT=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_response.exit_code // 1')
-TEST_LINT_MARK_INTERRUPTED=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_response.interrupted // false')
+# `try ... catch` guards against tool_response arriving as a string rather than
+# an object — indexing a string is a jq error, not a null, and would abort here
+TEST_LINT_MARK_EXIT=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_response.exit_code) catch 1 // 1')
+TEST_LINT_MARK_INTERRUPTED=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_response.interrupted) catch false // false')
 [ "$TEST_LINT_MARK_EXIT" = "0" ] || exit 0
 [ "$TEST_LINT_MARK_INTERRUPTED" = "false" ] || exit 0
 
-TEST_LINT_MARK_CMD=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.tool_input.command // ""')
-TEST_LINT_MARK_CWD=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.cwd // ""')
-TEST_LINT_MARK_SESSION_ID=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '.session_id // ""')
+TEST_LINT_MARK_CMD=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_input.command) catch "" // ""')
+TEST_LINT_MARK_CWD=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.cwd) catch "" // ""')
+TEST_LINT_MARK_SESSION_ID=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.session_id) catch "" // ""')
 [ -z "$TEST_LINT_MARK_CMD" ] && exit 0
 [ -z "$TEST_LINT_MARK_SESSION_ID" ] && exit 0
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311430-git
+##@Version           :  202609020210-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 18:00 EDT
 # @@File             :  bash-content-scan.sh
 # @@Description      :  PreToolUse Bash hook: scans no-secrets.sh/no-ai-attribution.sh patterns against heredoc or echo/printf redirects, which bypass Write/Edit tool_input.
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Anchors the AI-attribution match per line after stripping comment leaders, mirroring no-ai-attribution.sh instead of a whole-content search.
 # @@TODO             :  None
 # @@Other            :  Secrets respect the zone's plaintext-credential exemption (cwd-scoped); AI-attribution has no exemption; container/VM-mediated heredocs are exempt.
 # @@Resource         :  home/hooks/no-secrets.sh, home/hooks/no-ai-attribution.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311430-git"
+VERSION="202609020210-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -47,6 +47,31 @@ try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
+
+# A JSON scalar or array parses cleanly but has no .get(), so the block
+# below would raise AttributeError and exit non-zero. Part 6 requires a
+# hook to fail open on any unusable payload, never to surface an error.
+if not isinstance(payload, dict):
+    sys.exit(0)
+
+# Same reasoning one level down: normalise a non-object tool_input /
+# tool_response to an empty dict so every downstream .get() chain below
+# stays safe without each call site needing its own type check.
+for _field in ("tool_input", "tool_response"):
+    if _field in payload and not isinstance(payload[_field], dict):
+        payload[_field] = {}
+
+# Every field below is documented as a string but arrives as arbitrary JSON.
+# A list `command` or a numeric `cwd` reaches a str-only call (.split(),
+# .startswith(), os.path.*) and raises TypeError -> exit 1, which Claude Code
+# reports as a hook error on an ordinary tool call. Drop any non-string value
+# so the hook no-ops on it instead, per Part 6's "Fail open, always".
+for _obj in (payload, payload.get("tool_input") or {}, payload.get("tool_response") or {}):
+    for _key in ("command", "file_path", "cwd", "session_id", "transcript_path",
+                 "content", "new_string", "old_string", "pattern", "path",
+                 "agent_type", "last_assistant_message"):
+        if _key in _obj and not isinstance(_obj[_key], str):
+            _obj[_key] = ""
 
 if payload.get("tool_name", "") != "Bash":
     sys.exit(0)
@@ -220,8 +245,19 @@ ATTRIBUTION_PATTERN = re.compile(
     + r"|(this\s+file\s+(was|is)\s+(" + _gen + r"|written|created)\s+by\s+(claude|anthropic|ai\b))",
     re.IGNORECASE,
 )
-if ATTRIBUTION_PATTERN.search(content):
-    findings.append("AI attribution phrase detected")
+# no-ai-attribution.sh anchors this pattern to the start of each line after
+# stripping comment/quote/blockquote leaders, precisely so prose that merely
+# discusses the rule is not flagged. A bare whole-content .search() here did
+# not mirror that: writing any doc or script via heredoc that mentioned the
+# phrase mid-sentence was blocked, while the same text through Write/Edit
+# passed. Strip the same leaders and anchor the same way.
+LEADER_RE = re.compile(r"^\s*(?:#|//|<!--|\*|-|>)+\s*")
+QUOTE_RE = re.compile(r"^\s*[\"'`]+")
+for _line in content.split("\n"):
+    _stripped = QUOTE_RE.sub("", LEADER_RE.sub("", _line))
+    if ATTRIBUTION_PATTERN.match(_stripped):
+        findings.append("AI attribution phrase detected")
+        break
 
 if not findings:
     sys.exit(0)

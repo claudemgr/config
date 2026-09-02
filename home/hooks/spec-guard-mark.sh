@@ -28,8 +28,15 @@ fi
 
 SPEC_GUARD_MARK_INPUT="$(cat)"
 
-SPEC_GUARD_MARK_FILE_PATH=$(printf '%s' "$SPEC_GUARD_MARK_INPUT" | jq -r '.tool_input.file_path // ""')
-SPEC_GUARD_MARK_SESSION_ID=$(printf '%s' "$SPEC_GUARD_MARK_INPUT" | jq -r '.session_id // ""')
+# Fail open on an empty, malformed, or non-object payload. Without this, jq
+# exits 4/5 and `set -e` propagates that code, which Claude Code surfaces as a
+# "hook error" instead of the silent no-op Part 6 requires on a parse failure.
+if ! printf '%s' "$SPEC_GUARD_MARK_INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  exit 0
+fi
+
+SPEC_GUARD_MARK_FILE_PATH=$(printf '%s' "$SPEC_GUARD_MARK_INPUT" | jq -r 'try (.tool_input.file_path) catch "" // ""')
+SPEC_GUARD_MARK_SESSION_ID=$(printf '%s' "$SPEC_GUARD_MARK_INPUT" | jq -r 'try (.session_id) catch "" // ""')
 [ -z "$SPEC_GUARD_MARK_FILE_PATH" ] && exit 0
 [ -z "$SPEC_GUARD_MARK_SESSION_ID" ] && exit 0
 

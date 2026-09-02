@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302309-git
+##@Version           :  202609020210-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Removed chroot/nsenter/virsh from the container-prefix exemption (D3, host-side not guest-isolation tools) and scoped the sweep escape valve's filter check to the ps/list segment only (D4).
+# @@Changelog        :  Writes the BLOCKED reason to stdout as well as stderr, per AI.md Part 6's blocking-output format.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302309-git"
+VERSION="202609020210-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -212,7 +212,11 @@ print("\n".join(kept))
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # __block <reason> - emit a structured BLOCKED message and exit 2.
+# AI.md Part 6's blocking-output format writes the reason to both streams:
+# stderr so Claude Code feeds it back as the block reason, stdout so the
+# same text is also captured in the session transcript.
 __block() {
+  printf 'BLOCKED: %s\n' "$1"
   printf 'BLOCKED: %s\n' "$1" >&2
   exit 2
 }

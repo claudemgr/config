@@ -66,40 +66,6 @@ except Exception:
 '
 }
 
-# __first_word <cmd> — strip leading KEY=VALUE env assignments, house-style
-# alias-safe backslashes, and shell wrapper prefixes, then return the first
-# executable token. Handles: CGO_ENABLED=0 go build · \go build · command go
-# build · timeout 600 go build · env -i go build — \go and go are the SAME
-# command (backslash only skips aliases) so policy must apply identically.
-__first_word() {
-  python3 -c '
-import re, sys
-cmd = sys.argv[1].strip()
-# strip leading VAR=value assignments (quoted or unquoted values)
-cmd = re.sub(r"^(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"]*\"|'"'"'[^'"'"']*'"'"'|[^\s]*)\s+)*", "", cmd)
-wrappers = {"command", "builtin", "exec", "env", "nohup", "setsid",
-            "nice", "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
-tokens = cmd.split()
-first = ""
-i = 0
-while i < len(tokens):
-    # leading backslash is the house-style alias-safe form: \go is still go
-    t = tokens[i].lstrip("\\")
-    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
-        i += 1
-        continue
-    if t in wrappers:
-        i += 1
-        # skip the wrapper flags and duration/priority arguments (timeout 600, nice -n 10)
-        while i < len(tokens) and (tokens[i].startswith("-") or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", tokens[i])):
-            i += 1
-        continue
-    first = t
-    break
-print(first)
-' "$1"
-}
-
 # __block <tool> <docker_cmd> <convention_ref>
 # Emits the block message to BOTH stdout (Claude Code reads this as the block
 # reason and feeds it back to Claude) and stderr (visible to the user in the
@@ -288,19 +254,53 @@ sys.exit(1)
 ' "$1"
 }
 
-# __split_subcommands <cmd> — emit each sub-command NUL-terminated, splitting
-# on ; & && || | and newlines so container-runtime exemptions apply per
-# sub-command, never to the whole compound string (a leading "docker run ..."
-# must not exempt a trailing "; go build").
+# __split_subcommands <cmd> — emit one NUL-terminated record per sub-command,
+# each record being "<first_word>\x1f<sub_command>", splitting on ; & && || |
+# and newlines so container-runtime exemptions apply per sub-command, never to
+# the whole compound string (a leading "docker run ..." must not exempt a
+# trailing "; go build").
 #
 # The split is shell-aware: backslash-newline continuations are joined first,
 # operators inside single/double quotes or $(...) substitutions never split
 # (so `docker run ... sh -c "go vet && go build"` stays ONE sub-command and
 # keeps its container-runtime exemption), and heredoc bodies are dropped so
 # their content is never inspected as host commands.
+#
+# The first word is computed here, in this same single python3 pass, rather
+# than by a per-sub-command helper: spawning one interpreter per sub-command
+# cost ~1.5s each and pushed this hook past its 10s settings.json timeout on
+# any pipeline of roughly a dozen segments, turning a valid command into a
+# "hook error" for the user.
 __split_subcommands() {
   python3 -c '
 import re, sys
+
+# first_word — strip leading KEY=VALUE env assignments, house-style alias-safe
+# backslashes, and shell wrapper prefixes, then return the first executable
+# token. Handles: CGO_ENABLED=0 go build · \go build · command go build ·
+# timeout 600 go build · env -i go build — \go and go are the SAME command
+# (backslash only skips aliases) so policy must apply identically.
+def first_word(sub):
+    text = sub.strip()
+    text = re.sub(r"^(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"]*\"|" + chr(39) + r"[^" + chr(39) + r"]*" + chr(39) + r"|[^\s]*)\s+)*", "", text)
+    wrappers = {"command", "builtin", "exec", "env", "nohup", "setsid",
+                "nice", "ionice", "stdbuf", "time", "timeout", "sudo", "doas"}
+    tokens = text.split()
+    i = 0
+    while i < len(tokens):
+        t = tokens[i].lstrip("\\")
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
+            i += 1
+            continue
+        if t in wrappers:
+            i += 1
+            # skip the wrapper flags and duration/priority arguments (timeout 600, nice -n 10)
+            while i < len(tokens) and (tokens[i].startswith("-") or re.fullmatch(r"[0-9]+(\.[0-9]+)?[smhd]?", tokens[i])):
+                i += 1
+            continue
+        return t
+    return ""
+
 SQ = chr(39)
 DQ = chr(34)
 cmd = sys.argv[1]
@@ -384,7 +384,7 @@ subs.append("".join(buf))
 for sub in subs:
     sub = sub.strip()
     if sub:
-        sys.stdout.write(sub + "\0")
+        sys.stdout.write(first_word(sub) + "\x1f" + sub + "\0")
 ' "$1"
 }
 
@@ -409,9 +409,13 @@ if __project_type_exempt "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR"; then
 fi
 
 # Inspect every sub-command independently; __block exits 2 on the first violation.
-# -d '' consumes NUL-delimited subs so a quoted multi-line payload (docker run ... sh -c with
-# literal newlines) arrives as ONE sub-command instead of being re-split line by line
-while IFS= read -r -d '' CMD; do
+# -d '' consumes NUL-delimited records so a quoted multi-line payload (docker run ... sh -c with
+# literal newlines) arrives as ONE sub-command instead of being re-split line by line.
+# Each record is "<first_word>\x1f<sub_command>", both produced by the same python3 pass.
+while IFS= read -r -d '' BLOCK_HOST_TOOLCHAIN_REC; do
+
+BLOCK_HOST_TOOLCHAIN_FIRST="${BLOCK_HOST_TOOLCHAIN_REC%%$'\x1f'*}"
+CMD="${BLOCK_HOST_TOOLCHAIN_REC#*$'\x1f'}"
 
 # Sub-commands already mediated by a container/VM runtime are exempt at this
 # layer. virsh/vagrant/distrobox/nsenter are exempt on any invocation, not
@@ -429,7 +433,6 @@ case "$CMD" in
     ;;
 esac
 
-BLOCK_HOST_TOOLCHAIN_FIRST="$(__first_word "$CMD")"
 [[ -z "$BLOCK_HOST_TOOLCHAIN_FIRST" ]] && continue
 
 # Normalise: strip any leading path component so /usr/local/go/bin/go → go

@@ -24,8 +24,11 @@ set -euo pipefail
 POST_COMPACT_INPUT="$(cat)"
 
 # Clear this session's spec-guard marker so AI.md/SPEC.md must be re-read after compaction
-if command -v jq >/dev/null 2>&1; then
-  POST_COMPACT_SESSION_ID=$(printf '%s' "$POST_COMPACT_INPUT" | jq -r '.session_id // ""')
+# The `type == "object"` probe fails open on an empty, malformed, or non-object
+# payload: without it jq exits 4/5 and `set -e` propagates that code, which
+# Claude Code surfaces as a "hook error" and skips the context injection below.
+if command -v jq >/dev/null 2>&1 && printf '%s' "$POST_COMPACT_INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  POST_COMPACT_SESSION_ID=$(printf '%s' "$POST_COMPACT_INPUT" | jq -r 'try (.session_id) catch "" // ""')
   [ -n "$POST_COMPACT_SESSION_ID" ] && rm -rf -- "${TMPDIR:-/tmp}/claude-hooks/spec-guard/${POST_COMPACT_SESSION_ID}"
 fi
 

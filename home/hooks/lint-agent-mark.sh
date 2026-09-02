@@ -31,21 +31,28 @@ fi
 
 LINT_AGENT_MARK_INPUT="$(cat)"
 
-LINT_AGENT_MARK_TYPE=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.agent_type // ""')
+# Fail open on an empty, malformed, or non-object payload. Without this, jq
+# exits 4/5 and `set -e` propagates that code, which Claude Code surfaces as a
+# "hook error" instead of the silent no-op Part 6 requires on a parse failure.
+if ! printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  exit 0
+fi
+
+LINT_AGENT_MARK_TYPE=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.agent_type) catch "" // ""')
 case "$LINT_AGENT_MARK_TYPE" in
   script-lint | go-lint | rust-lint) ;;
   *) exit 0 ;;
 esac
 
-LINT_AGENT_MARK_CWD=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.cwd // ""')
-LINT_AGENT_MARK_SESSION_ID=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.session_id // ""')
+LINT_AGENT_MARK_CWD=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.cwd) catch "" // ""')
+LINT_AGENT_MARK_SESSION_ID=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.session_id) catch "" // ""')
 [ -z "$LINT_AGENT_MARK_SESSION_ID" ] && exit 0
 
 # script-lint/go-lint/rust-lint's own Output Format section ends every
 # report with `: clean` (pass) or `: N issue(s) found` (fail), one line
 # per file/package/crate — a multi-file run must be ALL clean, so any
 # "issue(s) found" line anywhere disqualifies the whole report.
-LINT_AGENT_MARK_MSG=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r '.last_assistant_message // ""')
+LINT_AGENT_MARK_MSG=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.last_assistant_message) catch "" // ""')
 printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': clean\b' || exit 0
 printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [0-9]+ issue\(s\) found\b' && exit 0
 

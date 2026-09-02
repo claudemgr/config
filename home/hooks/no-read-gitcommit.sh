@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311430-git
+##@Version           :  202609020210-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 20:00 EDT
 # @@File             :  no-read-gitcommit.sh
 # @@Description      :  PreToolUse Read+Grep+Bash hook: blocks reading the commit wrapper script (Read/Grep tools, cat/less/head/etc via Bash), a previously prose-only rule.
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Also blocks a read whose path comes from a `$(command -v gitcommit)` / `which` / `type -P` substitution, which produced no literal path token to match.
 # @@TODO             :  None
 # @@Other            :  Resolves the symlink target so both paths are blocked; the zone's raw-git pre-authorization never covers the commit wrapper itself.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/drift-guard-read.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311430-git"
+VERSION="202609020210-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -49,6 +49,31 @@ try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
+
+# A JSON scalar or array parses cleanly but has no .get(), so the block
+# below would raise AttributeError and exit non-zero. Part 6 requires a
+# hook to fail open on any unusable payload, never to surface an error.
+if not isinstance(payload, dict):
+    sys.exit(0)
+
+# Same reasoning one level down: normalise a non-object tool_input /
+# tool_response to an empty dict so every downstream .get() chain below
+# stays safe without each call site needing its own type check.
+for _field in ("tool_input", "tool_response"):
+    if _field in payload and not isinstance(payload[_field], dict):
+        payload[_field] = {}
+
+# Every field below is documented as a string but arrives as arbitrary JSON.
+# A list `command` or a numeric `cwd` reaches a str-only call (.split(),
+# .startswith(), os.path.*) and raises TypeError -> exit 1, which Claude Code
+# reports as a hook error on an ordinary tool call. Drop any non-string value
+# so the hook no-ops on it instead, per Part 6's "Fail open, always".
+for _obj in (payload, payload.get("tool_input") or {}, payload.get("tool_response") or {}):
+    for _key in ("command", "file_path", "cwd", "session_id", "transcript_path",
+                 "content", "new_string", "old_string", "pattern", "path",
+                 "agent_type", "last_assistant_message"):
+        if _key in _obj and not isinstance(_obj[_key], str):
+            _obj[_key] = ""
 
 tool_name = payload.get("tool_name", "")
 
@@ -106,6 +131,12 @@ READ_VERBS = {"cat", "less", "more", "head", "tail", "vim", "vi", "nano",
               "view", "bat", "sed", "awk", "grep", "rg", "xxd", "od",
               "strings", "nl", "tac", "cut", "wc", "file", ".", "source"}
 
+# `$(command -v gitcommit)`, `` `which gitcommit` ``, `$(type -P gitcommit)`
+# and their whitespace variants all expand to the resolved gitcommit path.
+RESOLVER_SUBST_RE = re.compile(
+    r"(?:\$\(|`)\s*(?:\\?command\s+-v|\\?which|\\?type\s+-[pP])\s+\\?gitcommit\b"
+)
+
 for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub_cmd = sub_cmd.strip()
     if not sub_cmd:
@@ -134,6 +165,16 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     head = clean[0]
     if head not in READ_VERBS:
         continue
+
+    # `cat $(command -v gitcommit)` never yields a literal path token — the
+    # args tokenize as `$(command`, `-v`, `gitcommit)`, so the per-arg check
+    # below sees no gitcommit path and the read goes through. Match the
+    # resolver substitution itself against the raw sub-command instead.
+    # Scoped to a read verb, so `gitcommit --dir $(pwd) all` is untouched.
+    if RESOLVER_SUBST_RE.search(sub_cmd):
+        print(msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(2)
 
     for arg in clean[1:]:
         if arg.startswith("-"):

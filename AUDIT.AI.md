@@ -3,7 +3,59 @@
 Findings from the `audit` agent pass comparing all 27 `home/hooks/*.sh` against
 `home/CLAUDE.md`, `AI.md`, and `home/memory/*.md`. Logged per the "No issue
 left only in conversation" rule (>5 issues → this file, not TODO.AI.md).
-Nothing has been fixed yet — this is the raw record. Status: OPEN.
+Status: OPEN. Items marked `[x]` are fixed and verified; `[ ]` items are still
+outstanding. The hook-scope items (Priority 0–3) are largely closed; the bulk of
+what remains is in `home/agents/`, `home/skills/`, and `README.md`, which were
+outside the hook-focused passes and have not been worked.
+
+Reliability pass, 2026-09-02 (scope: `home/hooks/*.sh` + `home/settings.json`),
+driven by the user report of frequent hook errors and false blocks. Everything
+below is fixed and verified unless noted:
+
+- Latency: `no-ai-attribution.sh` spawned a `sed` + `grep` per line, so an 8KB
+  file took ~24s against its 10s timeout and failed as a hook error. Now one
+  streamed pass — 60KB in ~0.7s, flat. (`block-host-toolchain.sh` had the same
+  class of bug, fixed in the prior pass.)
+- Fail-open: three distinct `TypeError` classes (non-string `file_path`,
+  `command`, `content`/`new_string`, `cwd`) made 15 hooks exit 1 — reported to
+  the user as a hook error on an ordinary tool call. A uniform string-field
+  normalization now runs in 17 hooks; verified against 25 hostile payloads
+  across all 27 hooks, zero non-zero exits.
+- False positives: `no-todo-comments.sh` accepted every comment leader for every
+  file type and matched bare English keywords, so ordinary prose comments and
+  shell `--flag=value` lines blocked. Leaders are now chosen by extension and
+  every commented-out-code shape requires code punctuation.
+- False positives: `comment-placement-guard.sh` applied the 180-char prose limit
+  to `##@Version` / `# @@Field :` header lines, which are a one-line-per-field
+  template that cannot wrap — blocked editing any script with a detailed
+  changelog. Header field lines are now exempt from the length check only.
+- False positives: `bash-content-scan.sh` ran the AI-attribution pattern as an
+  unanchored whole-content search despite its header claiming it mirrors
+  `no-ai-attribution.sh`, which anchors per line after stripping comment
+  leaders. Any heredoc mentioning the phrase mid-sentence was blocked while the
+  same text through Write/Edit passed. Now anchored the same way.
+- Output protocol: `protect-host.sh` and `no-ai-attribution.sh` wrote the
+  BLOCKED reason to stderr only; Part 6's blocking-output format requires both
+  streams. Both now write to both.
+- Detection gap: `no-read-gitcommit.sh` missed `cat $(command -v gitcommit)` —
+  the args tokenize as `$(command`, `-v`, `gitcommit)`, so no literal path was
+  ever compared. Resolver substitutions are now matched directly.
+- Verified, no change needed: `home/settings.json` wiring (all 27 hooks wired
+  under the right event and matcher, no orphans, no missing scripts); both
+  marker systems (`spec-guard`, `test-lint-guard`) round-trip correctly between
+  writer and reader, including post-compact re-arming; `protect-host.sh` latency
+  is flat at ~0.8s (an earlier 5.1s reading was measurement contention, not a
+  real cost); every hook's payload field names match the real Claude Code shape.
+
+The following previously-logged items are now STALE and need no work — the code
+or the spec changed under them:
+
+- [x] `home/settings.json` uses `$HOME/.claude/hooks/` vs AI.md mandating `~/` —
+      AI.md Part 7 now mandates `$HOME` and explicitly forbids a literal `~`.
+      settings.json was already correct.
+- [x] AI.md `drift-guard-read.sh` row "says it checks for a corresponding
+      `home/` source; it doesn't" — the code does check
+      (`os.path.exists(source)`), and the row already documents the fail-open.
 
 ## Priority 0 — live security bypasses (fix first, no judgment call needed)
 
@@ -199,8 +251,10 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       against `python_conventions.md:93`; Rust suggestion omits
       `-e RUSTC_WRAPPER=sccache`; Node/Python suggestions omit cache
       mounts spec requires.
-- [ ] `protect-host.sh:222` — writes BLOCKED message to stderr only;
-      AI.md:189,193-196 mandate stdout.
+- [x] `protect-host.sh` — wrote the BLOCKED message to stderr only; Part 6's
+      blocking-output format mandates both streams.
+      Fixed: `__block()` now writes the reason to stdout and stderr.
+      Same fix applied to `no-ai-attribution.sh`, which had the identical bug.
 - [ ] `protect-host.sh` / `no-destructive-bypass.sh` — both parse with
       python3, not `jq` as AI.md:198 specifies.
 - [ ] `test-lint-mark.sh:110-114` / `lint-agent-mark.sh:64-68` — hooks
@@ -210,19 +264,23 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
 
 ## Priority 3 — AI.md Part 6 table corrections (doc-only, no logic change)
 
-- [ ] AI.md:215 (`protect-host.sh`) row severely under-describes actual
-      behavior (omits container/sweep blocking, prune blocking, pkill,
-      partition/bootloader, redirects, find-delete, container exemption).
-- [ ] AI.md:213 (`drift-guard-read.sh`) — says it checks for a
-      corresponding `home/` source file; it doesn't, it's a fixed path
-      prefix list gated only on repo containing `home/CLAUDE.md`.
-- [ ] AI.md:218 (`bound-shell-lifetime.sh`) — omits rule E (`&` without
-      `PID=$!`) and the sentinel-poll-blocked-even-when-bounded behavior.
-- [ ] AI.md:221 (`no-force-push.sh`) row incomplete re: `--force-with-lease`
-      (code is correct, row just doesn't mention it).
-- [ ] AI.md:221/222 — container-mediated heredoc exemption documented
-      only for `bash-content-scan.sh`, but also present in
-      `no-force-push.sh`/`no-history-rewrite.sh`.
+- [x] AI.md (`protect-host.sh`) row severely under-described actual behavior.
+      Fixed: the row now lists auth-critical files, core binary dirs, root/home
+      wipes, block-device writes, pkill/killall, unscoped container sweeps and
+      prune, redirects and find-delete, plus the container/VM exemption and the
+      deliberate non-exemption of chroot/nsenter/virsh.
+- [x] AI.md (`drift-guard-read.sh`) — claim was itself wrong; the code does
+      check `os.path.exists(source)` and the row documents the fail-open. STALE.
+- [x] AI.md (`bound-shell-lifetime.sh`) — omitted rule E and sentinel polling.
+      Fixed: the row now enumerates all five rules A-E and states that sentinel
+      polling is blocked unconditionally, even when the loop is bounded.
+- [x] AI.md (`no-force-push.sh`) row incomplete re: `--force-with-lease`.
+      Fixed: the row now lists `--force`/`--force=...`/`--force-with-lease*`/
+      `-f`/`+refspec`.
+- [x] AI.md — container-mediated heredoc exemption was documented only for
+      `bash-content-scan.sh`.
+      Fixed: both the `no-force-push.sh` and `no-history-rewrite.sh` rows now
+      state that they share the same exemption.
 - [ ] AI.md:226 — repeats the incorrect spec-collection test description
       (see Priority 2 `enforce-test-lint-gate.sh:150-157` item).
 - [ ] AI.md:216 (`block-host-toolchain.sh`) — doesn't mention suggestions
@@ -232,8 +290,8 @@ anywhere in `home/CLAUDE.md` or `home/memory/*.md`:
       head token, so `docker run … alpine dd if=…` is actually allowed.
 - [ ] `spec-guard.sh:18` header's exempt-file list omits the seven files
       actually exempted at `:46-47`.
-- [ ] `home/settings.json` uses `$HOME/.claude/hooks/`; AI.md:278 and its
-      own example (:243-249) mandate `~/.claude/hooks/`.
+- [x] `home/settings.json` `$HOME` vs `~` — AI.md Part 7 now mandates `$HOME`
+      and forbids a literal `~`; settings.json was already correct. STALE.
 - [ ] `home/memory/file_ending_conventions.md` has no YAML frontmatter,
       violating AI.md:80-90 / the pre-commit validation step at AI.md:288.
 - [ ] Spec self-contradiction: `project_type_conventions.md:23` lists

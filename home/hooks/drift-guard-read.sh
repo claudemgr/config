@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608311430-git
+##@Version           :  202609020139-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse Read+Bash hook: block reading ~/.claude/ deployed copies when a home/ source exists
-# @@Changelog        :  Fixed ARG_MAX crash by passing payload via tmpfile instead of an env var.
+# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
 # @@TODO             :
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md); fails open if the home/ source doesn't exist
 # @@Resource         :  home/hooks/no-read-gitcommit.sh
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608311430-git"
+VERSION="202609020139-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -44,6 +44,31 @@ try:
     payload = json.loads(raw, strict=False)
 except json.JSONDecodeError:
     sys.exit(0)
+
+# A JSON scalar or array parses cleanly but has no .get(), so the block
+# below would raise AttributeError and exit non-zero. Part 6 requires a
+# hook to fail open on any unusable payload, never to surface an error.
+if not isinstance(payload, dict):
+    sys.exit(0)
+
+# Same reasoning one level down: normalise a non-object tool_input /
+# tool_response to an empty dict so every downstream .get() chain below
+# stays safe without each call site needing its own type check.
+for _field in ("tool_input", "tool_response"):
+    if _field in payload and not isinstance(payload[_field], dict):
+        payload[_field] = {}
+
+# Every field below is documented as a string but arrives as arbitrary JSON.
+# A list `command` or a numeric `cwd` reaches a str-only call (.split(),
+# .startswith(), os.path.*) and raises TypeError -> exit 1, which Claude Code
+# reports as a hook error on an ordinary tool call. Drop any non-string value
+# so the hook no-ops on it instead, per Part 6's "Fail open, always".
+for _obj in (payload, payload.get("tool_input") or {}, payload.get("tool_response") or {}):
+    for _key in ("command", "file_path", "cwd", "session_id", "transcript_path",
+                 "content", "new_string", "old_string", "pattern", "path",
+                 "agent_type", "last_assistant_message"):
+        if _key in _obj and not isinstance(_obj[_key], str):
+            _obj[_key] = ""
 
 tool_name = payload.get("tool_name", "")
 if tool_name not in ("Read", "Bash"):
