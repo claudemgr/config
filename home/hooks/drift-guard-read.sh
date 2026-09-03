@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609031200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse Read+Bash hook: block reading ~/.claude/ deployed copies when a home/ source exists
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Adds a DRIFT_GUARD_ALLOW=1 Bash env-var prefix so an explicit user-directed read of the deployed copy is not blocked; the Read tool has no field to carry it, so an explicit deployed-copy read must go through Bash.
 # @@TODO             :
-# @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md); fails open if the home/ source doesn't exist
+# @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md); fails open if the home/ source doesn't exist; DRIFT_GUARD_ALLOW=1 <cmd> bypasses the block for that one Bash call
 # @@Resource         :  home/hooks/no-read-gitcommit.sh
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609031200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -120,7 +120,7 @@ def project_root(cwd):
         return ""
 
 
-def check_and_block(path):
+def check_and_block(path, override):
     path = resolve_home(path)
     if not is_watched(path):
         return
@@ -133,6 +133,13 @@ def check_and_block(path):
     # Only redirect when a home/ source actually exists — a deployed-only
     # file (nothing to redirect to) must fail open, not block the read
     if not os.path.exists(source):
+        return
+    # Explicit per-call override: the user directed this specific read of
+    # the deployed copy (e.g. to check the live runtime value), so this is
+    # not accidental drift. Only honored via the Bash env-var prefix below,
+    # never silently — Claude sets it only when the user's own message asked
+    # for the deployed file, per CLAUDE.md's "only they decide" rule.
+    if override:
         return
     msg = (
         f"BLOCKED: Drift guard — read home/{relative} (source) not "
@@ -147,7 +154,11 @@ def check_and_block(path):
 
 
 if tool_name == "Read":
-    check_and_block(payload.get("tool_input", {}).get("file_path", "") or "")
+    # The Read tool's schema has no field to carry an explicit-override
+    # signal, so the override below only works via Bash. A user-directed
+    # read of the deployed copy must go through Bash with the
+    # DRIFT_GUARD_ALLOW=1 prefix documented there.
+    check_and_block(payload.get("tool_input", {}).get("file_path", "") or "", False)
     sys.exit(0)
 
 # Bash: cat/less/head/etc. reads the same deployed copies but bypasses the
@@ -170,10 +181,14 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
         tokens = sub_cmd.split()
 
     clean = []
+    override = False
     skipping_prefix = True
     for tok in tokens:
         if skipping_prefix:
             if tok in ("command", "env", "exec", "nohup", "time", "sudo", "doas"):
+                continue
+            if tok == "DRIFT_GUARD_ALLOW=1":
+                override = True
                 continue
             if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
                 continue
@@ -192,7 +207,7 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     for arg in clean[1:]:
         if arg.startswith("-"):
             continue
-        check_and_block(arg)
+        check_and_block(arg, override)
 
 sys.exit(0)
 PYEOF
