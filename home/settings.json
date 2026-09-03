@@ -306,6 +306,11 @@
           },
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/enforce-commit-mess-coverage.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/no-read-gitcommit.sh",
             "timeout": 10
           },

@@ -30,7 +30,7 @@ Never hardcode the path to `gitcommit` (e.g., `/usr/local/bin/gitcommit`).
 
 Emoji map: ✨ feat · 🐛 fix · 📝 docs · 🎨 style · ♻️ refactor · ⚡ perf · ✅ test · 🔧 chore · 🔒 security · 🗑️ remove · 🚀 deploy · 📦 deps
 
-Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat` output — every changed file described; never write from memory. Re-read `COMMIT_MESS` and compare against the diff before committing — rewrite if anything is missing or wrong.
+Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat` output — every changed file described; never write from memory. Re-read `COMMIT_MESS` and compare against the diff before committing — rewrite if anything is missing or wrong. Mechanically enforced by `enforce-commit-mess-coverage.sh`: `gitcommit --dir {dir} all` is blocked while any changed/untracked file in the tree lacks a `- path: change` bullet (a `- dir/: ...` bullet covers files beneath it) — especially relevant after long-running tasks, where the tree accumulates far more files than recent context remembers.
 
 **Never invent a third-party role label** (`operator decision`, `owner decision`, `admin approved`, etc.) to describe who made a change. Claude Code runs as the user's own agent, not a separate operator/service — there is no third party. State the fact plainly instead: "removed at the user's request," "user-deleted, not a regression," or just describe the change with no attribution clause at all when the reason is self-evident from context.
 
