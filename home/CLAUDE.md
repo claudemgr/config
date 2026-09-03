@@ -266,7 +266,7 @@ Key rules always in effect:
 
 **Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` + `script-lint` instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
 
-**Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) — never commit with violations.
+**Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with violations.
 
 **Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
 

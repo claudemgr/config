@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609031015-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Lint gate now recognizes `npm run lint`/`npx eslint` (Node/TS) and `ruff check`/`ruff format --check` (Python) and requires the lint gate for those manifests — previously no Node/TS or Python project could ever satisfy it.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609031015-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -153,7 +153,18 @@ TEST_CMD_RE = re.compile(
     r"\bmake\s+test\b|\bgo\s+test\b|\bcargo\s+test\b|\bpytest\b|\bnpm\s+(run\s+)?test\b"
 )
 BASHN_RE = re.compile(r"\bbash\s+-n\b")
-LINT_CMD_RE = re.compile(r"\bscript-lint\b|\bgo-lint\b|\brust-lint\b")
+# Must stay in sync with test-lint-mark.sh's TEST_LINT_MARK_LINT_RE: the lint
+# agents (shell/Go/Rust), `npm run lint`/`npx eslint` (Node/TS gate per
+# node_typescript_conventions.md), `ruff check`/`ruff format --check` (Python
+# gate per python_conventions.md), and the packaging-type per-format linters
+# (project_type_conventions.md's Format matrix).
+LINT_CMD_RE = re.compile(
+    r"\bscript-lint\b|\bgo-lint\b|\brust-lint\b|\bnpm\s+run\s+lint\b"
+    r"|\bnpx\s+eslint\b|\bruff\s+check\b|\bruff\s+format\s+--check\b"
+    r"|\blintian\b|\brpmlint\b|\bnamcap\b|\bapkbuild-lint\b"
+    r"|\bbrew\s+(audit|style)\b|\bsnapcraft\s+lint\b|\bflatpak-builder-lint\b"
+    r"|\bappimagelint\b|\bnix\s+flake\s+check\b|\bstatix\b"
+)
 
 
 def transcript_pass(transcript_path, project, allow_bashn_as_test):
@@ -279,15 +290,12 @@ for target in targets:
     missing = []
     if not marked(os.path.join(marker_dir, "test"), project) and not transcript_test_ok:
         missing.append("test gate")
-    # Only Go/Rust/shell have a defined lint agent (go-lint/rust-lint/
-    # script-lint) — a Node- or Python-only project (package.json/
-    # pyproject.toml, no go.mod/Cargo.toml/*.sh) has no lint gate the spec
-    # defines, so requiring one here is an unsatisfiable deadlock.
-    has_defined_lint_target = (
-        os.path.isfile(os.path.join(project, "go.mod"))
-        or os.path.isfile(os.path.join(project, "Cargo.toml"))
-        or has_shell_scripts(project)
-    )
+    # Every manifest language has a documented lint gate — go-lint/rust-lint/
+    # script-lint agents for Go/Rust/shell, `npm run lint` for Node/TS
+    # (node_typescript_conventions.md), `ruff check` + `ruff format --check`
+    # for Python (python_conventions.md) — so any manifest or shell script in
+    # the tree means the lint gate is both defined and satisfiable.
+    has_defined_lint_target = manifests_present or has_shell_scripts(project)
     if (
         has_defined_lint_target
         and not marked(os.path.join(marker_dir, "lint"), project)
@@ -307,7 +315,8 @@ msg_lines.append("")
 msg_lines.append(
     "Run the project's test gate (make test / go test ./... / cargo test / pytest /\n"
     "npm test / bash -n for script-collection) and lint gate (script-lint / go-lint /\n"
-    "rust-lint — run via the Agent tool, not `make lint`) first, then retry gitcommit."
+    "rust-lint via the Agent tool — or `npm run lint` for Node/TS, `ruff check` +\n"
+    "`ruff format --check` for Python; never `make lint`) first, then retry gitcommit."
 )
 msg = "\n".join(msg_lines)
 print(msg)
