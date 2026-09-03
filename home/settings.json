@@ -459,6 +459,8 @@
   "env": {
     "TMUX": "",
     "TMUX_PANE": "",
+    "TERM_PROGRAM": "",
+    "CLAUDE_CODE_DISABLE_MOUSE": "1",
     "COLORTERM": "truecolor",
     "CLAUDE_CODE_NO_FLICKER": "0",
     "MAX_THINKING_TOKENS": "1024",
