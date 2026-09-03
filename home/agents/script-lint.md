@@ -92,6 +92,7 @@ Flag use of `egrep`, `fgrep`, or `rgrep` — these aliases may not exist on all 
 ### Line length
 - Lines ≤180 characters must not be broken across multiple lines unless they contain an embedded multi-line program (awk, python, heredoc).
 - Lines >180 characters should be broken.
+- **Exception: `##@Version` / `# @@Field :` script-header lines are exempt from the 180-char limit** — same exemption `comment-placement-guard.sh` already applies at edit time. Each field is a fixed one-line-per-field template (`@@Description`, `@@Changelog`, `@@Other`, `@@Resource`, etc.); a long field value cannot be wrapped without breaking the format the template parses. Do not flag these lines as line-length violations.
 
 ### Interpreter detection
 - Check shebang line. Apply bash rules only to `#!/usr/bin/env bash` or `#!/bin/bash` scripts.

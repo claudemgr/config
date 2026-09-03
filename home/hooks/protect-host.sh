@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020210-git
+##@Version           :  202609031609-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Writes the BLOCKED reason to stdout as well as stderr, per AI.md Part 6's blocking-output format.
+# @@Changelog        :  Hoisted the three long systemctl alternation regexes out of the elif chain into named PROTECT_HOST_SYSTEMCTL_* variables to fix line-length violations.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020210-git"
+VERSION="202609031609-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -377,17 +377,20 @@ fi
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
 # Local System Management Zone exception: under ~/Projects/local/system/**, the
 # lifecycle subset (excluding mask/unmask/isolate/kill) is pre-authorized (see CLAUDE.md).
+PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"
 if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
   if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
     # user-scoped — always OK
     :
-  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"; then
+  elif __match "$PROTECT_HOST_SYSTEMCTL_READONLY"; then
     # read-only — always OK
     :
-  elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"; then
+  elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "$PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE"; then
     # zone-scoped lifecycle command — pre-authorized, no confirmation needed
     :
-  elif __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"; then
+  elif __match "$PROTECT_HOST_SYSTEMCTL_MUTATION"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
   fi
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302205-git
+##@Version           :  202609031612-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard.sh
 # @@Description      :  PreToolUse hook: block Edit/Write on project files until AI.md/SPEC.md was read this session
-# @@Changelog        :  Marker path moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard, matching spec-guard-mark.sh's new write path.
+# @@Changelog        :  Wrapped two long BLOCKED message strings onto multiple lines to fix line-length violations.
 # @@TODO             :
 # @@Other            :  Gates repos with AI.md/SPEC.md; bare CLAUDE.md is a blocked broken bootstrap; exempt: meta/spec, README/LICENSE, COMMIT_MESS, env, .no_push.
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302205-git"
+VERSION="202609031612-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -62,7 +62,9 @@ if [ -f "$SPEC_GUARD_PROJECT/AI.md" ]; then
 elif [ -f "$SPEC_GUARD_PROJECT/CLAUDE.md" ] && [ ! -f "$SPEC_GUARD_PROJECT/SPEC.md" ]; then
   SPEC_GUARD_MSG="BLOCKED: Spec guard — this project has a CLAUDE.md loader but no AI.md/SPEC.md for it to load.
 project_dir: ${SPEC_GUARD_PROJECT}
-The loader implies this project was meant to be spec-governed. Bootstrap AI.md first (copy the matching go/rust/android template, or use the bootstrap/spec-migrator agent), then retry this edit."
+The loader implies this project was meant to be spec-governed. Bootstrap
+AI.md first (copy the matching go/rust/android template, or use the
+bootstrap/spec-migrator agent), then retry this edit."
   printf '%s\n' "$SPEC_GUARD_MSG"
   printf '%s\n' "$SPEC_GUARD_MSG" >&2
   exit 2
@@ -76,7 +78,10 @@ grep -qxF -- "$SPEC_GUARD_PROJECT" "$SPEC_GUARD_MARKER" 2>/dev/null && exit 0
 
 SPEC_GUARD_MSG="BLOCKED: Spec guard — AI.md/SPEC.md for this project has not been read yet this session.
 project_dir: ${SPEC_GUARD_PROJECT}
-Before editing project files: search AI.md for the section relevant to this task — it may use '## Part N' headings, '# PART N' headings, or no headings at all (if short, just Read the whole file). Read that section (and SPEC.md if present), then retry this edit.
+Before editing project files: search AI.md for the section relevant to
+this task — it may use '## Part N' headings, '# PART N' headings, or no
+headings at all (if short, just Read the whole file). Read that section
+(and SPEC.md if present), then retry this edit.
 This gate re-arms after every compaction — re-read the spec again after a compact before resuming edits."
 
 printf '%s\n' "$SPEC_GUARD_MSG"

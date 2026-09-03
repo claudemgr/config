@@ -152,7 +152,7 @@ Instructions for the agent...
 | `audit.md` | opus | Full project health audit — security, quality, logic, docs, line-by-line AI.md compliance |
 | `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
 | `bootstrap.md` | sonnet | Bootstrap a project from a spec (`{project_dir}/AI.md`); builds PART 0–6 scaffolding incl. loaders + `.claude/rules/`, enumerates feature PARTs into a complete `TODO.AI.md`, ensures IDEA.md without fabricating it |
-| `cicd-maintenance.md` | sonnet | Dependabot PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix |
+| `cicd-maintenance.md` | sonnet | Renovate PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix; flags Travis configs and hands off to `travis-migrator` |
 | `claude-code-guide.md` | sonnet | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
 | `code-reviewer.md` | sonnet | Review diffs, PRs, or files before committing or merging |
 | `commit-prep.md` | haiku | Prepare `COMMIT_MESS` without polluting main conversation with diff output |
@@ -172,6 +172,7 @@ Instructions for the agent...
 | `spec-migrator.md` | sonnet | Migrate SPEC.md/CLAUDE.md/AI.md to standard structure; bootstrap wizard |
 | `statusline-setup.md` | haiku | Configure Claude Code status line fields |
 | `test-writer.md` | sonnet | Write unit, integration, table-driven, and fuzz tests for existing code |
+| `travis-migrator.md` | sonnet | Read an existing `.travis.yml`/`.travis.yaml`, generate the equivalent native workflow for the real CI/CD provider under `cicd_conventions.md`; never touches the Travis file itself; supports single-project and fleet-wide bulk sweeps |
 
 ---
 
