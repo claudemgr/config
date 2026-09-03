@@ -59,3 +59,26 @@ independent and can be fixed in any order.
       registration bug is still upstream-open and can still affect any
       other hook that has no equivalent fallback (e.g.
       `drift-guard-read.sh`, `spec-guard-mark.sh`).
+
+- [ ] 69 (OPEN, not a claudemgr/config code issue): live session
+      (2026-09-03) lost every user-defined agent type mid-session —
+      the harness reported all ~/.claude/agents/ definitions
+      (script-lint, go-lint, audit, designer, ...) "no longer
+      available", keeping only built-ins, right after an install.sh
+      deploy that also modified ~/.claude.json (plugin installs, MCP
+      server removal). Filesystem verified intact: deployed
+      ~/.claude/agents/ listing is identical to home/agents/ (diff
+      rc=0, all 32 present), and install.sh deploys via additive
+      `cp -R` — nothing deleted the files, so this is the running
+      session's agent registry dropping user agents on a mid-session
+      config reload, same upstream stale-registration family as items
+      68 / anthropics/claude-code#34072. An earlier install.sh run in
+      the same session did NOT trip it (script-lint ran fine after),
+      so it's a race, not deterministic. Impact: agent-based lint
+      gates (lint-agent-mark.sh) can't run for the rest of the
+      affected session — fallback used was direct shellcheck
+      (-e SC2034 for the VERSION header convention) + python ast.parse
+      on embedded heredocs. Verify in a fresh session that all agents
+      enumerate again; if they do, this is purely upstream and the
+      item can be closed with a note. No fix possible from inside
+      this repo.
