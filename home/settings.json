@@ -17,7 +17,7 @@
   "workflowKeywordTriggerEnabled": false,
   "plansDirectory": "./.claude/plans",
   "theme": "dark-ansi",
-  "tui": "fullscreen",
+  "tui": "default",
   "teammateMode": "in-process",
   "outputStyle": "Concise",
   "attribution": {
