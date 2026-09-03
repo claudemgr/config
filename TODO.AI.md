@@ -59,6 +59,24 @@ independent and can be fixed in any order.
       registration bug is still upstream-open and can still affect any
       other hook that has no equivalent fallback (e.g.
       `drift-guard-read.sh`, `spec-guard-mark.sh`).
+      REFINEMENT (2026-09-03, user retest): on the SAME settings.json,
+      SubagentStop hooks fire fine, but PostToolUse with the `Bash`
+      matcher (test-lint-mark.sh) still never fires for a real
+      `bash -n` call — correct session ID confirmed, no marker written
+      under either /root/.local/tmp (TMPDIR) or a /tmp fallback. So the
+      failure is specific to the Bash-matcher PostToolUse registration,
+      not a stale session-wide hook table: other events registered from
+      the same file keep working. Wiring verified correct in
+      home/settings.json (PostToolUse "Bash" matcher entry present,
+      identical shape to the working PostToolUse "Read"
+      spec-guard-mark.sh entry). Matches upstream
+      anthropics/claude-code#36310, which was auto-closed as a
+      duplicate of anthropics/claude-code#6305 ("Post/PreToolUse Hooks
+      Not Executing in Claude Code") — #6305 is still OPEN as of
+      2026-09-03, so track that one. The transcript_path fallback in
+      enforce-test-lint-gate.sh remains the effective mitigation for
+      the gate's false-block symptom; no further in-repo mitigation is
+      possible for the marker itself.
 
 - [ ] 69 (OPEN, not a claudemgr/config code issue): live session
       (2026-09-03) lost every user-defined agent type mid-session —

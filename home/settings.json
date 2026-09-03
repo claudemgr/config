@@ -18,6 +18,7 @@
   "plansDirectory": "./.claude/plans",
   "theme": "dark-ansi",
   "tui": "fullscreen",
+  "teammateMode": "in-process",
   "outputStyle": "Concise",
   "attribution": {
     "commit": "",
