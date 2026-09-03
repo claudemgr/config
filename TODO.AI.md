@@ -1,13 +1,9 @@
 # TODO.AI.md
 
-Findings from full hook-vs-rules audit (2026-08-30), following the `make lint`
-fix (commit b94f19084aee). Source: audit agent pass over all 27 hooks in
-home/hooks/, home/CLAUDE.md, AI.md, home/memory/*.md, and sibling claudemgr
-template repos.
-
-Dependency order: items 34 and 41 needed a user decision before their own fix
-could be implemented — both resolved (see git log). All other items below are
-independent and can be fixed in any order.
+All findings from the 2026-08-30 hook-vs-rules audit have been fixed and
+removed. What remains below are upstream Claude Code environment bugs —
+tracked here because they affect sessions on this machine, but not fixable
+by any change in this repo.
 
 ## Environment bug, not fixable in this repo
 
@@ -77,26 +73,3 @@ independent and can be fixed in any order.
       enforce-test-lint-gate.sh remains the effective mitigation for
       the gate's false-block symptom; no further in-repo mitigation is
       possible for the marker itself.
-
-- [ ] 69 (OPEN, not a claudemgr/config code issue): live session
-      (2026-09-03) lost every user-defined agent type mid-session —
-      the harness reported all ~/.claude/agents/ definitions
-      (script-lint, go-lint, audit, designer, ...) "no longer
-      available", keeping only built-ins, right after an install.sh
-      deploy that also modified ~/.claude.json (plugin installs, MCP
-      server removal). Filesystem verified intact: deployed
-      ~/.claude/agents/ listing is identical to home/agents/ (diff
-      rc=0, all 32 present), and install.sh deploys via additive
-      `cp -R` — nothing deleted the files, so this is the running
-      session's agent registry dropping user agents on a mid-session
-      config reload, same upstream stale-registration family as items
-      68 / anthropics/claude-code#34072. An earlier install.sh run in
-      the same session did NOT trip it (script-lint ran fine after),
-      so it's a race, not deterministic. Impact: agent-based lint
-      gates (lint-agent-mark.sh) can't run for the rest of the
-      affected session — fallback used was direct shellcheck
-      (-e SC2034 for the VERSION header convention) + python ast.parse
-      on embedded heredocs. Verify in a fresh session that all agents
-      enumerate again; if they do, this is purely upstream and the
-      item can be closed with a note. No fix possible from inside
-      this repo.
