@@ -86,6 +86,23 @@ SCRIPT_SRC_DIR="..."
 # ex: ts=2 sw=2 et filetype=sh
 ```
 
+## Top-Level Script Structure
+
+Env-var declarations and function definitions are **not freely interleaved** — the canonical scripts (`casjay-dotfiles/scripts/templates/scripts/shell/{bash,sh,zsh,fish}` skeletons, cross-checked against the larger `templates/scripts/bash/{system,user,simple,terminal,mgr-script.*}` templates and real production scripts like `dfmgr`, `devenvmgr`, `apimgr`, `buildx`) follow one fixed order, identical across bash/sh/zsh/fish:
+
+1. **Header block** (`##@Version` + `# @@...` fields, shellcheck lines)
+2. **Standard boilerplate + script variables** — `APPNAME`, `VERSION`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR`, then any script-specific top-level vars (working dir, exit-status var, etc.)
+3. **Color variables** (`PRINTF_SET_*` / `NO_COLOR` handling)
+4. **Custom/project variables** — project-prefixed vars specific to this script
+5. **Shared utility functions** — `__printf_color`, `__cmd_exists`, `__function_exists` (the larger templates insert `set -eo pipefail`, early `--debug`/`--no-color` pre-scans, and shared function-library sourcing — see "Library Scripts" below — around this point too)
+6. **Custom functions** — all remaining `__`-prefixed project functions
+7. **Trap registration** (`trap '' EXIT`; larger templates also add INT/TERM)
+8. **Argument/flag parsing** (larger templates only) — always placed after every function it can call (`__help`, `__version`, etc.) is already defined
+9. **Main application body** — executes inline at file scope under a `# Main application` / `# begin main app` marker comment; **no `main()` wrapper function** is used by convention
+10. **Exit normalization** — `exit "$EXIT_STATUS"` (or `exitCode`) as the last executable line, before the trailing separator and vim modeline
+
+**Rule of thumb: all variable declarations for a given block come before the functions that consume them, and all functions are fully defined before argument parsing or main-body code calls them.** Don't scatter unrelated `VAR=` assignments between function definitions, and don't write the argument-parsing block before every function it dispatches to exists. Within that constraint, ordering "does not matter" only in the narrow sense that bash executes top-to-bottom and a function only needs to exist before it's *called* — but the established project convention is still to group all vars, then all functions, then parsing, then main, not to interleave them freely.
+
 ## Shell Selection by Target Platform
 
 Choose the shell based on where the script will run:
@@ -956,9 +973,144 @@ __ansi() {
 Every script change requires updating all three in the same commit:
 1. `__help()` inside the script itself
 2. `man/{script}.1`
-3. `completions/_{script}_completions.bash`
+3. Completions for every supported shell: `completions/_{script}_completions.bash`, `completions/_{script}_completions.zsh`, `completions/{script}.fish` (fish's filename has no underscore prefix or `_completions` suffix — see "Zsh and fish completions" below)
 
 **Exempt from triple sync:** hook scripts, sourced library files, and non-interactive scripts that are not user-facing commands. These do not have `__help()`, man pages, or completions.
+
+**Project-level exemption — don't invent `man/` or `completions/` where a project doesn't already have them.** Triple sync applies only when the project already maintains that documentation surface (an existing `man/` dir, an existing `completions/` dir, or `IDEA.md`/`AI.md` says to ship them). A single-script repo, a `script-collection`-type project, or any project that has never shipped man pages or shell completions does not gain a new `man/`/`completions/` directory just because a script inside it grew a new flag — that's out-of-scope directory creation, not doc sync. `__help()` itself stays mandatory for every user-facing command regardless — it costs nothing and lives inside the script; the file-tree obligations (`man/`, `completions/`) are the part that's conditional on the project already having them.
+
+**Internal structure of the completion file** — verified against `casjay-dotfiles/scripts/templates/scripts/completions/*.bash`: the whole file is one `_{script}_completion() { ... }` function (single leading underscore — distinct from the `__` prefix used everywhere else in a script). Inside it: a single `local` block declaring every working variable up front, then `_init_completion || return`, then any inner one-off helpers defined with a **triple**-underscore prefix (`___jq`, `___find_cmd`, `___grep_env`, etc.) — this `___` prefix is unique to completion-file inner helpers and does not apply anywhere else; it exists specifically to avoid colliding with the script's own `__`-prefixed functions when both get sourced into the same shell during completion.
+
+### Zsh and fish completions
+
+**No existing casjay-dotfiles precedent exists for zsh or fish completions** — `gen-completion` only emits bash, and the only fish `completions/` reference found (`server/etc/skel/.config/fish/config.fish`'s `make_completion`) is a generic "borrow another command's completions" trick, not a per-script completion author pattern. The templates below are a deliberate adaptation of the real bash `simple.bash`/`system.bash` structure into each shell's native completion idiom — same variable roles, same `___`-prefixed private-helper convention, same semantic-correctness rules from "Completion Accuracy" below — not a copy of an observed pattern. Flag this section for review once real zsh/fish completions exist in casjay-dotfiles to confirm or correct it.
+
+**Filename convention:**
+
+| Shell | Installed filename | Why |
+|-------|---------------------|-----|
+| bash | `_{script}_completions.bash` | existing convention; sourced by a generated loader (`install.sh` writes a loop over `completions/*.bash`), not bash's own autoload |
+| zsh | `_{script}_completions.zsh` | same custom-loader model as bash — mirrors the naming pattern since `compdef` registers correctly however the file gets sourced |
+| fish | `{script}.fish` — **no underscore prefix, no `_completions` suffix** | fish's own autoloader requires the filename to exactly match the command name (`completions/{cmd}.fish`) if ever dropped into a fish `completions/` directory on `$fish_complete_path`; breaking this forfeits fish's free native autoload for no benefit |
+
+**Concept mapping** (bash var/mechanism → zsh → fish):
+
+| Bash | Zsh | Fish |
+|------|-----|------|
+| entry function `_{script}_completion` | entry function `_{script}_completion`, registered via `compdef _{script}_completion {script}` | no wrapper function required; `complete -c {script} ...` lines are the unit, with shared logic in a private `__{script}_comp_*`-prefixed function when reused |
+| `LONGOPTS`/`SHORTOPTS` (flag list) | `local -a LONGOPTS`/`SHORTOPTS`, fed to `_arguments -s` | one `complete -c {script} -l {flag} -d '{description}'` per long flag, `-s {short}` for the short form |
+| `ARRAY` (first-positional candidates, e.g. subcommands) | `_describe` branch on `state == first` | `complete -c {script} -n '__{script}_no_subcommand' -a "$ARRAY"` |
+| `LIST` (later-positional candidates) | `_describe` branch on `state == rest` | `complete -c {script} -n 'not __{script}_no_subcommand' -a "$LIST"` |
+| `--no-*`/`--yes-*` toggle handling | `'*--no-[TARGET]:target:->no_targets'`-style spec in `_arguments`, or a plain glob entry in `LONGOPTS` | `complete -c {script} -l no- -d 'disable a target'` (fish matches `-l` by prefix when the flag itself is a prefix form) |
+| `___`-prefixed private helpers | same `___`-prefixed helpers, defined as zsh functions inside the entry function | same `___`-prefixed helpers, defined as fish functions (fish has no nested-function scoping, so give them the full `___{script}_name` form to avoid collisions) |
+| `complete -F _{script}_completion -o default {script}` (registration) | `compdef _{script}_completion {script}` | registration is implicit — each `complete -c {script}` line registers itself |
+
+**Zsh template** (adapted from `completions/simple.bash`):
+
+```zsh
+#!/usr/bin/env zsh
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  GEN_SCRIPT_REPLACE_VERSION
+# @@Author           :  GEN_SCRIPT_REPLACE_AUTHOR
+# @@Contact          :  GEN_SCRIPT_REPLACE_EMAIL
+# @@License          :  GEN_SCRIPT_REPLACE_LICENSE
+# @@ReadME           :  GEN_SCRIPT_REPLACE_FILENAME --help
+# @@Copyright        :  GEN_SCRIPT_REPLACE_COPYRIGHT
+# @@Created          :  GEN_SCRIPT_REPLACE_DATE
+# @@File             :  GEN_SCRIPT_REPLACE_FILENAME
+# @@Description      :  GEN_SCRIPT_REPLACE_DESC
+# @@Changelog        :  GEN_SCRIPT_REPLACE_CHANGELOG
+# @@TODO             :  GEN_SCRIPT_REPLACE_TODO
+# @@Other            :  GEN_SCRIPT_REPLACE_OTHER
+# @@Resource         :  GEN_SCRIPT_REPLACE_RES
+# @@Terminal App     :  GEN_SCRIPT_REPLACE_TERMINAL
+# @@sudo/root        :  GEN_SCRIPT_REPLACE_SUDO
+# @@Template         :  completions/zsh
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=all
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+#compdef GEN_SCRIPT_REPLACE_FILENAME
+
+_GEN_SCRIPT_REPLACE_FILENAME_completion() {
+  #####################################################################
+  local -a LONGOPTS ARRAY LIST OPTS_NO OPTS_YES
+  local curcontext="$curcontext" state
+  #####################################################################
+  ___jq() { jq -rc "$@" 2>/dev/null; }
+  ___find_cmd() { find -L "${1:-$CONFDIR/}" -maxdepth ${3:-3} -type ${2:-f} 2>/dev/null; }
+  #####################################################################
+  LONGOPTS=(
+    '--completions[list completion styles]'
+    '--config[edit config]'
+    '(-h --help)'{-h,--help}'[show help]'
+    '(-v --version)'{-v,--version}'[show version]'
+    '--debug[enable debug output]'
+    '*--no-[disable a target]:target:'
+    '*--yes-[enable a target]:target:'
+  )
+  ARRAY=()
+  LIST=()
+  #####################################################################
+  _arguments -C -s \
+    $LONGOPTS \
+    '1: :->first' \
+    '*: :->rest'
+
+  case $state in
+    first) _describe 'command' ARRAY ;;
+    rest)  _describe 'argument' LIST ;;
+  esac
+}
+
+compdef _GEN_SCRIPT_REPLACE_FILENAME_completion GEN_SCRIPT_REPLACE_FILENAME
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# ex: ts=2 sw=2 et filetype=zsh
+```
+
+**Fish template** (adapted from `completions/simple.bash`):
+
+```fish
+#!/usr/bin/env fish
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  GEN_SCRIPT_REPLACE_VERSION
+# @@Author           :  GEN_SCRIPT_REPLACE_AUTHOR
+# @@Contact          :  GEN_SCRIPT_REPLACE_EMAIL
+# @@License          :  GEN_SCRIPT_REPLACE_LICENSE
+# @@ReadME           :  GEN_SCRIPT_REPLACE_FILENAME --help
+# @@Copyright        :  GEN_SCRIPT_REPLACE_COPYRIGHT
+# @@Created          :  GEN_SCRIPT_REPLACE_DATE
+# @@File             :  GEN_SCRIPT_REPLACE_FILENAME
+# @@Description      :  GEN_SCRIPT_REPLACE_DESC
+# @@Changelog        :  GEN_SCRIPT_REPLACE_CHANGELOG
+# @@TODO             :  GEN_SCRIPT_REPLACE_TODO
+# @@Other            :  GEN_SCRIPT_REPLACE_OTHER
+# @@Resource         :  GEN_SCRIPT_REPLACE_RES
+# @@Terminal App     :  GEN_SCRIPT_REPLACE_TERMINAL
+# @@sudo/root        :  GEN_SCRIPT_REPLACE_SUDO
+# @@Template         :  completions/fish
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+set -l LONGOPTS --completions --config --debug --help --version
+set -l ARRAY
+set -l LIST
+
+function ___GEN_SCRIPT_REPLACE_FILENAME_no_subcommand
+  set -l cmd (commandline -opc)
+  test (count $cmd) -eq 1
+end
+
+for opt in $LONGOPTS
+  complete -c GEN_SCRIPT_REPLACE_FILENAME -l $opt
+end
+complete -c GEN_SCRIPT_REPLACE_FILENAME -s h -l help -d 'show help'
+complete -c GEN_SCRIPT_REPLACE_FILENAME -s v -l version -d 'show version'
+complete -c GEN_SCRIPT_REPLACE_FILENAME -l no- -d 'disable a target'
+complete -c GEN_SCRIPT_REPLACE_FILENAME -l yes- -d 'enable a target'
+
+complete -c GEN_SCRIPT_REPLACE_FILENAME -n ___GEN_SCRIPT_REPLACE_FILENAME_no_subcommand -a "$ARRAY"
+complete -c GEN_SCRIPT_REPLACE_FILENAME -n 'not ___GEN_SCRIPT_REPLACE_FILENAME_no_subcommand' -a "$LIST"
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+# ex: ts=2 sw=2 et filetype=fish
+```
 
 ## Completion Accuracy
 
