@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609031530-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Fails open on a non-string file_path instead of raising TypeError and surfacing a hook error.
+# @@Changelog        :  Allowlists CI/CD configs (.gitlab-ci.yml, renovate, goreleaser, ...), security scanner configs (.trivyignore, .gitleaks.toml, ...), linter dot-configs, and CI dot-dirs.
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609031530-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -207,6 +207,32 @@ ALWAYS_ALLOW_BASENAMES = {
     # CI / CD
     ".travis.yml", "Jenkinsfile",
     "appveyor.yml",
+    ".gitlab-ci.yml",
+    ".drone.yml",
+    ".woodpecker.yml", ".woodpecker.yaml",
+    "azure-pipelines.yml", "azure-pipelines.yaml",
+    "bitbucket-pipelines.yml",
+    "cloudbuild.yaml", "cloudbuild.yml",
+    ".pre-commit-config.yaml",
+    "codecov.yml", ".codecov.yml",
+    ".goreleaser.yml", ".goreleaser.yaml",
+    "renovate.json", "renovate.json5",
+    ".renovaterc", ".renovaterc.json", ".renovaterc.json5",
+    # Security / SCA scanner configs
+    ".trivyignore", ".trivyignore.yaml", "trivy.yaml",
+    ".grype.yaml", ".syft.yaml",
+    ".snyk",
+    ".gitleaks.toml", ".gitleaksignore",
+    ".semgrepignore",
+    ".hadolint.yaml", ".hadolint.yml",
+    ".checkov.yaml", ".checkov.yml",
+    ".osv-scanner.toml",
+    ".dockleignore",
+    # Linter / formatter dot-configs
+    ".shellcheckrc",
+    ".yamllint", ".yamllint.yml", ".yamllint.yaml",
+    ".markdownlint.json", ".markdownlint.yaml", ".markdownlint.yml",
+    ".markdownlintignore",
     # Tooling dot-configs
     ".gitignore", ".gitattributes", ".gitmodules",
     ".editorconfig",
@@ -275,7 +301,12 @@ ALWAYS_ALLOW_EXTENSIONS = {
 
 ALWAYS_ALLOW_PATH_PATTERNS = [
     r"\.github/",
+    r"\.gitlab/",
+    r"\.gitea/",
+    r"\.forgejo/",
     r"\.circleci/",
+    r"\.woodpecker/",
+    r"\.buildkite/",
     r"\.cargo/",
     r"/gradle/wrapper/",
     r"/\.mvn/",
