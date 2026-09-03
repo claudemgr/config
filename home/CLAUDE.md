@@ -137,6 +137,15 @@ Key rules always in effect:
 - **No issue left only in conversation** — any flagged-but-not-fixed issue (found during an audit, a review, or incidentally while doing something else) must, before moving on to other work, either be fixed immediately or logged as a line item in `TODO.AI.md` (create it if missing). A commit message, a chat reply, or a summary is not a durable record — conversation context can be compacted or lost. This applies regardless of severity or how small the issue seems; the `audit` agent's >5-issues-to-`AUDIT.AI.md` threshold is a separate, additional rule for large batches, not an exemption from logging smaller ones here
 - **`TODO.AI.md` PART loading** — `grep -n "^# PART N" AI.md` to find the slice; read only that slice; never load the full spec file; cross-refs inside the slice: finish the slice first, then follow
 
+## External Contributions
+Forks, PRs, and fixes to third-party projects the user does not own follow `~/.claude/memory/external_contributions.md`, which overrides our project-shape and style rules for that repo. Key rules always in effect:
+- **Detection** — explicit user statement always wins; otherwise infer with caution ("fork/fix/enhance X" phrasing + repo we didn't create + no `AI.md` in the tree); ambiguous → ask, never assume
+- **Upstream conventions win** — match their code style, layout, comments, and indentation exactly; our root-file requirements and convention linters do not apply
+- **Task-scoped diffs only** — no drive-by refactors, spelling sweeps, or formatting churn outside lines the task changes
+- **Never create our spec/tracking files** (`AI.md`, `TODO.AI.md`, `CLAUDE.md`, `.claude/`, etc.) in their tree — hard ban, not even gitignored
+- **Commits still go through `gitcommit`**, but `COMMIT_MESS` is written in the upstream's commit-log style, never our emoji format
+- No AI attribution, sensitive-data rules, and destructive-op confirmation never relax in any mode
+
 ## Cleanup
 - Stop/remove every container, VM, volume, network, and temp file as soon as it is no longer needed
 - Track what you start — note name/ID before spinning anything up
@@ -175,6 +184,7 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - **Go Docker builds require `-e GOFLAGS=-buildvcs=false`** — mounted `.git` UID mismatch fails `go build` with "exit status 128"; full pattern: `~/.claude/memory/go_conventions.md § Docker Build Pattern`
 - **Coverage and test output never go to the project tree** — full `{project_org}/{internal_name}-XXXXXX/` tempdir structure: `~/.claude/memory/tempdir_conventions.md`
 - Target `linux/amd64` + `linux/arm64` by default; builds reproducible in containers
+- **Only one `make` invocation at a time, ever** — never start a second `make` (foreground or background, any target, any repo) while another is still running; concurrent makes race on shared caches, module dirs, and Docker build contexts. `make`'s own internal `-j` parallelism within a single invocation is fine. Wait for the running make to finish (or kill it per kill-scoping rules) before starting the next
 - **Script-collection and spec-collection projects are exempt from this section** — no Makefile, no Docker toolchain build, no CI/CD workflow by default; detection criteria and replacement gates: `~/.claude/memory/project_type_conventions.md § Type: script-collection` / `§ Type: spec-collection`
 - **Packaging projects (distro/platform package metadata repos): Makefile and CI/CD are optional, not exempt** — builds still always run in per-format containers with format linters as the gate; format matrix and rules: `~/.claude/memory/project_type_conventions.md § Type: packaging`
 
