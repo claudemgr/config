@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031015-git
+##@Version           :  202609031259-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,9 +10,9 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Lint gate now recognizes `npm run lint`/`npx eslint` (Node/TS) and `ruff check`/`ruff format --check` (Python) and requires the lint gate for those manifests — previously no Node/TS or Python project could ever satisfy it.
+# @@Changelog        :  Added a TEST_LINT_GATE_OVERRIDE=1 env-var prefix so an explicit user-directed bypass is possible when PostToolUse's confirmed-upstream non-firing (#36310) blocks a genuinely passing run the transcript fallback also can't see.
 # @@TODO             :  None
-# @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback).
+# @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback). TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> bypasses the gate for that one call — user-directed only, never Claude's own initiative.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031015-git"
+VERSION="202609031259-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -98,10 +98,14 @@ def find_gitcommit_dir(text):
             tokens = sub_cmd.split()
 
         clean = []
+        override = False
         skipping_prefix = True
         for tok in tokens:
             if skipping_prefix:
                 if tok in ("command", "env", "exec", "nohup", "time", "sudo", "doas"):
+                    continue
+                if tok == "TEST_LINT_GATE_OVERRIDE=1":
+                    override = True
                     continue
                 if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
                     continue
@@ -111,12 +115,25 @@ def find_gitcommit_dir(text):
             clean.append(tok.lstrip("\\"))
 
         if len(clean) == 4 and clean[0] == "gitcommit" and clean[1] == "--dir" and clean[3] == "all":
-            yield clean[2]
+            yield clean[2], override
 
 
 targets = list(find_gitcommit_dir(cmd))
 if not targets:
     sys.exit(0)
+
+# TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> — explicit, per-invocation, user-
+# directed bypass for the confirmed upstream bug documented below (test-lint-
+# mark.sh's PostToolUse marker never firing). Claude sets this prefix only
+# when the user's own message explicitly says to bypass/skip the gate after
+# confirming they already verified the test/lint run passed — never on its
+# own initiative just because the gate blocked (CLAUDE.md: "never auto-bypass
+# a hook block"). Same prefix pattern as drift-guard-read.sh's
+# DRIFT_GUARD_ALLOW=1.
+if any(override for _target, override in targets):
+    sys.exit(0)
+
+targets = [target for target, _override in targets]
 
 # Must match the deterministic path test-lint-mark.sh/lint-agent-mark.sh
 # write (see those files' comments for why this deviates from

@@ -256,6 +256,8 @@ Key rules always in effect:
 - `{dir}` = absolute path to the project root · `all` is the only command · never use `-m`/`--message`
 - If the GitHub remote does not exist, `gitcommit` creates it automatically — no manual `gh repo create` needed
 
+**Test/lint gate override:** `enforce-test-lint-gate.sh` blocks `gitcommit` unless the test and lint gates ran and passed this session (via `test-lint-mark.sh`'s marker, or its `transcript_path` fallback). A confirmed upstream Claude Code bug (`anthropics/claude-code#6305`, open) means the `PostToolUse`/`Bash` marker sometimes never fires even for a genuinely passing run, and the fallback doesn't always see it either. If that happens: prefix the command with `TEST_LINT_GATE_OVERRIDE=1`, e.g. `TEST_LINT_GATE_OVERRIDE=1 gitcommit --dir {dir} all` — but only when the user's own message explicitly directs a bypass after confirming they already personally verified the test/lint run passed. Never set this on Claude's own initiative just because the gate blocked ("never auto-bypass a hook block" still applies — this is a user-authorized escape hatch, not a way around that rule).
+
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
 2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` + `script-lint` instead, no Makefile required; for `spec-collection` projects, re-read the edited file(s) instead — there is no test runner) — every test must pass; never commit with a failing test

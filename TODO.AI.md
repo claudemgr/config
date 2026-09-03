@@ -73,3 +73,13 @@ by any change in this repo.
       enforce-test-lint-gate.sh remains the effective mitigation for
       the gate's false-block symptom; no further in-repo mitigation is
       possible for the marker itself.
+      ADDENDUM (2026-09-03, user request): added a `TEST_LINT_GATE_OVERRIDE=1`
+      env-var-prefix escape hatch to enforce-test-lint-gate.sh (same
+      pattern as drift-guard-read.sh's DRIFT_GUARD_ALLOW=1) for the case
+      where BOTH the marker and the transcript fallback fail to see a
+      genuinely passing run — user directs the bypass explicitly per
+      invocation, Claude never sets it on its own initiative. Verified
+      via synthetic PreToolUse payloads: override present → exit 0;
+      override absent → still blocks exit 2 as before. This does not fix
+      the underlying registration bug (still upstream, item stays open)
+      — it is a last-resort user override, not a marker fix.
