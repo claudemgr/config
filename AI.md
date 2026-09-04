@@ -15,6 +15,8 @@ config/
 │   │   └── {name}.md
 │   ├── hooks/                   # PreToolUse/PostToolUse hook scripts
 │   │   └── {name}.sh
+│   ├── scripts/                 # standalone scripts (e.g. statusLine command)
+│   │   └── {name}.sh
 │   └── memory/                  # convention and standards memory files
 │       ├── MEMORY.md            # index — always kept in sync
 │       └── {topic}.md
@@ -32,7 +34,7 @@ config/
 
 `install.sh` copies the contents of `home/` to `{deploy_target}` (`~/.claude/`).
 
-- Always `chmod +x` hook scripts after copy
+- Always `chmod +x` hook scripts and `home/scripts/*.sh` after copy
 - Never delete files from `{deploy_target}` that are not in `home/` — additive sync only, unless `--clean` is passed
 - Must be idempotent — safe to run multiple times
 - Tested on host (no container needed — this configures the host's Claude Code installation)

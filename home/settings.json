@@ -25,7 +25,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "jq -r 'def p(v): if v==null then \"?\" else (v|floor|tostring) end; def money(v): if v==null then \"?\" else ((v*100|round)/100|tostring) end; \"[\\(.model.display_name)] \\(p(.context_window.used_percentage))% ctx | 5h \\(p(.rate_limits.five_hour.used_percentage))% 7d \\(p(.rate_limits.seven_day.used_percentage))% spend \\(p(.rate_limits.spend_limit.used_percentage))% | \\(.effort.level // env.CLAUDE_CODE_EFFORT_LEVEL // \"?\") | $\\(money(.cost.total_cost_usd))\"'"
+    "command": "$HOME/.claude/scripts/statusline.sh"
   },
   "autoMode": {
     "classifyAllShell": false

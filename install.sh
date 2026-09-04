@@ -87,6 +87,7 @@ if ! \claude update >/dev/null 2>&1; then __printf_color "claude code failed to 
 if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   cp -R "$CLAUDE_LOCAL_REPO/home/." "$HOME/.claude/"
   find "$HOME/.claude/hooks" -name '*.sh' -exec chmod 755 {} \;
+  find "$HOME/.claude/scripts" -name '*.sh' -exec chmod 755 {} \;
   \claude plugin install gopls-lsp@claude-plugins-official 2>/dev/null || true
   \claude plugin install rust-analyzer-lsp@claude-plugins-official 2>/dev/null || true
   \claude plugin install typescript-lsp@claude-plugins-official 2>/dev/null || true
