@@ -1,8 +1,8 @@
 {
-  "model": "claude-sonnet-5",
+  "model": "claude-haiku-4-5",
   "fallbackModel": [
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5"
+    "claude-sonnet-5",
+    "claude-sonnet-4-6"
   ],
   "agent": "general",
   "language": "english",
