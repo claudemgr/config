@@ -113,7 +113,7 @@ IFS=$'\t' read -r model ctx_pct five_pct seven_pct spend_pct cost effort dir lin
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 model_part="$(emoji '🧠 ')${c_bold}${c_cyan}[${model}]${c_reset}"
 ctx_part="$(emoji '📊 ')$(__pct_color "${ctx_pct}")% ctx"
-rate_part="$(emoji '⏱ ')5h $(__pct_color "${five_pct}")% 7d $(__pct_color "${seven_pct}")%"
+rate_part="$(emoji '⏱ ')5h $(__pct_color "${five_pct}")% | W $(__pct_color "${seven_pct}")%"
 if [ "${spend_pct}" != "?" ]; then
   rate_part="${rate_part} spend $(__pct_color "${spend_pct}")%"
 fi
