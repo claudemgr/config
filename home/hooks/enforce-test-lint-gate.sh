@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031259-git
+##@Version           :  202609040001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Added a TEST_LINT_GATE_OVERRIDE=1 env-var prefix so an explicit user-directed bypass is possible when PostToolUse's confirmed-upstream non-firing (#36310) blocks a genuinely passing run the transcript fallback also can't see.
+# @@Changelog        :  transcript_pass now also tracks Agent tool_use blocks (subagent_type script-lint/go-lint/rust-lint) and checks their tool_result text against the same clean/N-issue(s)-found contract lint-agent-mark.sh checks — the Bash-only scan never saw a lint agent invoked via the Agent tool, only via a literal Bash command.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback). TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> bypasses the gate for that one call — user-directed only, never Claude's own initiative.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031259-git"
+VERSION="202609040001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -182,12 +182,34 @@ LINT_CMD_RE = re.compile(
     r"|\bbrew\s+(audit|style)\b|\bsnapcraft\s+lint\b|\bflatpak-builder-lint\b"
     r"|\bappimagelint\b|\bnix\s+flake\s+check\b|\bstatix\b"
 )
+# The lint agents are as often launched via the Agent tool (subagent_type
+# script-lint/go-lint/rust-lint) as via a literal Bash command — the Bash-only
+# scan above missed every Agent-tool run entirely, permanently false-blocking
+# gitcommit for anyone who runs the lint agent that way. Same clean/issues-found
+# contract lint-agent-mark.sh's SubagentStop hook checks (this PART's own
+# Resource note): a report ending "N issue(s) found" anywhere disqualifies it.
+LINT_AGENT_TYPES = {"script-lint", "go-lint", "rust-lint"}
+LINT_AGENT_CLEAN_RE = re.compile(r":\s*clean\b")
+LINT_AGENT_ISSUES_RE = re.compile(r":\s*[0-9]+\s+issue\(s\)\s+found\b")
+
+
+def _agent_result_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+        return "\n".join(parts)
+    return ""
 
 
 def transcript_pass(transcript_path, project, allow_bashn_as_test):
     if not transcript_path or not os.path.isfile(transcript_path):
         return False, False
     tool_use_cmds = {}
+    lint_agent_ids = {}
     test_ok = False
     lint_ok = False
     try:
@@ -220,6 +242,11 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                             cmd_ = inp.get("command", "") if isinstance(inp, dict) else ""
                             if cmd_:
                                 tool_use_cmds[c.get("id")] = cmd_
+                        elif c.get("type") == "tool_use" and c.get("name") == "Agent":
+                            inp = c.get("input")
+                            subagent_ = inp.get("subagent_type", "") if isinstance(inp, dict) else ""
+                            if subagent_ in LINT_AGENT_TYPES:
+                                lint_agent_ids[c.get("id")] = subagent_
                 elif etype == "user":
                     entry_cwd = entry.get("cwd", "")
                     try:
@@ -240,7 +267,15 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                             continue
                         if c.get("type") != "tool_result" or c.get("is_error"):
                             continue
-                        cmd_ = tool_use_cmds.get(c.get("tool_use_id"))
+                        tool_use_id_ = c.get("tool_use_id")
+                        if tool_use_id_ in lint_agent_ids:
+                            report_ = _agent_result_text(c.get("content"))
+                            if LINT_AGENT_CLEAN_RE.search(report_) and not LINT_AGENT_ISSUES_RE.search(
+                                report_
+                            ):
+                                lint_ok = True
+                            continue
+                        cmd_ = tool_use_cmds.get(tool_use_id_)
                         if not cmd_:
                             continue
                         if TEST_CMD_RE.search(cmd_):
