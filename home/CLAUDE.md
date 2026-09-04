@@ -260,7 +260,7 @@ Key rules always in effect:
 
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
-2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` + `script-lint` instead, no Makefile required; for `spec-collection` projects, re-read the edited file(s) instead — there is no test runner) — every test must pass; never commit with a failing test
+2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` plus the `script-lint` Agent (spawn it via the Agent tool — it is not a shell command) instead, no Makefile required; for `spec-collection` projects, re-read the edited file(s) instead — there is no test runner) — every test must pass; never commit with a failing test
 3. Run the lint gate (see below) — never commit with violations
 4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
@@ -268,9 +268,9 @@ Key rules always in effect:
 
 **Message format, emoji map, no-bare-`@` rule, grouping decision order, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets. **Grouping is decided in this order, first match wins:** (1) user says or implies "single commit" → everything for that request in one commit, overriding every rule below it; (2) ad hoc "fix X and anything else you find" → one commit for the whole request; (3) multi-file bug fixes → one commit per independently-fixable coupling group, split when files are unrelated; (4) findings-based work (audits, reviews, numbered fix-lists) → one commit per finding by default, batched only when genuinely inseparable; (5) feature work → one commit for the entire feature plus directly-related bugs, never split per part. Unrelated bugs found mid-feature go to `TODO.AI.md`, except app-breaking bugs, which must be fixed immediately. **Only the main session ever commits or pushes — agents/subagents never do, no exceptions, mechanically enforced by `no-subagent-commit.sh`.**
 
-**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` + `script-lint` instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
+**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` plus the `script-lint` Agent instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
 
-**Lint gate:** `script-lint` (shell) · `go-lint` (Go) · `rust-lint` (Rust) · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with violations.
+**Lint gate:** the `script-lint` (shell) / `go-lint` (Go) / `rust-lint` (Rust) Agents — spawn each via the Agent tool, never as a shell command, there is no CLI binary by that name · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with violations.
 
 **Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
 
