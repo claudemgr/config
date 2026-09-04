@@ -24,7 +24,7 @@ APPNAME="${0##*/}"
 VERSION="202605121722-git"
 RUN_USER="${USER}"
 SET_UID="$(id -u)"
-SCRIPT_SRC_DIR="$(dirname -- "$0")"
+SCRIPT_SRC_DIR="${0%/*}"
 INSTALL_SH_CWD="${PWD}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # colorization

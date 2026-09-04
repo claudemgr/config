@@ -59,13 +59,13 @@ fi
 
 # threshold color for a percentage: green <50, yellow 50-79, red >=80
 __pct_color() {
-  v="$1"
-  [ "$USE_COLOR" -eq 1 ] || { printf '%s' "$v"; return; }
+  local v="$1"
+  [ "$USE_COLOR" -eq 1 ] || { printf '%s' "$v"; return 0; }
   if [ "$v" = "?" ]; then
     printf '%s%s%s' "$c_dim" "$v" "$c_reset"
-    return
+    return 0
   fi
-  n="${v%.*}"
+  local n="${v%.*}"
   if [ "$n" -ge 80 ] 2>/dev/null; then
     printf '%s%s%s' "$c_red" "$v" "$c_reset"
   elif [ "$n" -ge 50 ] 2>/dev/null; then
@@ -75,7 +75,7 @@ __pct_color() {
   fi
 }
 
-emoji() {
+__emoji() {
   [ "$USE_COLOR" -eq 1 ] && printf '%s' "$1" || true
 }
 
@@ -111,14 +111,14 @@ IFS=$'\t' read -r model ctx_pct five_pct seven_pct spend_pct cost effort dir lin
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Line 1: model | context % | 5h/7d rate limits | cost | effort
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-model_part="$(emoji '🧠 ')${c_bold}${c_cyan}[${model}]${c_reset}"
-ctx_part="$(emoji '📊 ')$(__pct_color "${ctx_pct}")% ctx"
-rate_part="$(emoji '⏱ ')5h $(__pct_color "${five_pct}")% | W $(__pct_color "${seven_pct}")%"
+model_part="$(__emoji '🧠 ')${c_bold}${c_cyan}[${model}]${c_reset}"
+ctx_part="$(__emoji '📊 ')$(__pct_color "${ctx_pct}")% ctx"
+rate_part="$(__emoji '⏱ ')5h $(__pct_color "${five_pct}")% | W $(__pct_color "${seven_pct}")%"
 if [ "${spend_pct}" != "?" ]; then
   rate_part="${rate_part} spend $(__pct_color "${spend_pct}")%"
 fi
-cost_part="$(emoji '💰 ')${c_green}\$${cost}${c_reset}"
-effort_part="$(emoji '🎚 ')${c_magenta}${effort}${c_reset}"
+cost_part="$(__emoji '💰 ')${c_green}\$${cost}${c_reset}"
+effort_part="$(__emoji '🎚 ')${c_magenta}${effort}${c_reset}"
 
 line1="${model_part} ${ctx_part} | ${rate_part} | ${cost_part} | ${effort_part}"
 
@@ -131,15 +131,15 @@ short_dir="${dir/#"$HOME"/'~'}"
 
 extras=""
 if [ "${lines_added}" != "0" ] || [ "${lines_removed}" != "0" ]; then
-  extras="${extras} | $(emoji '✏️ ')${c_green}+${lines_added}${c_reset}/${c_red}-${lines_removed}${c_reset}"
+  extras="${extras} | $(__emoji '✏️ ')${c_green}+${lines_added}${c_reset}/${c_red}-${lines_removed}${c_reset}"
 fi
 if [ -n "${agent_name}" ]; then
-  extras="${extras} | $(emoji '🧩 ')${agent_name}"
+  extras="${extras} | $(__emoji '🧩 ')${agent_name}"
 fi
 if [ -n "${worktree_name}" ]; then
-  extras="${extras} | $(emoji '🌳 ')${worktree_name}"
+  extras="${extras} | $(__emoji '🌳 ')${worktree_name}"
 fi
 
-line2="$(emoji '📁 ')${c_dim}${short_dir}${c_reset}${extras}"
+line2="$(__emoji '📁 ')${c_dim}${short_dir}${c_reset}${extras}"
 
 printf '%s\n%s\n' "${line1}" "${line2}"

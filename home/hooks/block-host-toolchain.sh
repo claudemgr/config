@@ -399,7 +399,7 @@ BLOCK_HOST_TOOLCHAIN_CWD="$(printf '%s' "$BLOCK_HOST_TOOLCHAIN_INPUT" | __extrac
 [[ -z "$BLOCK_HOST_TOOLCHAIN_CWD" ]] && BLOCK_HOST_TOOLCHAIN_CWD="$PWD"
 BLOCK_HOST_TOOLCHAIN_PROJECT_DIR="$(cd "$BLOCK_HOST_TOOLCHAIN_CWD" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)"
 [[ -z "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR" ]] && BLOCK_HOST_TOOLCHAIN_PROJECT_DIR="$BLOCK_HOST_TOOLCHAIN_CWD"
-BLOCK_HOST_TOOLCHAIN_PROJECT_NAME="$(basename "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR")"
+BLOCK_HOST_TOOLCHAIN_PROJECT_NAME="${BLOCK_HOST_TOOLCHAIN_PROJECT_DIR##*/}"
 
 # script-collection / spec-collection projects are exempt from the
 # Docker-only Build & Execution requirement entirely (home/CLAUDE.md); skip
@@ -461,7 +461,7 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
     --memory=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_MEM}\" --cpus=\"${BLOCK_HOST_TOOLCHAIN_DOCKER_CPUS}\" \\
     -v \"\$PWD\":/app \\
     -v \"\${GO_CACHE:-\${HOME}/go/pkg/mod}\":/usr/local/share/go/pkg/mod \\
-    -v \"\${GO_BUILD:-\${HOME}/.cache/go-build/\$(basename \"\$PWD\")}\":/usr/local/share/go/cache \\
+    -v \"\${GO_BUILD:-\${HOME}/.cache/go-build/\${PWD##*/}}\":/usr/local/share/go/cache \\
     -w /app \\
     -e CGO_ENABLED=0 \\
     -e GOFLAGS=-buildvcs=false \\
@@ -479,7 +479,7 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
     -v \"\${CARGO_CACHE:-\${HOME}/.cargo}\":/usr/local/share/cargo \\
     -v \"\${RUSTUP_CACHE:-\${HOME}/.rustup}\":/usr/local/share/rustup \\
     -v \"\${SCCACHE_CACHE:-\${HOME}/.cache/sccache}\":/root/.cache/sccache \\
-    -v \"\${CARGO_TARGET:-\${HOME}/.cache/cargo-target/\$(basename \"\$PWD\")}\":/app/target \\
+    -v \"\${CARGO_TARGET:-\${HOME}/.cache/cargo-target/\${PWD##*/}}\":/app/target \\
     -w /app \\
     -e RUSTC_WRAPPER=sccache \\
     $(__toolchain_image "casjaysdev/rust:latest" "$BLOCK_HOST_TOOLCHAIN_PROJECT_DIR") \\

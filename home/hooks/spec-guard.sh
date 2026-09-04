@@ -45,14 +45,14 @@ SPEC_GUARD_SESSION_ID=$(printf '%s' "$SPEC_GUARD_INPUT" | jq -r '.session_id // 
 case "$SPEC_GUARD_FILE_PATH" in
   */.git/* | */.claude/*) exit 0 ;;
 esac
-case "$(basename -- "$SPEC_GUARD_FILE_PATH")" in
+case "${SPEC_GUARD_FILE_PATH##*/}" in
   AI.md | IDEA.md | SPEC.md | CLAUDE.md | TODO.AI.md | TODO.md | PLAN.AI.md | PLAN.md \
     | COMMIT_MESS | .env | app.env | default.env | .no_push | README.md | LICENSE.md)
     exit 0
     ;;
 esac
 
-SPEC_GUARD_PROJECT=$(git -C "$(dirname -- "$SPEC_GUARD_FILE_PATH")" rev-parse --show-toplevel 2>/dev/null) || exit 0
+SPEC_GUARD_PROJECT=$(git -C "${SPEC_GUARD_FILE_PATH%/*}" rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 # Existence precedence: AI.md (THE HOW, primary spec) > CLAUDE.md (loader —
 # its presence without AI.md means a broken bootstrap, not "ungoverned") >

@@ -377,9 +377,12 @@ fi
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
 # Local System Management Zone exception: under ~/Projects/local/system/**, the
 # lifecycle subset (excluding mask/unmask/isolate/kill) is pre-authorized (see CLAUDE.md).
-PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"
-PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"
-PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show"
+PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_SYSTEMCTL_READONLY}|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart"
+PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE}|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart"
+PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_SYSTEMCTL_MUTATION}|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"
 if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
   if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]+--user[[:space:]]"; then
     # user-scoped — always OK
