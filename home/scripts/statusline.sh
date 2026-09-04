@@ -127,7 +127,7 @@ line1="${model_part} ${ctx_part} | ${rate_part} | ${cost_part} | ${effort_part}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # No git branch/status here on purpose — shelling out to git per statusline
 # refresh is too resource-intensive across many concurrent sessions.
-short_dir="${dir/#$HOME/~}"
+short_dir="${dir/#"$HOME"/'~'}"
 
 extras=""
 if [ "${lines_added}" != "0" ] || [ "${lines_removed}" != "0" ]; then
