@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031609-git
+##@Version           :  202609040001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Hoisted the three long systemctl alternation regexes out of the elif chain into named PROTECT_HOST_SYSTEMCTL_* variables to fix line-length violations.
+# @@Changelog        :  Fixed __strip_container_subcmds and __strip_heredoc_bodies to tolerate flags between a container binary and its exec/run sub-command (incus -q exec), a sudo wrapper (sudo incus exec), and repeated whitespace (incus  exec) — these previously fell through the container/VM exemption and left legitimate test commands (including systemctl) inside containers/VMs blocked.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031609-git"
+VERSION="202609040001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -146,11 +146,24 @@ import os, re, sys
 text = sys.stdin.read()
 try:
     shells = {"bash", "sh", "zsh", "dash", "ksh", "ash"}
-    prefixes = tuple(
-        p if p.endswith("-") else p + " "
-        for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
+    raw_prefixes = [
+        p for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
         if p.strip()
-    )
+    ]
+    # Same flag/sudo/whitespace-tolerant matcher as __strip_container_subcmds -
+    # "incus -q exec c bash <<EOF" and "sudo docker exec -i c bash <<EOF" are
+    # container-mediated heredocs too, not just the exact literal prefix form.
+    patterns = []
+    for p in raw_prefixes:
+        if p.endswith("-"):
+            patterns.append(re.compile(r"^" + re.escape(p)))
+            continue
+        words = p.split(" ")
+        binary, rest = words[0], " ".join(words[1:])
+        patterns.append(re.compile(
+            r"^" + re.escape(binary) + r"(?:\s+-{1,2}\S+)*\s+"
+            + re.escape(rest) + r"(?:\s|$)"
+        ))
     out = []
     lines = text.split("\n")
     i = 0
@@ -163,8 +176,12 @@ try:
             tokens = {t.lstrip("\\\\") for t in head.split()}
             # container/VM-mediated heredocs are exempt even when fed to a shell:
             # "docker exec -i c bash <<EOF" runs the body inside the guest
-            probe = re.sub(r"^\s*(?:\\\\|(?:command|builtin|env|exec)\s+)+", "", head.strip())
-            if probe.startswith(prefixes) or not (tokens & shells):
+            probe = re.sub(
+                r"^\s*(?:\\\\|(?:command|builtin|env)\s+|exec\s+|sudo(?:\s+-\S+)*\s+)+",
+                "", head.strip()
+            )
+            probe = re.sub(r"\s+", " ", probe).strip()
+            if any(pat.match(probe) for pat in patterns) or not (tokens & shells):
                 delims.append(m.group(2))
         i += 1
         for delim in delims:
@@ -190,21 +207,40 @@ __strip_container_subcmds() {
   python3 -c '
 import os, re, sys
 cmd = sys.stdin.read()
-prefixes = tuple(
-    p if p.endswith("-") else p + " "
-    for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
+raw_prefixes = [
+    p for p in os.environ.get("PROTECT_HOST_CONTAINER_PREFIXES", "").splitlines()
     if p.strip()
-)
+]
+# Build a matcher per prefix: exact dash-suffixed prefixes (qemu-system-) match
+# as-is; "binary sub words" prefixes allow short flags (-q, --project) between
+# the binary and its sub-command so "incus -q exec" still counts as incus exec.
+patterns = []
+for p in raw_prefixes:
+    if p.endswith("-"):
+        patterns.append(re.compile(r"^" + re.escape(p)))
+        continue
+    words = p.split(" ")
+    binary, rest = words[0], " ".join(words[1:])
+    patterns.append(re.compile(
+        r"^" + re.escape(binary) + r"(?:\s+-{1,2}\S+)*\s+"
+        + re.escape(rest) + r"(?:\s|$)"
+    ))
 kept = []
 for part in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub = part.strip()
     if not sub:
         continue
-    # normalize house-style alias-safe backslashes and command/env wrappers
-    # for the exemption check only — \docker exec and command docker exec are
-    # still container-mediated; the original sub is what gets kept and scanned
-    probe = re.sub(r"^(?:\\|(?:command|builtin|env|exec)\s+)+", "", sub)
-    if probe.startswith(prefixes):
+    # normalize house-style alias-safe backslashes, command/env/exec/sudo
+    # wrappers (sudo may carry its own flags, e.g. "sudo -u root") for the
+    # exemption check only — \docker exec, command docker exec, and
+    # sudo incus exec are still container-mediated; the original sub is
+    # what gets kept and scanned. Collapse repeated whitespace too, so
+    # "incus  exec" (double space) still matches "incus exec".
+    probe = re.sub(
+        r"^(?:\\|(?:command|builtin|env)\s+|exec\s+|sudo(?:\s+-\S+)*\s+)+", "", sub
+    )
+    probe = re.sub(r"\s+", " ", probe).strip()
+    if any(pat.match(probe) for pat in patterns):
         continue
     kept.append(sub)
 print("\n".join(kept))
