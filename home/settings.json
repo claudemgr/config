@@ -25,7 +25,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "$HOME/.claude/scripts/statusline.sh"
+    "command": "~/.claude/scripts/statusline.sh"
   },
   "autoMode": {
     "classifyAllShell": false
