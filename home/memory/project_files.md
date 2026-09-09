@@ -122,7 +122,7 @@ This table covers files Claude actively manages and files with non-obvious place
 | `SPEC.md` | Spec | | Project-specific rule overrides — only add content when a rule must contradict the template or global default |
 | `CLAUDE.md` | Spec | ✓ | Short loader — points at `AI.md` and `IDEA.md` |
 | `README.md` | Docs | ✓ | Public documentation |
-| `LICENSE.md` | Docs | ✓ | Project license + third-party attributions — not required under `~/Projects/local/system/**` (see `CLAUDE.md` → "Local System Management Zone") |
+| `LICENSE.md` | Docs | ✓ | Project license + third-party attributions — not required under `~/Projects/local/system/**` (see `local_system_zone.md`) |
 | `CHANGELOG.md` | Docs | | Release history — allowed at any path (root, `.github/`, etc.) |
 | `Makefile` | Build | ✓ | Build entrypoint |
 | `release.txt` | Version | | Canonical version string |
@@ -221,7 +221,7 @@ This table covers files Claude actively manages and files with non-obvious place
 - `## Install` (or equivalent production section) comes **before** `## Development` — always
 - Conditional sections (`Docker`, `Client CLI`, `Agent`) are included only when the project actually ships that component; detect by checking for `docker/docker-compose.yml` (Docker section) and `docker/Dockerfile` (Docker build subsection); omit entirely if not applicable
 - `## Development` is always the last substantive section, immediately before `## License`
-- `## License` is always the final section — omitted entirely under `~/Projects/local/system/**`, where `LICENSE.md` is not required (see `CLAUDE.md` → "Local System Management Zone")
+- `## License` is always the final section — omitted entirely under `~/Projects/local/system/**`, where `LICENSE.md` is not required (see `local_system_zone.md`)
 - Emojis in section headers are appropriate and encouraged; keep them consistent within a file
 - No `## Table of Contents` — headings are the navigation; ToC adds noise for short-to-medium READMEs
 
