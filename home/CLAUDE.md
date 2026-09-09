@@ -241,7 +241,7 @@ Key rules always in effect:
 **Pre-commit sequence:**
 1. `git status --porcelain` + `git diff --stat` — see actual changes
 2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` plus the `script-lint` Agent (spawn it via the Agent tool — it is not a shell command) instead, no Makefile required; for `spec-collection` projects, re-read the edited file(s) instead — there is no test runner) — every test must pass; never commit with a failing test
-3. Run the lint gate (see below) — never commit with violations
+3. Run the lint gate (see below) — never commit with NEW violations (issues on lines this session's own changes touch); pre-existing violations elsewhere in the file must be logged to `TODO.AI.md`, not fixed as an out-of-scope drive-by, and do not block the gate
 4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
 5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
 6. Run `gitcommit --dir {dir} all`
@@ -250,7 +250,7 @@ Key rules always in effect:
 
 **Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` plus the `script-lint` Agent instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
 
-**Lint gate:** the `script-lint` (shell) / `go-lint` (Go) / `rust-lint` (Rust) Agents — spawn each via the Agent tool, never as a shell command, there is no CLI binary by that name · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with violations.
+**Lint gate:** the `script-lint` (shell) / `go-lint` (Go) / `rust-lint` (Rust) Agents — spawn each via the Agent tool, never as a shell command, there is no CLI binary by that name · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with NEW violations. The `script-lint`/`go-lint`/`rust-lint` Agents classify each finding as NEW (on a line this session's own uncommitted changes touch) or pre-existing; only NEW findings block — a report ending `0 new issue(s) found` passes even with pre-existing findings listed, which still must be logged to `TODO.AI.md` before moving on. `npm run lint`/`ruff check` have no such split — any output from those still blocks as before.
 
 **Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
 

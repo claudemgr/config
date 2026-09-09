@@ -163,29 +163,62 @@ Standard sysexits.h codes for reference:
 | 78 | EX_CONFIG | Configuration error |
 | 128–143 | — | Signal death (128 + signal number) |
 
+## New vs Pre-existing
+
+A file can carry issues the current task didn't introduce. Blocking the
+commit on those punishes touching a file at all and pushes toward
+out-of-scope drive-by fixes just to get a "clean" report — so **only
+issues on lines the current uncommitted changes actually touch are
+blocking.** Everything else is pre-existing and must be surfaced, but
+never blocks the gate.
+
+For each file being linted:
+
+1. Run `git diff -- {file}` and `git diff --cached -- {file}` (both —
+   staged and unstaged uncommitted changes) to get the changed-line
+   ranges. If the file is untracked (`git diff` shows nothing and
+   `git status --porcelain` marks it `??`), every line in it counts as
+   changed.
+2. Classify each finding: **NEW** if its line number falls inside an
+   added/modified hunk from step 1, **PRE-EXISTING** otherwise.
+3. If `git diff` cannot be run at all (no git repo, git error) —
+   classify every finding as NEW rather than silently dropping the
+   distinction; fail toward stricter, not toward hiding issues.
+
+Tag every listed finding `[NEW]` or `[PRE-EXISTING]` in addition to its
+existing category tag. Logging pre-existing findings into
+`TODO.AI.md` is the calling session's responsibility (CLAUDE.md's "No
+issue left only in conversation" rule) — this agent reports and
+classifies; it does not write TODO.AI.md itself unless explicitly asked.
+
 ## Output Format
 
-```
-{scriptname}: {N} issue(s) found
+First line is the terminal contract line the commit gate parses —
+its exact wording matters:
 
-1. [NAMING] line {N}: function `foo` missing `__` prefix
-2. [NAMING] line {N}: `install.sh` var `INSTALL_PORT` must use project-name prefix `MYAPP_PORT`
-3. [UUOC] line {N}: `cat file | grep` → use `grep pattern file`
-4. [COMMENT] line {N}: inline comment on code line — move above
-5. [VERSION] header @@Version (202601010000-git) does not match VERSION= (202602020000-git)
-6. [TRIPLE-SYNC] man/scriptname.1 missing (bin-installed script requires man page + completions)
-7. [FLAGS] --color flag missing from argument parser
-8. [FLAGS] NO_COLOR env var not checked
-9. [FLAGS] short flag -x defined but not in IDEA.md
-10. [PARSER] hand-rolled while/case arg loop — use getopt/getopts/zparseopts/argparse
-11. [GREP] line {N}: `grep "pattern"` missing `--` before query → `grep -- "pattern"`
-12. [GREP] line {N}: `egrep` used — replace with `grep -E`
-13. [GREP] line {N}: `fgrep` used — replace with `grep -F`
-14. [GREP] line {N}: `rgrep` used — replace with `grep -r`
-15. [EXIT] line {N}: exit code {N} is outside standard ranges (0–2, 64–78, 128–143)
-16. [EXIT] line {N}: bare `exit` with no code — use `exit 0`, `exit 1`, or `exit "$?"` to be explicit
-17. [EXIT] line {N}: bare `return` mid-function with no code — use `return 0`, `return 1`, or `return "$?"`
-18. [CONFIG-DERIVE] line {N}: `MAIL_DOMAIN` prompted/defaulted independently of `DOMAIN` — derive as `"${DOMAIN}"` instead of asking twice
-```
+- Nothing found at all: `{scriptname}: clean`
+- Findings exist but none are NEW: `{scriptname}: 0 new issue(s) found ({M} pre-existing, log to TODO.AI.md)`
+- One or more NEW findings: `{scriptname}: {N} new issue(s) found ({M} pre-existing also found)` — omit the parenthetical when M is 0
 
-If no issues: `{scriptname}: clean`
+```
+{scriptname}: {N} new issue(s) found ({M} pre-existing also found)
+
+1. [NAMING] [NEW] line {N}: function `foo` missing `__` prefix
+2. [NAMING] [PRE-EXISTING] line {N}: `install.sh` var `INSTALL_PORT` must use project-name prefix `MYAPP_PORT`
+3. [UUOC] [NEW] line {N}: `cat file | grep` → use `grep pattern file`
+4. [COMMENT] [PRE-EXISTING] line {N}: inline comment on code line — move above
+5. [VERSION] [NEW] header @@Version (202601010000-git) does not match VERSION= (202602020000-git)
+6. [TRIPLE-SYNC] [PRE-EXISTING] man/scriptname.1 missing (bin-installed script requires man page + completions)
+7. [FLAGS] [NEW] --color flag missing from argument parser
+8. [FLAGS] [PRE-EXISTING] NO_COLOR env var not checked
+9. [FLAGS] [PRE-EXISTING] short flag -x defined but not in IDEA.md
+10. [PARSER] [NEW] hand-rolled while/case arg loop — use getopt/getopts/zparseopts/argparse
+11. [GREP] [NEW] line {N}: `grep "pattern"` missing `--` before query → `grep -- "pattern"`
+12. [GREP] [PRE-EXISTING] line {N}: `egrep` used — replace with `grep -E`
+13. [GREP] [PRE-EXISTING] line {N}: `fgrep` used — replace with `grep -F`
+14. [GREP] [PRE-EXISTING] line {N}: `rgrep` used — replace with `grep -r`
+15. [EXIT] [NEW] line {N}: exit code {N} is outside standard ranges (0–2, 64–78, 128–143)
+16. [EXIT] [PRE-EXISTING] line {N}: bare `exit` with no code — use `exit 0`, `exit 1`, or `exit "$?"` to be explicit
+17. [EXIT] [PRE-EXISTING] line {N}: bare `return` mid-function with no code — use `return 0`, `return 1`, or `return "$?"`
+18. [CONFIG-DERIVE] [PRE-EXISTING] line {N}: `MAIL_DOMAIN` prompted/defaulted independently of `DOMAIN` — derive as `"${DOMAIN}"` instead of asking twice
+```

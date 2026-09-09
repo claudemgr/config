@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302205-git
+##@Version           :  202609090035-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,9 +10,9 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  lint-agent-mark.sh
 # @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint reports a clean result.
-# @@Changelog        :  Now parses last_assistant_message for the clean/issues-found contract instead of marking on bare subagent completion.
+# @@Changelog        :  Contract now distinguishes NEW (blocking) from pre-existing (non-blocking) findings — marks pass on `: clean` or `: 0 new issue(s) found`, skips only on a nonzero `: N new issue(s) found`; a report with only pre-existing findings no longer false-blocks the gate.
 # @@TODO             :  None
-# @@Other            :  Lint agents always end their report `: clean` or `: N issue(s) found` — last_assistant_message is checked against that; issues found skips the marker.
+# @@Other            :  Lint agents always end their report `: clean`, `: 0 new issue(s) found (M pre-existing...)`, or `: N new issue(s) found` — last_assistant_message is checked against that; a nonzero new-issue count skips the marker, pre-existing-only never does.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh, home/hooks/enforce-test-lint-gate.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302205-git"
+VERSION="202609090035-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -49,12 +49,17 @@ LINT_AGENT_MARK_SESSION_ID=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (
 [ -z "$LINT_AGENT_MARK_SESSION_ID" ] && exit 0
 
 # script-lint/go-lint/rust-lint's own Output Format section ends every
-# report with `: clean` (pass) or `: N issue(s) found` (fail), one line
-# per file/package/crate — a multi-file run must be ALL clean, so any
-# "issue(s) found" line anywhere disqualifies the whole report.
+# report with `: clean` (nothing at all), `: 0 new issue(s) found`
+# (pre-existing findings only — non-blocking), or `: N new issue(s)
+# found` (N >= 1, blocking) — one line per file/package/crate. Only
+# issues on lines the current uncommitted changes actually touch are
+# NEW; pre-existing findings must still be logged to TODO.AI.md by the
+# calling session, but never block this gate on their own. A multi-file
+# run must have zero NEW anywhere, so any nonzero "N new issue(s)
+# found" line disqualifies the whole report.
 LINT_AGENT_MARK_MSG=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.last_assistant_message) catch "" // ""')
-printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': clean\b' || exit 0
-printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [0-9]+ issue\(s\) found\b' && exit 0
+printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': clean\b|: 0 new issue\(s\) found\b' || exit 0
+printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [1-9][0-9]* new issue\(s\) found\b' && exit 0
 
 LINT_AGENT_MARK_PROJECT=$(git -C "${LINT_AGENT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
   || LINT_AGENT_MARK_PROJECT="$LINT_AGENT_MARK_CWD"

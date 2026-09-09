@@ -103,36 +103,71 @@ Flag any missing field or wrong value.
 - Never hardcode `/tmp` — use `std::env::temp_dir()`. Flag literal `/tmp/` strings outside of comments/tests.
 - Temp dirs must be prefixed with `{project_org}/{internal_name}-XXXXXX` (`{internal_name}` is the frozen on-disk identifier; never `{project_name}`). Flag bare `tempfile::tempdir()` without a prefixed path.
 
+## New vs Pre-existing
+
+A crate can carry issues the current task didn't introduce. Blocking
+the commit on those punishes touching a crate at all and pushes toward
+out-of-scope drive-by fixes just to get a "clean" report — so **only
+issues on lines the current uncommitted changes actually touch are
+blocking.** Everything else is pre-existing and must be surfaced, but
+never blocks the gate.
+
+For each file being linted:
+
+1. Run `git diff -- {file}` and `git diff --cached -- {file}` (both —
+   staged and unstaged uncommitted changes) to get the changed-line
+   ranges. If the file is untracked (`git diff` shows nothing and
+   `git status --porcelain` marks it `??`), every line in it counts as
+   changed. Makefile/Cargo.toml-level findings (no single source line,
+   e.g. overall profile settings) count as NEW only if that file itself
+   has uncommitted changes this session.
+2. Classify each finding: **NEW** if its line number falls inside an
+   added/modified hunk from step 1, **PRE-EXISTING** otherwise.
+3. If `git diff` cannot be run at all (no git repo, git error) —
+   classify every finding as NEW rather than silently dropping the
+   distinction; fail toward stricter, not toward hiding issues.
+
+Tag every listed finding `[NEW]` or `[PRE-EXISTING]` in addition to its
+existing category tag. Logging pre-existing findings into
+`TODO.AI.md` is the calling session's responsibility (CLAUDE.md's "No
+issue left only in conversation" rule) — this agent reports and
+classifies; it does not write TODO.AI.md itself unless explicitly asked.
+
 ## Output Format
 
-```
-{crate or file}: {N} issue(s) found
+First line is the terminal contract line the commit gate parses —
+its exact wording matters:
 
-1. [BUILD] Makefile line {N}: `cargo test` run directly — must run inside Docker
-2. [BUILD] Makefile line {N}: rust:1.78 pinned — use casjaysdev/rust:latest
-3. [BUILD] {file} line {N}: raw `docker run ... cargo build` bypasses `make build` — use `make build` (Makefile target exists)
-4. [MKDIR] Makefile line {N}: RUST_DOCKER invoked without preceding `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)`
-5. [LAYOUT] src/handler/: singular dir name — rename to handlers/
-6. [MAKEFILE] Makefile: missing required target `help`
-7. [FORMAT] Makefile: test target missing `cargo fmt --check` before `cargo test`
-8. [PROFILE] Cargo.toml: [profile.release] missing `lto = true`
-9. [PROFILE] Cargo.toml: opt-level = "s" — must be "z"
-10. [BINARY] Makefile line {N}: output name uses `darwin` — must use `macos` (Rust convention)
-11. [BINARY] Makefile line {N}: output name uses `amd64` — must use `x86_64` (GNU arch term)
-12. [BINARY] Makefile line {N}: `-musl` suffix in binary name — remove it
-13. [STRIP] Makefile line {N}: release binary copied without subsequent `strip` call
-14. [CLIPPY] {file} line {N}: `#[allow(clippy::foo)]` missing explanatory comment above
-15. [PANIC] {file} line {N}: `unwrap()` in non-test code — use `?` or explicit error handling
-16. [DEPS] Cargo.toml: openssl dependency — replace with rustls
-17. [DEPS] Cargo.toml: libloading — dlopen forbidden unless IDEA.md defines plugin contract
-18. [FLAGS] {file} line {N}: --color flag missing from clap definition
-19. [FLAGS] {file} line {N}: disable_version_flag(true) suppresses --version
-20. [NO_COLOR] {file} line {N}: color/emoji output not gated on NO_COLOR check
-21. [LOGGING] {file} line {N}: tracing subscriber missing .with_ansi(false) for file writer
-22. [ASSETS] {file} line {N}: fs::read_to_string loading asset at runtime — use include_bytes!
-23. [TMPDIR] {file} line {N}: hardcoded /tmp/ — use std::env::temp_dir()
-24. [EXIT] {file} line {N}: process::exit({N}) — code outside standard ranges (0–2, 64–78, 128–143)
-25. [EXIT] {file} line {N}: process::exit() used where process::ExitCode would allow destructors to run
-```
+- Nothing found at all: `{crate}: clean`
+- Findings exist but none are NEW: `{crate}: 0 new issue(s) found ({M} pre-existing, log to TODO.AI.md)`
+- One or more NEW findings: `{crate}: {N} new issue(s) found ({M} pre-existing also found)` — omit the parenthetical when M is 0
 
-If no issues: `{crate}: clean`
+```
+{crate or file}: {N} new issue(s) found ({M} pre-existing also found)
+
+1. [BUILD] [PRE-EXISTING] Makefile line {N}: `cargo test` run directly — must run inside Docker
+2. [BUILD] [PRE-EXISTING] Makefile line {N}: rust:1.78 pinned — use casjaysdev/rust:latest
+3. [BUILD] [NEW] {file} line {N}: raw `docker run ... cargo build` bypasses `make build` — use `make build` (Makefile target exists)
+4. [MKDIR] [PRE-EXISTING] Makefile line {N}: RUST_DOCKER invoked without preceding `@mkdir -p $(CARGO_CACHE) $(RUSTUP_CACHE) $(SCCACHE_CACHE) $(CARGO_TARGET)`
+5. [LAYOUT] [PRE-EXISTING] src/handler/: singular dir name — rename to handlers/
+6. [MAKEFILE] [PRE-EXISTING] Makefile: missing required target `help`
+7. [FORMAT] [PRE-EXISTING] Makefile: test target missing `cargo fmt --check` before `cargo test`
+8. [PROFILE] [PRE-EXISTING] Cargo.toml: [profile.release] missing `lto = true`
+9. [PROFILE] [PRE-EXISTING] Cargo.toml: opt-level = "s" — must be "z"
+10. [BINARY] [PRE-EXISTING] Makefile line {N}: output name uses `darwin` — must use `macos` (Rust convention)
+11. [BINARY] [PRE-EXISTING] Makefile line {N}: output name uses `amd64` — must use `x86_64` (GNU arch term)
+12. [BINARY] [PRE-EXISTING] Makefile line {N}: `-musl` suffix in binary name — remove it
+13. [STRIP] [PRE-EXISTING] Makefile line {N}: release binary copied without subsequent `strip` call
+14. [CLIPPY] [NEW] {file} line {N}: `#[allow(clippy::foo)]` missing explanatory comment above
+15. [PANIC] [NEW] {file} line {N}: `unwrap()` in non-test code — use `?` or explicit error handling
+16. [DEPS] [PRE-EXISTING] Cargo.toml: openssl dependency — replace with rustls
+17. [DEPS] [PRE-EXISTING] Cargo.toml: libloading — dlopen forbidden unless IDEA.md defines plugin contract
+18. [FLAGS] [NEW] {file} line {N}: --color flag missing from clap definition
+19. [FLAGS] [PRE-EXISTING] {file} line {N}: disable_version_flag(true) suppresses --version
+20. [NO_COLOR] [PRE-EXISTING] {file} line {N}: color/emoji output not gated on NO_COLOR check
+21. [LOGGING] [PRE-EXISTING] {file} line {N}: tracing subscriber missing .with_ansi(false) for file writer
+22. [ASSETS] [PRE-EXISTING] {file} line {N}: fs::read_to_string loading asset at runtime — use include_bytes!
+23. [TMPDIR] [NEW] {file} line {N}: hardcoded /tmp/ — use std::env::temp_dir()
+24. [EXIT] [NEW] {file} line {N}: process::exit({N}) — code outside standard ranges (0–2, 64–78, 128–143)
+25. [EXIT] [PRE-EXISTING] {file} line {N}: process::exit() used where process::ExitCode would allow destructors to run
+```

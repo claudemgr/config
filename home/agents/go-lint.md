@@ -69,33 +69,68 @@ You are a Go project linter enforcing CasjaysDev conventions. Check only what is
 
 - Assets must be embedded at build time with `//go:embed`. Flag any `os.Open`, `os.ReadFile`, or `ioutil.ReadFile` loading assets from the filesystem at runtime.
 
+## New vs Pre-existing
+
+A package can carry issues the current task didn't introduce. Blocking
+the commit on those punishes touching a package at all and pushes
+toward out-of-scope drive-by fixes just to get a "clean" report — so
+**only issues on lines the current uncommitted changes actually touch
+are blocking.** Everything else is pre-existing and must be surfaced,
+but never blocks the gate.
+
+For each file being linted:
+
+1. Run `git diff -- {file}` and `git diff --cached -- {file}` (both —
+   staged and unstaged uncommitted changes) to get the changed-line
+   ranges. If the file is untracked (`git diff` shows nothing and
+   `git status --porcelain` marks it `??`), every line in it counts as
+   changed. Makefile-level findings (no single source line, e.g.
+   overall build pattern) count as NEW only if the Makefile itself has
+   uncommitted changes this session.
+2. Classify each finding: **NEW** if its line number falls inside an
+   added/modified hunk from step 1, **PRE-EXISTING** otherwise.
+3. If `git diff` cannot be run at all (no git repo, git error) —
+   classify every finding as NEW rather than silently dropping the
+   distinction; fail toward stricter, not toward hiding issues.
+
+Tag every listed finding `[NEW]` or `[PRE-EXISTING]` in addition to its
+existing category tag. Logging pre-existing findings into
+`TODO.AI.md` is the calling session's responsibility (CLAUDE.md's "No
+issue left only in conversation" rule) — this agent reports and
+classifies; it does not write TODO.AI.md itself unless explicitly asked.
+
 ## Output Format
 
-```
-{package or file}: {N} issue(s) found
+First line is the terminal contract line the commit gate parses —
+its exact wording matters:
 
-1. [CGO] Makefile line {N}: CGO_ENABLED not set in go build command
-2. [BUILD] Makefile line {N}: `go test ./...` run directly — must use `make test` (Docker)
-3. [BUILD] {file} line {N}: raw `docker run ... go build` bypasses `make build` — use `make build` (Makefile target exists)
-4. [BUILDVCS] Makefile line {N}: GO_DOCKER missing `-e GOFLAGS=-buildvcs=false`
-5. [BUILDVCS] Makefile line {N}: `go build` missing `-buildvcs=false`
-6. [MAKEFILE] Makefile line {N}: PROJECTNAME hardcoded as "myapp" — must infer from git remote
-7. [MAKEFILE] Makefile line {N}: uses VCS_REF — rename to CommitID
-8. [MAKEFILE] Makefile line {N}: golang:1.23 pinned — use casjaysdev/go:latest
-9. [MKDIR] Makefile line {N}: GO_DOCKER invoked without preceding `@mkdir -p $(GO_CACHE) $(GO_BUILD)`
-10. [BINARY] Makefile line {N}: output name uses `macos` — must use `darwin` (GOOS term)
-11. [BINARY] Makefile line {N}: output name uses `x86_64` — must use `amd64` (GOARCH term)
-12. [BINARY] Makefile line {N}: `-musl` suffix in binary name — remove it
-13. [STRIP] Makefile line {N}: -s -w missing from LDFLAGS in build target
-14. [STRIP] Makefile line {N}: -trimpath missing from LDFLAGS in build target
-15. [LAYOUT] {file}: source at repo root — move to src/
-16. [FORBIDDEN] {file} line {N}: strconv.ParseBool() — use config.ParseBool()
-17. [FLAGS] {file} line {N}: --color flag missing
-18. [NO_COLOR] {file} line {N}: color output not gated on NO_COLOR check
-19. [LOGGING] {file} line {N}: ANSI escape in log file write
-20. [EMBED] {file} line {N}: os.ReadFile loading asset at runtime — use go:embed
-21. [EXIT] {file} line {N}: os.Exit({N}) — code outside standard ranges (0–2, 64–78, 128–143)
-22. [EXIT] {file} line {N}: log.Fatal used — sets exit 1 only; use os.Exit with correct sysexits code
-```
+- Nothing found at all: `{package}: clean`
+- Findings exist but none are NEW: `{package}: 0 new issue(s) found ({M} pre-existing, log to TODO.AI.md)`
+- One or more NEW findings: `{package}: {N} new issue(s) found ({M} pre-existing also found)` — omit the parenthetical when M is 0
 
-If no issues: `{package}: clean`
+```
+{package or file}: {N} new issue(s) found ({M} pre-existing also found)
+
+1. [CGO] [NEW] Makefile line {N}: CGO_ENABLED not set in go build command
+2. [BUILD] [PRE-EXISTING] Makefile line {N}: `go test ./...` run directly — must use `make test` (Docker)
+3. [BUILD] [NEW] {file} line {N}: raw `docker run ... go build` bypasses `make build` — use `make build` (Makefile target exists)
+4. [BUILDVCS] [PRE-EXISTING] Makefile line {N}: GO_DOCKER missing `-e GOFLAGS=-buildvcs=false`
+5. [BUILDVCS] [PRE-EXISTING] Makefile line {N}: `go build` missing `-buildvcs=false`
+6. [MAKEFILE] [PRE-EXISTING] Makefile line {N}: PROJECTNAME hardcoded as "myapp" — must infer from git remote
+7. [MAKEFILE] [PRE-EXISTING] Makefile line {N}: uses VCS_REF — rename to CommitID
+8. [MAKEFILE] [PRE-EXISTING] Makefile line {N}: golang:1.23 pinned — use casjaysdev/go:latest
+9. [MKDIR] [PRE-EXISTING] Makefile line {N}: GO_DOCKER invoked without preceding `@mkdir -p $(GO_CACHE) $(GO_BUILD)`
+10. [BINARY] [PRE-EXISTING] Makefile line {N}: output name uses `macos` — must use `darwin` (GOOS term)
+11. [BINARY] [PRE-EXISTING] Makefile line {N}: output name uses `x86_64` — must use `amd64` (GOARCH term)
+12. [BINARY] [PRE-EXISTING] Makefile line {N}: `-musl` suffix in binary name — remove it
+13. [STRIP] [PRE-EXISTING] Makefile line {N}: -s -w missing from LDFLAGS in build target
+14. [STRIP] [PRE-EXISTING] Makefile line {N}: -trimpath missing from LDFLAGS in build target
+15. [LAYOUT] [PRE-EXISTING] {file}: source at repo root — move to src/
+16. [FORBIDDEN] [NEW] {file} line {N}: strconv.ParseBool() — use config.ParseBool()
+17. [FLAGS] [NEW] {file} line {N}: --color flag missing
+18. [NO_COLOR] [PRE-EXISTING] {file} line {N}: color output not gated on NO_COLOR check
+19. [LOGGING] [PRE-EXISTING] {file} line {N}: ANSI escape in log file write
+20. [EMBED] [PRE-EXISTING] {file} line {N}: os.ReadFile loading asset at runtime — use go:embed
+21. [EXIT] [NEW] {file} line {N}: os.Exit({N}) — code outside standard ranges (0–2, 64–78, 128–143)
+22. [EXIT] [PRE-EXISTING] {file} line {N}: log.Fatal used — sets exit 1 only; use os.Exit with correct sysexits code
+```
