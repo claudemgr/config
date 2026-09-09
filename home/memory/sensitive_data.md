@@ -68,7 +68,7 @@ Masking rules:
 - Use environment variables, mounted secrets, or a secrets manager — never hardcode
 - Config files that need a credential: use `${VAR_NAME}` as a placeholder, never a real value
 - **Never store tokens in plaintext** — hash with SHA-256 before persisting to disk or a database; never log the raw token at any level
-- **Password hashing: Argon2id only** (see CLAUDE.md → Project Defaults; tuning: time=3, memory=64MiB, threads=4, keyLen=32)
+- **Password hashing: Argon2id only** — full rule and tuning parameters: `security_conventions.md`
 - Scanning generated code for accidental credential leakage is part of every review
 
 ## CI / CD Specific Rules

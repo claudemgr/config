@@ -257,7 +257,7 @@ Security is first-class from day one — never bolted on after. It must also be 
 - **Defense in depth** — no single control is the last line; layer authentication, authorization, input validation, output encoding, and rate limiting independently
 - **No security theater** — do not impose friction that punishes honest users without meaningfully stopping attackers (e.g. forced password rotation on a schedule unrelated to breach, CAPTCHA on low-risk flows, MFA on non-sensitive pages)
 - **Clear security errors** — when a request is blocked or fails a security check, tell the user what happened and what to do next; never return a bare 403 or "access denied" with no context
-- **Password hashing: Argon2id only** — never bcrypt, never scrypt, never MD5/SHA for passwords
+- **Password hashing: Argon2id only** — never bcrypt, never scrypt, never MD5/SHA for passwords; tuning: time=3, memory=64MiB, threads=4, keyLen=32
 - **Audit log security-relevant events** — auth success/failure, permission changes, admin actions, data exports; logs are append-only and never contain raw credentials
 
 ---
