@@ -1,3 +1,9 @@
+---
+name: File ending conventions
+description: Every text file ends with a single trailing newline; exceptions for raw-value secret/token files, verbatim-interpolated files, mid-line fragments, and binary/generated artifacts
+type: user
+---
+
 # File Ending Conventions
 
 ## Rule

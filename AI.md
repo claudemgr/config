@@ -104,21 +104,42 @@ type: user
 | `MEMORY.md` | Index of all memory files |
 | `project_conventions.md` | `{project_dir}/AI.md` / `IDEA.md` / `CLAUDE.md` roles, placeholder system, template system, first-time setup |
 | `local_system_zone.md` | Rules that relax under `~/Projects/local/system/**` (plaintext credentials, no LICENSE.md, systemctl pre-auth, cross-repo/host-config grants, raw git commands) and what never relaxes there |
+| `model_routing.md` | Route each unit of work to the cheapest capable model (Haiku/Sonnet/Opus/Fable); largest single lever on consumption |
 | `execution_hierarchy.md` | VM > Incus > Docker > host; execution scope rules |
 | `sensitive_data.md` | All public destinations equal; masking format (`key=xxxxx`); pre-flight checklist |
 | `image_conventions.md` | Convert before reading (max 1280px, WebP); fallback chain; URL image workflow |
 | `gitcommit_conventions.md` | `gitcommit` path resolution; never hardcode path |
+| `comment_conventions.md` | Comment placement rules, formats where comments are forbidden, language-specific comment syntax |
+| `file_ending_conventions.md` | Every text file ends with exactly one trailing newline; exceptions for secret/verbatim/binary files |
+| `shell_lifetime_conventions.md` | Timeout tiers, polling rules, background-process ownership, follow-mode bounds — enforced by `bound-shell-lifetime.sh` |
 | `script_conventions.md` | Shebang/extension → interpreter; header template; `__` prefix; NO_COLOR; exit codes; doc triple sync |
 | `project_files.md` | Files/dirs that must never be created; README.md/LICENSE.md naming rules |
+| `external_contributions.md` | Rules for forks/PRs to third-party projects — upstream conventions win, task-scoped diffs only, no spec files created |
 | `standards_reference.md` | HTTP status codes, RFC 7807, ISO 8601, semver, MIME, UUID, TLS, JWT, OAuth2, pagination |
 | `gitignore_conventions.md` | Header format, standard entries, project-type additions |
 | `dockerfile_conventions.md` | Two-stage builds, OCI labels, tini entrypoint, Docker Compose rules, .dockerignore |
+| `nginx_conventions.md` | TLS cert paths, post-renewal deploy hooks, reverse-proxy vhost templates |
+| `rpm_conventions.md` | Spec file structure, build workflow, signing, and repo layout for RPM packages |
 | `logging_conventions.md` | Log files are pure raw text; format per type; masking in logs |
 | `tempdir_conventions.md` | Required path structure, per-language creation, guarded cleanup |
 | `cicd_conventions.md` | SHA pinning, no `pull_request_target`, branch protection, SBOM, release integrity |
 | `go_conventions.md` | Go project layout, Makefile targets, CGO=0, binary naming, module cache |
 | `rust_conventions.md` | Rust project layout, Cargo, release profile, static linking |
+| `node_typescript_conventions.md` | Build system, project layout, Makefile targets, code rules for Node/TypeScript projects |
+| `python_conventions.md` | Build system, project layout, Makefile targets, code rules for Python projects |
+| `makefile_conventions.md` | Universal Makefile patterns shared across all project types and languages |
+| `version_conventions.md` | How version strings originate in `release.txt` and flow through the build pipeline into binaries/images/releases |
+| `github_conventions.md` | CODEOWNERS, branch protection, workflow patterns, issue/PR templates, release automation, registry conventions |
+| `gitlab_conventions.md` | GitLab-specific CI/registry/MR conventions; load only when the remote resolves to GitLab |
+| `gitea_conventions.md` | Gitea-specific workflow/runner/registry conventions; load only when the remote resolves to Gitea |
+| `forgejo_conventions.md` | Forgejo-specific workflow/runner/registry conventions; load only when the remote resolves to Forgejo |
+| `ui_ux_conventions.md` | Designer-level UI/UX standards — theme system, accessibility, layout, interaction |
 | `project_type_conventions.md` | Rules by project type: server, cli, script-collection, spec-collection, packaging, library, tui, desktop-gui, worker |
+| `security_conventions.md` | Enumeration mitigation, GeoIP, CVE/dependency scanning, blocklists, SECURITY.md rules |
+| `testing_conventions.md` | Test structure, naming, unit vs integration split, coverage gates, mock strategy |
+| `database_conventions.md` | Schema management, parameterized queries, connection pooling, SQLite vs PostgreSQL selection, transaction patterns |
+| `api_conventions.md` | REST route naming, versioning, path vs query params, response format, request ID, content negotiation, middleware ordering |
+| `tool_conventions.md` | Internet access rules, default flags for curl/wget/grep/WebSearch, provider CLI usage |
 
 **Adding a new memory file:**
 1. Create `home/memory/{topic}.md` with frontmatter

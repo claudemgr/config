@@ -1,3 +1,9 @@
+---
+name: Nginx conventions
+description: TLS cert paths, post-renewal deploy hook template, reverse-proxy vhost templates, and vhost rules
+type: user
+---
+
 # Nginx & TLS Conventions
 
 ## TLS Certificates — Let's Encrypt
