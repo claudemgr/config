@@ -103,6 +103,7 @@ type: user
 |------|--------|
 | `MEMORY.md` | Index of all memory files |
 | `project_conventions.md` | `{project_dir}/AI.md` / `IDEA.md` / `CLAUDE.md` roles, placeholder system, template system, first-time setup |
+| `local_system_zone.md` | Rules that relax under `~/Projects/local/system/**` (plaintext credentials, no LICENSE.md, systemctl pre-auth, cross-repo/host-config grants, raw git commands) and what never relaxes there |
 | `execution_hierarchy.md` | VM > Incus > Docker > host; execution scope rules |
 | `sensitive_data.md` | All public destinations equal; masking format (`key=xxxxx`); pre-flight checklist |
 | `image_conventions.md` | Convert before reading (max 1280px, WebP); fallback chain; URL image workflow |
