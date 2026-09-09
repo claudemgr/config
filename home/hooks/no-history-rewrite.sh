@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609080001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,17 +10,17 @@
 # @@Created          :  Sunday, August 30, 2026 16:00 EDT
 # @@File             :  no-history-rewrite.sh
 # @@Description      :  PreToolUse hook: blocks destructive/history-rewriting git ops everywhere — a hook can only block, not interactively confirm.
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Repointed the "Still hard" list resource reference to local_system_zone.md, where that list now actually lives after being extracted out of CLAUDE.md.
 # @@TODO             :  None
 # @@Other            :  git rebase --abort/--continue/--skip are exempt — they resolve an already-started rebase rather than starting a new history rewrite.
-# @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
+# @@Resource         :  local_system_zone.md - "Still hard - no exception, ever"
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609080001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -144,8 +144,8 @@ def has_force_flag(tokens):
 
 
 def has_tag_delete_flag(tokens):
-    # git tag has no -D form (only git branch does) — CLAUDE.md's
-    # Local System Management Zone names only `git tag -d`. Exact-flag
+    # git tag has no -D form (only git branch does) — local_system_zone.md's
+    # "Still hard" list names only `git tag -d`. Exact-flag
     # match only (-d/--delete), matching the branch-delete matcher's
     # precision — a combined-flag regex here would also false-match any
     # unrelated short flag that merely contains the letter d.
@@ -304,7 +304,7 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
             "discard commits/work or rewrite history, so they require explicit user\n"
             "confirmation before ever running - even inside the Local System\n"
             "Management Zone, where raw git is otherwise pre-authorized (see\n"
-            "CLAUDE.md's zone section, \"Still hard\" list, and its catch-all: \"any\n"
+            "local_system_zone.md's \"Still hard\" list, and its catch-all: \"any\n"
             "other command that discards commits, discards uncommitted work, or\n"
             "rewrites history\").\n\n"
             "Ask the user to confirm, then have them run the command manually -\n"

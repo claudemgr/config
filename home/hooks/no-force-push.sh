@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609080001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,17 +10,17 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  no-force-push.sh
 # @@Description      :  PreToolUse hook: block git push --force/-f/+refspec (gitcommit is the only sanctioned push path)
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Repointed the "Still hard" list resource reference to local_system_zone.md, where that list now actually lives after being extracted out of CLAUDE.md.
 # @@TODO             :  None
 # @@Other            :  Blocks everywhere, including the zone — force-push has no zone exception.
-# @@Resource         :  CLAUDE.md - Local System Management Zone - "Still hard - no exception, ever"
+# @@Resource         :  local_system_zone.md - "Still hard - no exception, ever"
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  shell/bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609080001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -147,8 +147,9 @@ def is_force_push(tokens):
         # Long forms: --force, --force=..., --force-with-lease*. Excludes
         # --force-if-includes: a safety constraint that only takes effect
         # combined with --force/--force-with-lease (already caught above),
-        # not a force operation on its own — CLAUDE.md names only
-        # `--force*`/`--force-with-lease` literally, not this flag.
+        # not a force operation on its own — local_system_zone.md's "Still
+        # hard" list names only `--force*`/`--force-with-lease` literally,
+        # not this flag.
         if tok == "--force-if-includes":
             continue
         if tok == "--force" or tok.startswith("--force"):
