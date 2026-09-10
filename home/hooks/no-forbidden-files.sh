@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031530-git
+##@Version           :  202609100611-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-forbidden-files.sh
 # @@Description      :  PreToolUse hook: confirm before writing normally-forbidden files
-# @@Changelog        :  Allowlists CI/CD configs (.gitlab-ci.yml, renovate, goreleaser, ...), security scanner configs (.trivyignore, .gitleaks.toml, ...), linter dot-configs, and CI dot-dirs.
+# @@Changelog        :  Adds .eslintignore/.prettierignore; unconditionally allows .dockerignore (build-context root file, unlike Dockerfile which docker/ restricts).
 # @@TODO             :  Better docs
 # @@Other            :
 # @@Resource         :  home/memory/project_files.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031530-git"
+VERSION="202609100611-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -149,8 +149,10 @@ ALWAYS_ALLOW_BASENAMES = {
     "jest.config.js", "jest.config.ts", "jest.config.json",
     "vitest.config.js", "vitest.config.ts",
     ".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml",
+    ".eslintignore",
     "eslint.config.js", "eslint.config.ts", "eslint.config.mjs",
     ".prettierrc", ".prettierrc.js", ".prettierrc.json",
+    ".prettierignore",
     "prettier.config.js", "prettier.config.ts",
     "biome.json",
     "deno.json", "deno.jsonc", "deno.lock",
@@ -236,6 +238,7 @@ ALWAYS_ALLOW_BASENAMES = {
     # Tooling dot-configs
     ".gitignore", ".gitattributes", ".gitmodules",
     ".editorconfig",
+    ".dockerignore",
     ".env.example", ".env.sample",
     "app.env.example", "app.env.sample",
     "default.env.example", "default.env.sample",
@@ -325,7 +328,6 @@ LOCATION_RESTRICTED_DOCKER_BASENAMES = {
     "dockerfile", "containerfile",
     "docker-compose.yml", "docker-compose.yaml",
     "docker-compose.override.yml", "docker-compose.override.yaml",
-    ".dockerignore",
 }
 
 def is_allowed(fp, bn):

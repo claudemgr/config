@@ -8,8 +8,38 @@ You are a bash script linter enforcing CasjaysDev conventions. Check only what i
 
 ## Rules to Check
 
+### Scope — external/forked/vendored repos are exempt
+
+Before applying any rule below, check whether the script's repo is the
+user's own project or an external/forked/vendored third-party project
+(per `~/.claude/memory/external_contributions.md`). Verified real
+examples of the latter: `casjay-forks/notify-send.sh` (a fork of the
+upstream `notify-send.sh` project — has its own `AUTHORS`/`LICENSE`,
+no `AI.md`), `dfvim/vim-snippets` (a vendored snippets-plugin tree
+with its own `addon-info.json`/`AUTHORS`, no `AI.md`). Detection
+heuristic: no `AI.md` anywhere in the repo tree, AND the repo is
+identifiable as someone else's upstream tool/plugin (its own
+`README`/`AUTHORS`/`LICENSE` names an origin other than this user, or
+it lives under an org clearly signaling a fork/vendor tree, e.g.
+`casjay-forks/*`).
+
+When a script's repo matches this: **skip NAMING (`__`/`{PROJECT_NAME}_`/
+`{SCRIPTNAME}_` prefix rules), VERSION STAMP, TRIPLE-SYNC, and FLAGS/
+argument-parsing rules entirely** — match the upstream project's own
+conventions instead, per "Upstream conventions win" in
+`external_contributions.md`. UUOC/grep-`--`/exit-code findings may
+still be surfaced, but only as informational `[PRE-EXISTING]` notes,
+never as blocking `[NEW]` findings — we don't own this file's style.
+
+When it's ambiguous whether a repo is external, default to treating
+it as owned (apply the full ruleset below) — only skip when the
+evidence is clear (missing `AI.md` AND an identifiable upstream
+project), not merely because a name sounds generic or third-party-ish.
+
 ### Naming
 - Functions must be prefixed with `__` in ALL shells — `__my_function() {}` (bash/sh/zsh) or `function __my_function` (fish). Flag any function definition without `__` prefix.
+- Exception — **command-wrapper/shadow function**: a function deliberately given the exact same name as an external binary it wraps — its body execs, `command`s, or otherwise invokes that same-named binary with fixed/extra arguments (e.g. `geany() { command geany --custom-args "$@"; }`) — must never be flagged for missing `__`. The identical name is the entire point: calling `geany` transparently gets the wrapped behavior; prefixing it to `__geany` would defeat the wrapper and force every caller (interactively or from other scripts) to know about the rename. Verify by checking the function body actually calls the same-named command (via `command <name>`, `\<name>`, `env <name>`, or a full path to it) before applying this exception — a same-named function that does something unrelated to the binary is not a wrapper and is still a normal violation.
+- Exception — **established cross-file hook-name contract**: a function name deliberately left unprefixed because other scripts in the same family call it (or a same-named sibling, e.g. `run_postinst_global`) by that literal string, so renaming it would break the contract across files. Verified example: `casjay-dotfiles/scripts/install.sh`'s `run_pre_install()`/`run_postinst()`, referenced by exact name across 10+ files in `scripts/templates/scripts/installers/*.sh` and `scripts/functions/*.bash`. Confirm with a repo-wide grep for the function name outside its defining file before applying this exception — a name only ever called from within its own file does not qualify; that's a normal missing-`__` violation.
 - **Prefixing exists to prevent namespace collisions, not as a style mandate.** Whether a global needs `{SCRIPTNAME}_` (uppercase, filename without extension) depends on whether it can actually leak into a shell namespace it doesn't own:
   - **No shebang line, or the script is only ever `source`d / `.`-included (a sourced library file)** — every global var it sets lands directly in the caller's shell. Require the `{SCRIPTNAME}_` prefix on all globals in this case; the collision risk is real.
   - **Has a shebang and runs as its own process (the normal case — executed, not sourced)** — require the prefix only on vars that cross a process boundary: `export`ed vars (visible to children), and vars read as a caller-settable override via `${VAR:-default}` / `[[ -n "$VAR" ]]` (these are read from the invoking shell's environment even without being re-exported, so a generic name can still collide with the caller's namespace). Purely internal globals — assigned and consumed only within the script's own execution, never read from the incoming environment and never exported — are exempt from prefixing; flagging those is noise, not a real risk.
@@ -20,7 +50,7 @@ You are a bash script linter enforcing CasjaysDev conventions. Check only what i
     - Published external convention: `NO_COLOR` (no-color.org — also required by the FLAGS rule below, so never double-flag it as a NAMING issue)
     - Loop variables, single-letter scratch vars
   - Weaker exception — widely-adopted but not spec-backed conventions (`DEBUG`, `CI`, `FORCE_COLOR`): treat as exempt only when the script clearly uses them in the CI/debug-toggle sense consistent with cross-tool convention, not when a script has repurposed the name for something project-specific — if genuinely ambiguous, don't flag (see false-negative bias below).
-  - Exception (applies in both cases): **shared cross-script interface vars** — a generic name deliberately left unprefixed because it is an established convention read/set consistently across a script family so parent and child/sourced scripts (or sibling install/setup/uninstall scripts across projects) can interoperate without knowing each other's project prefix. Confirmed examples (verified recurring verbatim across the `casjay-dotfiles/scripts` and `*mgr` family): `SCRIPTS_PREFIX`, `REPO_BRANCH`, `GIT_REPO_BRANCH`, `USER_HOME`, `CASJAYSDEVDIR`, `SCRIPTSAPPFUNCTURL`, `SCRIPTSAPPFUNCTFILE`, `SCRIPT_OPTS`, `SHOW_RAW`, `BUILD_NAME`, `BUILD_LOG_FILE`, `BUILD_SRC_URL`, `BUILD_DESTDIR`, `BUILD_SCRIPT_SRC_DIR` (the last five confirmed verbatim across `dfmgr`'s `termite/build.sh`, `dmenu/build.sh`, `polybar/build.sh`, `st/build.sh`, `jgmenu/build.sh`), `VERSION`, `APPNAME`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR` (this repo's own family-wide script header convention — not a POSIX/X-Open standard, so it belongs in this tier, not the formal-standard one above). Do not flag these. This exception is narrow — it covers names already established as a shared convention across the family, not any generic-sounding name a single script happens to use for its own purpose; when genuinely unsure whether a name is a real shared-family convention or a one-off, don't flag it (false negatives here are cheaper than false positives that fight a deliberate design choice).
+  - Exception (applies in both cases): **shared cross-script interface vars** — a generic name deliberately left unprefixed because it is an established convention read/set consistently across a script family so parent and child/sourced scripts (or sibling install/setup/uninstall scripts across projects) can interoperate without knowing each other's project prefix. Confirmed examples (verified recurring verbatim across the `casjay-dotfiles/scripts` and `*mgr` family): `SCRIPTS_PREFIX`, `REPO_BRANCH`, `GIT_REPO_BRANCH`, `USER_HOME`, `CASJAYSDEVDIR`, `SCRIPTSAPPFUNCTURL`, `SCRIPTSAPPFUNCTFILE`, `SCRIPT_OPTS`, `SHOW_RAW`, `BUILD_NAME`, `BUILD_LOG_FILE`, `BUILD_SRC_URL`, `BUILD_DESTDIR`, `BUILD_SCRIPT_SRC_DIR` (the last five confirmed verbatim across `dfmgr`'s `termite/build.sh`, `dmenu/build.sh`, `polybar/build.sh`, `st/build.sh`, `jgmenu/build.sh`), `VERSION`, `APPNAME`, `RUN_USER`, `SET_UID`, `SCRIPT_SRC_DIR` (this repo's own family-wide script header convention — not a POSIX/X-Open standard, so it belongs in this tier, not the formal-standard one above), `EXIT` (verified recurring verbatim as `exit ${EXIT:-${exitCode:-0}}` across 10+ `dfmgr/*/install.sh` files, e.g. `asciinema`, `dircolors`, `gtk-3.0`, `mutt`, `polybar`, `tmux`, `zsh`). Do not flag these. This exception is narrow — it covers names already established as a shared convention across the family, not any generic-sounding name a single script happens to use for its own purpose; when genuinely unsure whether a name is a real shared-family convention or a one-off, don't flag it (false negatives here are cheaper than false positives that fight a deliberate design choice).
   - Exception — **Docker/container env-var passthrough, no spec check needed**: a var name written into a `Dockerfile`, `docker-compose.yml`/`compose.yml`, a `docker run -e VAR=...` invocation, or an `.env` file consumed by a container is that container's own env interface, not the host script's shell namespace — the name is dictated by the external image/tool, not a choice the script's author made. This covers names embedded as literal text in a heredoc destined for such a file (e.g. `\${PG_DB:-authentik}` escaped inside `cat > compose.yml << EOF`, never expanded by the host shell) and names passed via `-e`/`--env`/`environment:`. Never flag these, regardless of how generic the name is (`DOMAIN`, `PG_DB`, `LISTEN_ADDR`, etc.) — do not check the project spec, this is self-evident from the pattern itself. This exception does NOT cover the same variable name when the script *also* reads/exports it directly in its own host-shell logic outside the container handoff — e.g. `authentik/install.sh:54`'s `DOMAIN="${DOMAIN:-}"` is read and mutated across host-level SMTP-relay detection and state persistence, unrelated to any single docker-compose line, and is a genuine violation (`AUTHENTIK_DOMAIN`) even though the same script also writes plain `DOMAIN`-adjacent keys into its compose file.
   - Exception (applies in both cases): **project-documented external-interop vars** — for a generic-looking name (`DOMAIN`, `ADDRESS`, `LISTEN`, `FQDN`, and similar) used directly in the script's own host-shell logic (not the Docker-passthrough case above), check that project's own `AI.md`/`IDEA.md`/`SPEC.md`/`README.md` for whether the name is intentional — e.g. mirroring a non-container external tool's required env var (certbot/acme.sh's `DOMAIN`, systemd socket activation's `LISTEN_*`). If the project's own docs establish it as intentional external-facing config, don't flag it. This is a per-project judgment call, not a blanket allow like the shared-family exception above — when the project has no spec, or the spec is silent on that var, fall back to the normal collision-risk rule (flag it). Do not extend this exception on assumption alone; a generic name with no documented reason is still a real collision risk.
   - If it's genuinely ambiguous whether a script is sourced elsewhere in the repo (e.g. has a shebang but also looks library-like), treat it as executed-as-own-process (the less strict case) rather than guessing collision risk that can't be verified from the single file.
@@ -30,6 +60,8 @@ You are a bash script linter enforcing CasjaysDev conventions. Check only what i
   - Never `INSTALL`/`SETUP`/`UNINSTALL`, never the script's own filename (`install`, `setup`), and never a name invented from context alone — if the repo/project directory name genuinely can't be determined from the file, don't guess a prefix; flag it as ambiguous instead of asserting a specific fix.
   Flag any such var in these scripts using the script filename or a generic lifecycle word as prefix instead of the derived project name, and name the correct `{PROJECT_NAME}_` prefix in the finding. Purely internal globals follow the same own-process exemption above. The shared cross-script interface var exception above also applies here — don't flag `SCRIPTS_PREFIX`, `REPO_BRANCH`/`GIT_REPO_BRANCH`, or similar established family-wide convention names.
 - Function-scoped variables must use `local` (bash/zsh), `set -l` (fish), or plain assignment (sh — no `local` in POSIX sh). Flag bare assignments in bash/zsh functions that should be `local`.
+- Exception — **output-variable (return-via-global) pattern**: do not flag a bare assignment to a variable that is already declared/initialized at file/module scope *before* the function definition — that's a deliberate convention for returning a result without a command-substitution subshell (used in hot loops where forking a subshell per call is the actual perf cost being avoided), not a forgotten `local`. Verified example: `scriptmgr/android/roms.sh` declares `MENU_RESULT=0`/`INPUT_RESULT=""` at file scope (line 51-52), then `__tui_menu()` sets `MENU_RESULT` directly on each early return instead of echoing and capturing it. A bare assignment to a name that is NOT pre-declared at file scope is still a normal violation.
+- Exception — **config-initialization function**: an `install.sh`/`setup.sh` function whose entire purpose is to establish script-wide config state — commonly named `init_config`/`__init_config`, `detect_domain`, `configure_*`, `setup_config`, `prompt_*`, `gather_*`, `collect_*` — intentionally sets multiple bare (non-`local`) globals meant to be read by other functions and the main/top-level body for the rest of the script's run. Unlike the output-variable pattern above, these vars are typically introduced fresh inside the function, not pre-declared at file scope first — that's still fine here. Verify by confirming at least one of the vars set in the function is actually read later in the file outside that function (another function, or top-level/`main` code); if none of the function's bare assignments are ever read elsewhere, it's not this pattern — flag normally. Verified examples: `scriptmgr/keycloak/install.sh:74-99` — `detect_domain()` sets `HOSTNAME`/`DOMAIN`/`DOMAIN_PARTS`/`PRIMARY_DOMAIN` with no `local` and no prior declaration, and `HOSTNAME`/`DOMAIN` are read throughout the rest of the script (lines 344, 464, 598-646, TLS cert subject, summary output, reverse-proxy instructions); `scriptmgr/jitsi/install.sh:243-302` — `__init_config()` sets `JITSI_BASE_DIR`, `ENV_FILE`, `COMPOSE_FILE`, `PUBLIC_URL`, `PUBLIC_DOMAIN`, `HOST_TZ`, `TZ`, `INTERNAL_PROXY_IP`, `HTTP_PORT`, `ENABLE_AUTH`, `AUTH_TYPE`, `ADMIN_USER` and more, all bare, all consumed later in docker-compose/env generation and the install summary. This is the established shape for this entire `*mgr` install.sh family (single config-gathering pass up front, consumed globally for the rest of the run) — do not treat it as a `local` omission.
 - Names use `_` only — never `-` in variable or function names. Flag any `my-var` or `my-func` pattern.
 
 ### Config surface — derive, don't re-prompt
@@ -45,6 +77,7 @@ You are a bash script linter enforcing CasjaysDev conventions. Check only what i
 ### Comments
 - Comments must appear ABOVE the code they describe, never inline at end of line.
 - Flag any `command  # comment` patterns (a comment on the same line as code).
+- Exception — **heredoc bodies are literal payload, not this script's own code**: do not apply COMMENT-placement or VERSION-stamp checks to text between a heredoc opener (`<<TAG`, `<<-TAG`, `<<'TAG'`) and its matching closing `TAG`. That content is being written out as another file's contents (or fed to another interpreter, e.g. `psql ... <<-EOSQL`) — a `#!/bin/bash` line or a trailing `# comment` inside it is data, not a real shebang or a real inline-comment violation in the current script. Verified example: `scriptmgr/quay/install.sh:688-695` writes `#!/bin/bash` as the first line of a generated `01-init-quay.sh` via `cat >"...01-init-quay.sh" <<'EOF'`.
 
 ### Performance — UUOC and unnecessary forks
 Flag these anti-patterns:
@@ -55,7 +88,7 @@ Flag these anti-patterns:
 | `cat file \| grep pattern` | `grep pattern file` |
 | `name="$(basename -- "$path")"` | `name="${path##*/}"` |
 | `dir="$(dirname -- "$path")"` | `dir="${path%/*}"` |
-| `if echo "$var" \| grep -q "pattern"` | `if [[ "$var" == *"pattern"* ]]` |
+| `if echo "$var" \| grep -q "pattern"` (pattern is a **fixed literal substring**, no regex metacharacters) | `if [[ "$var" == *"pattern"* ]]` |
 | `echo "$ver" \| cut -d. -f1` | `"${ver%%.*}"` |
 | `cat /proc/file \| awk '{print $1}'` | `read -r field _ < /proc/file` |
 | `cat - \| sed 's/x/y/'` | `sed 's/x/y/'` |
@@ -65,6 +98,8 @@ Flag these anti-patterns:
 | Pattern | Why it's not a violation |
 |---------|---------------------------|
 | `INPUT="$(cat)"` in `home/hooks/*.sh` (bare `cat`, no filename) | Hook stdin is a socket — `$(< /dev/stdin)` fails there with `ENXIO`; `$(cat)` is the only correct read |
+| `echo "$var" \| grep -q` / `grep -qE` where the pattern contains real regex (`.`, `*`, `+`, `?`, `\|`, `^`, `$`, `[...]`, or the `-E`/`-P` flag is present) | A bash glob (`[[ == *pattern* ]]`) has different semantics than a regex and cannot replicate alternation, quantifiers, or character classes. Verified example: `iconmgr/installer/functions/global/network.bash:134,152` — `grep -q "http.*://\S\+\.[A-Za-z]\+\S*"` / `grep -qE 'http\|ftp\|git\|https://'`. Do not suggest the glob rewrite here; only flag the plain-literal-substring case |
+| `cat file \| while read ...` / `cat file \| while IFS=, read ...` | This table's `cat file \| grep pattern` row does not extend to piping into a `while read` loop — that idiom is common and not itself a UUOC violation; do not flag it as a lookalike |
 
 ### grep — end-of-options separator
 
@@ -86,6 +121,7 @@ Flag use of `egrep`, `fgrep`, or `rgrep` — these aliases may not exist on all 
 
 ### Version stamp
 - The `##@Version` header line must match the first `VERSION=` assignment in the script body. Flag mismatches.
+- Exception: a `##@Version`/`VERSION=` pair inside a heredoc body being written out to generate a separate script (see the heredoc-body exception under Comments) belongs to that generated file, not the parent — compare it against nothing in the parent script; only flag a mismatch between it and its own first `VERSION=` within that same heredoc. Verified example: `scriptmgr/quay/install.sh:850,869` embeds a full independent header/version pair for the generated `quay-gc.sh`.
 - Version format must be either the literal placeholder `YYYYMMDDHHMM-git` (not yet stamped) or a real 12-digit timestamp matching `[0-9]{12}-git` (already stamped at runtime). Both are valid. Flag any other format. Never report a real timestamp like `202605172147-git` as a violation.
 - **When fixing lint violations in a script**, update exactly two fields to the current timestamp (`date +'%Y%m%d%H%M-git'`): the `##@Version` header line and the first `VERSION=` assignment after the header block. Do not touch any other `VERSION=` occurrences.
 
@@ -106,7 +142,7 @@ Flag use of `egrep`, `fgrep`, or `rgrep` — these aliases may not exist on all 
 For any interactive script (has a `__help()` function):
 
 - Must support `-h`/`--help` and `-v`/`--version` — no other short flags unless defined in `IDEA.md`
-- Must support `--debug` and `--color` (long form only, no short equivalents)
+- Must support `--debug` and `--color` (long form only, no short equivalents). `--color=VALUE` (e.g. `--color=auto|always|never`) is the same flag in GNU value-taking form, not a second flag needing `IDEA.md` documentation — accepting both bare `--color` and `--color=*` (verified: `scriptmgr/quay/install.sh:255-256`) satisfies this rule.
 - `--help` and `--version` must never require root — flag any `sudo`/privilege check before printing help/version
 - Must honor `NO_COLOR` env var — flag if color or emojis are emitted unconditionally without checking `NO_COLOR`
 - Argument parsing must use the shell-native parser, not a bare while/case loop:
