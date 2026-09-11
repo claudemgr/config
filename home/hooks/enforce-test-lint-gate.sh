@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609090035-git
+##@Version           :  202609111015-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  Lint agent contract now distinguishes NEW (blocking) from pre-existing (non-blocking) findings — LINT_AGENT_CLEAN_RE/LINT_AGENT_ISSUES_RE match `0 new issue(s) found` vs a nonzero `N new issue(s) found`, so a report with only already-logged pre-existing findings no longer false-blocks gitcommit.
+# @@Changelog        :  TEST_CMD_RE/LINT_CMD_RE now also match `make check` (claudemgr/android's APPLICATION.md gate for Kotlin — compile + ktlint/detekt lint + JVM unit tests) — Kotlin/Android commits had no recognized gate command, deadlocking their commits.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback). TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> bypasses the gate for that one call — user-directed only, never Claude's own initiative.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609090035-git"
+VERSION="202609111015-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -168,19 +168,23 @@ def marked(marker_file, project):
 # above, so it never adds cost to ordinary Bash calls.
 TEST_CMD_RE = re.compile(
     r"\bmake\s+test\b|\bgo\s+test\b|\bcargo\s+test\b|\bpytest\b|\bnpm\s+(run\s+)?test\b"
+    r"|\bmake\s+check\b"
 )
 BASHN_RE = re.compile(r"\bbash\s+-n\b")
 # Must stay in sync with test-lint-mark.sh's TEST_LINT_MARK_LINT_RE: the lint
 # agents (shell/Go/Rust), `npm run lint`/`npx eslint` (Node/TS gate per
 # node_typescript_conventions.md), `ruff check`/`ruff format --check` (Python
-# gate per python_conventions.md), and the packaging-type per-format linters
-# (project_type_conventions.md's Format matrix).
+# gate per python_conventions.md), `make check` (claudemgr/android's
+# APPLICATION.md gate — compile + ktlint/detekt lint + JVM unit tests in one
+# Docker-run command; ktlint/detekt are never invoked directly on the host),
+# and the packaging-type per-format linters (project_type_conventions.md's
+# Format matrix).
 LINT_CMD_RE = re.compile(
     r"\bscript-lint\b|\bgo-lint\b|\brust-lint\b|\bnpm\s+run\s+lint\b"
     r"|\bnpx\s+eslint\b|\bruff\s+check\b|\bruff\s+format\s+--check\b"
     r"|\blintian\b|\brpmlint\b|\bnamcap\b|\bapkbuild-lint\b"
     r"|\bbrew\s+(audit|style)\b|\bsnapcraft\s+lint\b|\bflatpak-builder-lint\b"
-    r"|\bappimagelint\b|\bnix\s+flake\s+check\b|\bstatix\b"
+    r"|\bappimagelint\b|\bnix\s+flake\s+check\b|\bstatix\b|\bmake\s+check\b"
 )
 # The lint agents are as often launched via the Agent tool (subagent_type
 # script-lint/go-lint/rust-lint) as via a literal Bash command — the Bash-only

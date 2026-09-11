@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031015-git
+##@Version           :  202609111015-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
-# @@Changelog        :  Lint pattern now also matches `npm run lint`/`npx eslint` (Node/TS) and `ruff check`/`ruff format --check` (Python) — the documented lint gates for those languages were unrecognizable, deadlocking their commits.
+# @@Changelog        :  Test and lint patterns now also match `make check` (claudemgr/android's APPLICATION.md gate for Kotlin — compile + ktlint/detekt lint + JVM unit tests) — Kotlin/Android commits had no recognized gate command, deadlocking their commits.
 # @@TODO             :  None
 # @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031015-git"
+VERSION="202609111015-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -62,6 +62,7 @@ TEST_LINT_MARK_IS_BASHN=0
 TEST_LINT_MARK_TEST_RE='\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b'
 TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bcargo[[:space:]]+test\b|\bpytest\b"
 TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bnpm[[:space:]]+(run[[:space:]]+)?test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bmake[[:space:]]+check\b"
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- "$TEST_LINT_MARK_TEST_RE" \
   && TEST_LINT_MARK_IS_TEST=1
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bbash[[:space:]]+-n\b' \
@@ -69,12 +70,16 @@ printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bbash[[:space:]]+-n\b' \
 # Lint gates: script-lint/go-lint/rust-lint agents (shell/Go/Rust), `npm run
 # lint` (node_typescript_conventions.md's Node/TS gate, `npx eslint` as its
 # direct form), `ruff check` / `ruff format --check` (python_conventions.md's
-# Python gate), and the packaging-type per-format linters
-# (project_type_conventions.md's Format matrix). Must stay in sync with
-# enforce-test-lint-gate.sh's LINT_CMD_RE.
+# Python gate), `make check` (claudemgr/android's APPLICATION.md gate —
+# compile + ktlint/detekt lint + JVM unit tests in one Docker-run command;
+# ktlint/detekt are never invoked directly on the host, so there is no
+# separate bare-tool pattern to match), and the packaging-type per-format
+# linters (project_type_conventions.md's Format matrix). Must stay in sync
+# with enforce-test-lint-gate.sh's LINT_CMD_RE.
 TEST_LINT_MARK_LINT_RE='\bscript-lint\b|\bgo-lint\b|\brust-lint\b'
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bnpm[[:space:]]+run[[:space:]]+lint\b|\bnpx[[:space:]]+eslint\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bruff[[:space:]]+check\b|\bruff[[:space:]]+format[[:space:]]+--check\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bmake[[:space:]]+check\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\blintian\b|\brpmlint\b|\bnamcap\b|\bapkbuild-lint\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bbrew[[:space:]]+(audit|style)\b|\bsnapcraft[[:space:]]+lint\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bflatpak-builder-lint\b|\bappimagelint\b|\bnix[[:space:]]+flake[[:space:]]+check\b|\bstatix\b"
