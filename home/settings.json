@@ -454,14 +454,8 @@
       }
     ]
   },
-  "terminal": {
-    "editorMode": "normal",
-    "setTerminalTitle": false,
-    "setTmuxPaneTitle": false,
-    "writeToTmuxBuffer": false,
-    "useOsc52Clipboard": true,
-    "preferredNotifChannel": "terminal_bell"
-  },
+  "editorMode": "normal",
+  "preferredNotifChannel": "terminal_bell",
   "env": {
     "TMUX": "",
     "TMUX_PANE": "",
