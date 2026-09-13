@@ -121,6 +121,7 @@ type: user
 | `nginx_conventions.md` | TLS cert paths, post-renewal deploy hooks, reverse-proxy vhost templates |
 | `rpm_conventions.md` | Spec file structure, build workflow, signing, and repo layout for RPM packages |
 | `logging_conventions.md` | Log files are pure raw text; format per type; masking in logs |
+| `firewall_conventions.md` | firewalld/ufw auto-detection, default-allow-with-explicit-drops posture, optional fail2ban-style abuse blocking |
 | `tempdir_conventions.md` | Required path structure, per-language creation, guarded cleanup |
 | `cicd_conventions.md` | SHA pinning, no `pull_request_target`, branch protection, SBOM, release integrity |
 | `go_conventions.md` | Go project layout, Makefile targets, CGO=0, binary naming, module cache |
