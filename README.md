@@ -144,7 +144,7 @@ Hook scripts in `home/hooks/` run synchronously before or after a matching tool 
 | `block-host-toolchain.sh` | PreToolUse Bash | Blocks direct host toolchain invocations, suggests the Docker equivalent |
 | `enforce-docker-rm.sh` | PreToolUse Bash | Blocks `docker run` without `--rm`/`--name` and unnamed `incus launch`/`init` |
 | `bound-shell-lifetime.sh` | PreToolUse Bash | Blocks unbounded shell lifetimes — unbounded poll loops, open-ended sleeps, `nohup`/`setsid`/`disown`, unbounded `tail -f`/`watch`, unmanaged `&` |
-| `zone-git-commit-push.sh` | PreToolUse Bash | Blocks raw `git commit`/`git push` outside the Local System Management Zone; allows inside it |
+| `zone-git-commit-push.sh` | PreToolUse Bash | Blocks raw `git commit` and raw `git push` everywhere, no zone exception for either — commit signing and push must always go through `gitcommit`; a zone repo that must never publish keeps a `.no_push` file instead |
 | `no-subagent-commit.sh` | PreToolUse Bash | Blocks `gitcommit`/`git commit`/`git push` when called from a subagent |
 | `no-force-push.sh` | PreToolUse Bash | Blocks all force-push forms everywhere, including inside the zone |
 | `no-history-rewrite.sh` | PreToolUse Bash | Blocks `git clean -f*`, `rebase`, `branch -D`, `tag -d`, `filter-repo`/`filter-branch` everywhere |

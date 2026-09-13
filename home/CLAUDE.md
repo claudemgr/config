@@ -80,7 +80,7 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 
 ### Local System Management Zone (`~/Projects/local/system/**`)
 
-Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. Only five specific things relax there (plaintext credentials, no required `LICENSE.md`, pre-authorized systemctl lifecycle verbs, cross-repo/host-config access with a recorded grant, and raw git commands bypassing `gitcommit`) — every other rule in this file and its referenced memory files stays in full force. Full conditions, the exact excluded destructive git commands, the repo-privacy-gate push sequence, and what never relaxes even in the zone: `~/.claude/memory/local_system_zone.md`.
+Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. Only five specific things relax there (plaintext credentials, no required `LICENSE.md`, pre-authorized systemctl lifecycle verbs, cross-repo/host-config access with a recorded grant, and raw git commands other than `commit`/`push` bypassing `gitcommit`) — every other rule in this file and its referenced memory files stays in full force. Commit and push always go through `gitcommit` — no zone exception for either, since the user signs every commit and `gitcommit` handles that signing automatically; a zone repo that must never publish keeps a `.no_push` file instead. Full conditions, the exact excluded destructive git commands, the repo-privacy-gate push sequence, and what never relaxes even in the zone: `~/.claude/memory/local_system_zone.md`.
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
@@ -233,7 +233,7 @@ Key rules always in effect:
 - 3+ dependencies → document the resolved order at the top of TODO.AI.md or PLAN.AI.md
 
 ## Commit Workflow
-`git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted. **Exception:** under `~/Projects/local/system/**`, see "Local System Management Zone" above — raw git commands are pre-authorized there instead.
+`git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted. **Exception:** under `~/Projects/local/system/**`, see "Local System Management Zone" above — raw git commands other than `commit`/`push` are pre-authorized there instead. Raw `git commit` and raw `git push` have no exception anywhere, including in that zone — the user signs every commit and `gitcommit` handles that signing automatically, so `gitcommit --dir {dir} all` is always the commit+push path, zone or not. A zone repo that must never publish keeps a `.no_push` file instead of relying on a raw-push carve-out.
 
 **Only valid invocation:** `gitcommit --dir {dir} all`
 - `{dir}` = absolute path to the project root · `all` is the only command · never use `-m`/`--message`

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609122049-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -9,7 +9,7 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Saturday, August 29, 2026 00:00 EDT
 # @@File             :  zone-git-commit-push.sh
-# @@Description      :  PreToolUse hook: allows raw git commit/push only under the Local System Management Zone, blocks elsewhere — the commit wrapper is the only path outside it.
+# @@Description      :  PreToolUse hook: blocks raw `git commit`/`git push` everywhere, with no Local System Management Zone exception — `gitcommit` is the sole commit+push path always; a zone repo that must never push uses a `.no_push` file instead.
 # @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
 # @@TODO             :  None
 # @@Other            :  git reset stays hard-denied via settings.json; force-push stays blocked everywhere via no-force-push.sh, including inside the zone.
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609122049-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -40,7 +40,6 @@ printf '%s' "$INPUT" > "$INPUT_TMPFILE"
 
 python3 - "$INPUT_TMPFILE" <<'PYEOF'
 import json
-import os
 import re
 import shlex
 import sys
@@ -156,14 +155,15 @@ def find_git_subcommand(tokens):
     return None
 
 
-def is_commit_or_push(clean_tokens):
+def find_git_subcommand_kind(clean_tokens):
     # Expects argv of one sub-command with wrapper/env prefixes already stripped.
+    # Returns "commit", "push", or None.
     if not clean_tokens or clean_tokens[0] != "git":
-        return False
-    return find_git_subcommand(clean_tokens) in ("commit", "push")
+        return None
+    sub = find_git_subcommand(clean_tokens)
+    return sub if sub in ("commit", "push") else None
 
 
-found = False
 for sub in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     sub = sub.strip()
     if not sub:
@@ -188,28 +188,36 @@ for sub in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
             skipping_prefix = False
         clean.append(tok.lstrip("\\"))
 
-    if is_commit_or_push(clean):
-        found = True
-        break
+    kind = find_git_subcommand_kind(clean)
+    if kind == "commit":
+        # Raw `git commit` bypasses gitcommit's automatic commit signing —
+        # blocked everywhere, with no Local System Management Zone exception.
+        msg = (
+            "BLOCKED: raw `git commit` is forbidden everywhere, including inside the "
+            "Local System Management Zone (~/Projects/local/system/**) — it bypasses "
+            "automatic commit signing.\n\n"
+            "The only sanctioned commit path is:\n"
+            "  gitcommit --dir {project_dir} all\n\n"
+            "See CLAUDE.md's Local System Management Zone section."
+        )
+        print(msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(2)
+    if kind == "push":
+        # Raw `git push` also has no Local System Management Zone exception —
+        # `gitcommit` is the sole commit+push path everywhere; a zone repo that
+        # must never push keeps a `.no_push` file instead of reaching for raw push.
+        msg = (
+            "BLOCKED: raw `git push` is forbidden everywhere, including inside the "
+            "Local System Management Zone (~/Projects/local/system/**).\n\n"
+            "The only sanctioned commit+push path is:\n"
+            "  gitcommit --dir {project_dir} all\n\n"
+            "To prevent a zone repo from ever pushing, use a `.no_push` file instead "
+            "of raw `git push` — see CLAUDE.md's Local System Management Zone section."
+        )
+        print(msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(2)
 
-if not found:
-    sys.exit(0)
-
-# Local System Management Zone (~/Projects/local/system/**, see CLAUDE.md) pre-authorizes
-# raw `git commit`/`git push` — derived from $HOME at runtime, never hardcoded.
-cwd = d.get("cwd", "") or ""
-zone_root = os.path.join(os.environ.get("HOME", "/root"), "Projects", "local", "system")
-if cwd == zone_root or cwd.startswith(zone_root + os.sep):
-    sys.exit(0)
-
-msg = (
-    "BLOCKED: raw `git commit`/`git push` is forbidden outside the Local System "
-    "Management Zone (~/Projects/local/system/**).\n\n"
-    "The only sanctioned commit+push path here is:\n"
-    "  gitcommit --dir {project_dir} all\n\n"
-    "See CLAUDE.md's Local System Management Zone section for the zone exception."
-)
-print(msg)
-sys.stderr.write(msg + "\n")
-sys.exit(2)
+sys.exit(0)
 PYEOF
