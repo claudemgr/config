@@ -1,6 +1,6 @@
 ---
 name: gitcommit conventions
-description: gitcommit invocation rules, COMMIT_MESS message format, emoji map, cadence, and push behavior
+description: gitcommit invocation rules, COMMIT_MESS message format, emoji map, cadence, push behavior, and the pre-commit test/lint gate sequence
 type: user
 ---
 
@@ -62,3 +62,15 @@ Write `{dir}/.git/COMMIT_MESS` from `git status --porcelain` + `git diff --stat`
 ## Push Behavior
 
 Push is immediate and irreversible. To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
+
+## Pre-Commit Gates
+
+**Sequence, every commit:**
+1. `git status --porcelain` + `git diff --stat` — see actual changes
+2. **Test gate** — `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` plus the `script-lint` Agent instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass — no exceptions, never skip to "save time"
+3. **Lint gate** — the `script-lint`/`go-lint`/`rust-lint` Agents (spawn via the Agent tool, never as a shell command — there is no CLI binary by that name) · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md` § Type: packaging). The three Agent-based linters classify each finding as NEW (on a line this session's own uncommitted changes touch) or pre-existing; only NEW findings block — a report ending `0 new issue(s) found` passes even with pre-existing findings listed, which still must be logged to `TODO.AI.md` before moving on. `npm run lint`/`ruff check` have no such split — any output from those still blocks.
+4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
+5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
+6. Run `gitcommit --dir {dir} all`
+
+**`TEST_LINT_GATE_OVERRIDE=1` escape hatch:** `enforce-test-lint-gate.sh` blocks `gitcommit` unless the test and lint gates ran and passed this session (via `test-lint-mark.sh`'s marker, or its `transcript_path` fallback). A confirmed upstream Claude Code bug (`anthropics/claude-code#6305`, open) means the marker sometimes never fires even for a genuinely passing run, and the fallback doesn't always see it either. If that happens: prefix the command, e.g. `TEST_LINT_GATE_OVERRIDE=1 gitcommit --dir {dir} all` — but only when the user's own message explicitly directs a bypass after confirming they already personally verified the test/lint run passed. Never set this on Claude's own initiative just because the gate blocked — "never auto-bypass a hook block" still applies; this is a user-authorized escape hatch, not a way around that rule.

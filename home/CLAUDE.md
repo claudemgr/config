@@ -11,7 +11,7 @@ Before any work, sync `{project_dir}` with the remote:
 
 If the pull fails (no remote, offline, branch diverged): report it and wait — never start work on a potentially stale tree.
 
-**`/clear` note:** `SessionStart` hooks (including `session-start.sh`'s project_dir context injection) are documented to fire on `/clear` but do not, due to a confirmed upstream Claude Code bug ([anthropics/claude-code#34072](https://github.com/anthropics/claude-code/issues/34072), closed not-planned). This isn't a gap in practice: `{project_dir}` is already self-derived from `git rev-parse --show-toplevel`, falling back to `$PWD` when not in a git repo, per the `Working Directory & Path Resolution` rule below, not from the hook's injected text — so re-run this Session Start sequence yourself after any `/clear` using that same resolution; don't wait for hook-injected context that won't arrive.
+**`/clear`** doesn't reliably fire the SessionStart hook (upstream bug) — re-run this sequence yourself after any `/clear`. Detail: `~/.claude/memory/drift_prevention_conventions.md`.
 
 ## Global Memory
 Read `~/.claude/memory/MEMORY.md` at session start and load referenced files as needed.
@@ -27,42 +27,18 @@ Preserve: task goal · files changed · commands run · failing tests/errors · 
 Drop: old exploration paths · repeated logs · irrelevant discussion.
 
 ## Communication
-- **AI always runs on the user's behalf, never as a separate party** — Claude Code is an extension of the user, not an independent operator/owner/admin/service making its own decisions. Never attribute an action to an invented third-party role (`operator decision`, `owner approved`, etc.) in commit messages, code comments, or chat replies — say "at the user's request," "user-initiated," or state the fact plainly with no role label at all
-- Truthful over agreeable — push back, correct, disagree when warranted; useful beats pleasant
-- Never agree just to be agreeable — if the user's approach is flawed, say so directly with reasoning
-- Say "no" or "I disagree" when warranted — it's more useful than silent compliance
-- **Check the project's own spec before asking** — in any project with `AI.md`/`IDEA.md`/`SPEC.md`, grep/read the relevant section of those files before asking the user anything the spec already answers (project name, variables, build tooling, feature scope, rule overrides, etc.). Asking a question already answered in the spec is a research failure, not genuine ambiguity — it wastes the user's time and signals the file wasn't actually consulted. Only ask once the spec has been checked and is genuinely silent, contradictory, or missing the needed value.
-- Ask if unsure; never guess or assume — **exceptions apply when asking is physically impossible or meaningless given the environment:**
-  - **Inaccessible hardware** — adb/USB, serial ports, Bluetooth pairing, physical buttons: assume the emulator/simulator path or CI-safe alternative
-  - **Environment-determined constraints** — no display server (headless), no audio device, no GPU: detect and adapt silently
-  - **Known-safe build defaults** — target arch, min SDK, debug vs release when no flag is set: use the documented community default (e.g. Android `minSdk=24`); always reversible
-  - **Toolchain unavailability** — if a required tool (`adb`, `xcrun`, etc.) is absent on the remote host: assume the user wants a build artifact, not a deploy
-  - These exceptions apply only when **the environment makes asking pointless** (Claude cannot perform the action regardless of the answer) or **the assumption maps to a documented, reversible community default**. They never apply to business logic, data schema, or feature behavior — those still require asking
-- `?` ends a message → it's a question, not a command — answer it
-- A message ending in `?` that contains an action verb is still a question — answer it; only act if the user re-sends without `?` or says "yes" / "do it" / "go ahead"
-- A message starting with an interrogative word (why/what/how/when/where/who/which/should/could/would/can/is/are/do/does/did — case-insensitive, leading whitespace ignored) is a question even with no trailing `?` — answer it; only act if the user re-sends as a plain statement/imperative or says "yes" / "do it" / "go ahead"
-- Multiple questions → numbered list; user replies "1: … 2: …"
-- Match user's terminology exactly; never rename their domain language
-- `{x}` = placeholder to substitute; `x` = literal text
+Full rules (ask-exceptions, question-detection, general posture): `~/.claude/memory/communication_conventions.md`
+- Truthful over agreeable — push back, disagree when warranted; never agree just to be agreeable
+- Ask if unsure; never guess or assume, except where asking is physically impossible/meaningless (inaccessible hardware, headless/no-GPU environments, documented reversible build defaults, missing toolchain) — never for business logic/data/feature behavior
+- Check the project's own spec (`AI.md`/`IDEA.md`/`SPEC.md`) before asking anything it already answers
+- `?`-ending or interrogative-leading messages are questions, not commands — answer, don't act, unless the user re-sends as a statement or says "yes"/"do it"/"go ahead"
+- Match user's terminology exactly · `{x}` = placeholder, `x` = literal text
 
 ## Spelling & Grammar
 Always fix clear spelling and grammar errors in any file being edited. Never alter technical terms, intentional abbreviations, or domain-specific names.
 
 ## Drift Prevention
-
-Drift = ignoring project-specific rules and reverting to global defaults or prior-session assumptions.
-
-**Self-check before any read or write:**
-1. Is this path inside `{project_dir}`?
-2. Does this project have its own version of this file (AI.md, CLAUDE.md, memory files)?
-3. Am I applying a rule from THIS project's files, not a global assumption?
-4. Is the working set still what the user defined — or have I quietly expanded it?
-
-**This self-check must be answered explicitly (in output or reasoning), not silently assumed** — skipping it is how stale global-default behavior sneaks back in after a compaction.
-
-When context has been compacted: do not bulk re-read CLAUDE.md/AI.md/SPEC.md — that refills context immediately and can trigger another compaction (`post-compact.sh` deliberately does not inject the full files for this reason). Instead, treat every rule as needing re-verification lazily: before each edit, search for and read only the specific section of CLAUDE.md/AI.md/SPEC.md relevant to that edit (`grep -n "^## "` or the file's own heading style to find it), the same technique the `TODO.AI.md` PART-loading rule uses. Never assume a rule from before the compaction still holds without checking its source section first.
-
-If a SessionStart or PostCompact system message references a project_dir: that path IS `{project_dir}` for this session.
+Drift = ignoring project-specific rules and reverting to global defaults or prior-session assumptions. Self-check before any read or write, answered explicitly, not silently assumed: is this path inside `{project_dir}`; does this project have its own version of this file; am I applying THIS project's rule, not a global assumption; is the working set still what the user defined. Post-compaction: never bulk re-read spec files — re-verify lazily, per-section, right before each edit. Full detail (post-compaction technique, project_dir resolution from SessionStart/PostCompact context): `~/.claude/memory/drift_prevention_conventions.md`
 
 ---
 
@@ -71,39 +47,30 @@ If a SessionStart or PostCompact system message references a project_dir: that p
 - **CWD is `$PWD`** — all relative paths resolve from there
 - **`{project_dir}`** = `git rev-parse --show-toplevel` if inside a git repo; otherwise = `$PWD` at session start
 - **`{project_name}`** = `basename {project_dir}` · **`{project_org}`** = `basename $(dirname {project_dir})` · **`{provider_name}`** = `basename $(dirname $(dirname {project_dir}))`
-- Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers: `github` (use `gh`) · `gitlab` (use `glab`) · `gitea` / `private` (use `tea`) · `local` (may or may not have a remote)
-- **Provider inference** — detect first, infer only as a fallback. Run `git -C {project_dir} remote get-url origin` and match its host: `github.com` → `github`, `gitlab.com` → `gitlab`, a host matching the `$GIT_PRIVATE_URL` env var (this machine's own self-hosted git instance, e.g. `https://casjay.work`) when it's set → `private`, otherwise match the host against the known Gitea/Forgejo instance for `gitea`/`forgejo`. Only when there is no remote at all (or the git-gate check above already ruled out a repo) fall back to inferring `{provider_name}` from the directory name itself — never guess from the path when a remote is available to check.
-- **`~/Projects/local`** is not a public-hosting provider — it's this machine's own multi-repo/system/agent-management space (personal project/infra/fleet tooling), generally not meant to be public, and may have no remote at all. It also contains the `local/system/**` zone (see below) — that zone's own rules are unchanged by this section.
+- Projects live at `~/Projects/{provider_name}/{project_org}/{project_name}`. Known providers: `github` (use `gh`) · `gitlab` (use `glab`) · `gitea` / `private` (use `tea`) · `local` (may or may not have a remote, not a public-hosting provider — see below)
+- **Provider inference** — detect from `git remote get-url origin` first, infer from the directory name only as a fallback when there's no remote. Full rule and the `~/Projects/local` / Local System Management Zone conditions: `~/.claude/memory/path_resolution_conventions.md`
 - **Git gate** — if `{project_dir}/.git` does not exist, never run any git operation. Check for `.git` first.
 - **Project files override global** — if `{project_dir}/CLAUDE.md` or `{project_dir}/AI.md` exists, it supersedes this file
-- **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. **A problem inside the project is never sufficient justification on its own** — never edit host system files, shell rc files, systemd units, other repos, or global tool configs to work around a build/test/tool issue; fix the project's own code/config instead. **Exception:** under `~/Projects/local/system/**` (see "Local System Management Zone" below), an explicitly-authorized external path/repo can be recorded as a durable, repeatable grant instead of needing to be re-named every session
-
-### Local System Management Zone (`~/Projects/local/system/**`)
-
-Repos under this exact path are personal project/infra/fleet-management tooling (managing other repos, servers, systems) — not shippable products. Only five specific things relax there (plaintext credentials, no required `LICENSE.md`, pre-authorized systemctl lifecycle verbs, cross-repo/host-config access with a recorded grant, and raw git commands other than `commit`/`push` bypassing `gitcommit`) — every other rule in this file and its referenced memory files stays in full force. Commit and push always go through `gitcommit` — no zone exception for either, since the user signs every commit and `gitcommit` handles that signing automatically; a zone repo that must never publish keeps a `.no_push` file instead. Full conditions, the exact excluded destructive git commands, the repo-privacy-gate push sequence, and what never relaxes even in the zone: `~/.claude/memory/local_system_zone.md`.
+- **Stay inside `{project_dir}`** — all writes and edits must target paths within `{project_dir}` unless the user explicitly names an external path. **A problem inside the project is never sufficient justification on its own** — never edit host system files, shell rc files, systemd units, other repos, or global tool configs to work around a build/test/tool issue; fix the project's own code/config instead. **Exception:** under `~/Projects/local/system/**`, an explicitly-authorized external path/repo can be recorded as a durable, repeatable grant instead of needing to be re-named every session
 
 ## Code & Files
 - **`cd` always uses absolute paths** in scripts, Makefiles, CI steps, and Claude's own Bash tool calls
-- **`\command` prefix only for alias-prone external binaries** (`ls`, `grep`, `rm`, `cp`, `mv`, `cat`, `sed`, `diff`, `curl`, …; `command cmd` in fish) — never on shell keywords (`time`, `if`, `while`, `[[` — breaks semantics), never on builtins (no-op), and never on the first word of an allowlisted/pre-authorized or hook-governed command (`gitcommit`, `git`, `make`, `docker`, `incus`, `podman`, `qemu-*`, `virsh`, `systemctl` — breaks permission prefix-matching and PreToolUse hook pattern-matching; container/VM aliases like `docker`→`podman` are deliberate environment config, not noise)
+- **`\command` prefix** only for alias-prone external binaries, never keywords/builtins/hook-governed commands — full rules: `~/.claude/memory/tool_conventions.md`
 - Read current file state before any edit
-- **Edit fails on old_string mismatch → re-read the target slice once, then re-edit** — a mismatch means the in-context copy is stale; never retry an identical failed Edit (guaranteed to fail again and wastes tokens)
-- **Working-set discipline** — scope is set when the user names files/dirs; never expand on your own initiative. Exception: spelling/grammar fixes in files already being edited. **Before editing any file the user didn't name, state the specific reason it's in scope** (e.g. "same rule referenced from X") — silent expansion is a violation even when the edit itself is correct
-- **Fix completeness** — when a pattern changes, find and fix ALL instances across the working set with `grep -rn` before committing. **Verification required:** re-run the same `grep -rn` after editing — zero remaining matches (or every remaining match named as an intentional exception) before writing COMMIT_MESS; a nonzero, unexplained result means the fix isn't done
+- **Edit fails on old_string mismatch → re-read the target slice once, then re-edit** — never retry an identical failed Edit
+- **Working-set discipline** — scope is set when the user names files/dirs; never expand on your own initiative (exception: spelling/grammar in files already being edited); state the specific reason before editing an unnamed file
+- **Fix completeness** — when a pattern changes, `grep -rn` the working set before AND after editing; zero remaining matches (or every match named as an intentional exception) before writing COMMIT_MESS
 - Match surrounding style: naming, indentation, patterns; use ecosystem idioms and community linter/formatter
 - Use existing standards (POSIX exit codes, HTTP status codes, RFCs, semver, ISO 8601) — never invent wire protocols
 - Targeted edits only; full rewrites only when asked; required deps just add them; real choice between alternatives: ask first
 - **No partially implemented code** — every committed line must work as written; no stubs, no `TODO` placeholders inside logic
 - **No TODO/FIXME/HACK in committed code** · **No commented-out code**
-- **Comments always ABOVE, never inline** (single line, ≤180 chars) · **never in JSON / `.env` KEY=VALUE / CSV/TSV / any pure data format** · JS/CSS comments must use valid syntax for the language. Full rules (inline-directive and SHA-pin exceptions, per-format details): `~/.claude/memory/comment_conventions.md`
-- **Directory naming is language-specific** — Go: singular (`handler/`, `model/`, `middleware/`) to match package names; all other languages: plural (`handlers/`, `models/`, `routes/`). Tooling dirs are always plural regardless of language (`scripts/`, `tests/`, `completions/`)
-- **Reuse before creating** — before writing a new function, variable/constant, UI component, or system configuration entry, search for an existing one that already covers the need and reuse or extend it; only create something new when nothing existing fits
-  - **Variables/constants ("search before write")** — before adding a value, enumerate every place it could already live (e.g. config files, env files, code constants, docs — not just the one you thought of first) and grep each one; only after all are checked and come up empty is create/append allowed; replace in place if found in any of them
-  - **Functions** — grep for an existing function with the same or similar behavior (same package/module, existing helpers/handlers/validators) before writing a new one; two near-identical functions differing only by a hardcoded value should be one function taking that value as a parameter
-  - **UI components/styling** — full rules, including the "everything must be styled, reuse existing classes/tokens before writing new CSS" convention: `~/.claude/memory/ui_ux_conventions.md`
-  - **System configuration entries (repos, services, jobs, rules)** — before adding or modifying a host-level config entry, search existing config by the identifying value for that config's type, not by filename alone: a package-repo definition (`/etc/yum.repos.d/*.repo`, `/etc/apt/sources.list.d/*`) — grep every existing repo file for the **URL/hostname** first, since a custom mirror can live under any filename; a service like fail2ban (`/etc/fail2ban/jail.d/*`) — grep by the **jail/section name** or **service filename** it targets; a systemd unit or cron/timer entry — check `systemctl list-unit-files`/existing crontabs for the **unit name or command** before adding a duplicate; a firewall rule — check the live ruleset (see `~/.claude/memory/firewall_conventions.md`) for the **port/service name** before adding a redundant or conflicting one. Only create a new entry when the search comes up empty; edit the existing entry in place otherwise
+- **Comments always ABOVE, never inline** (single line, ≤180 chars) · **never in JSON / `.env` KEY=VALUE / CSV/TSV / any pure data format** · JS/CSS comments must use valid syntax for the language. Full rules: `~/.claude/memory/comment_conventions.md`
+- **Directory naming is language-specific** — Go: singular (`handler/`, `model/`, `middleware/`); all other languages: plural. Tooling dirs always plural (`scripts/`, `tests/`, `completions/`)
+- **Reuse before creating** — search for an existing function, variable/constant, UI component, or system config entry before writing a new one; only create when nothing existing fits. Full rules (search-before-write for each category): `~/.claude/memory/reuse_conventions.md`
 - **Create parent directories before writing** — `mkdir -p "$(dirname -- "$f")"` (shell) · `os.MkdirAll` (Go) · `fs::create_dir_all` (Rust) · `path.parent.mkdir(parents=True)` (Python) · `fs.mkdirSync(path.dirname(f), {recursive:true})` (Node)
-- **Every text file ends with a single trailing newline** — exceptions (raw-value secret/token files, verbatim-interpolated files, mid-line fragments, binary/generated artifacts): `~/.claude/memory/file_ending_conventions.md`
-- **Indentation: spaces over tabs (2 default, 4 where the ecosystem standard — Python, Rust)** — tabs ONLY where the filetype requires them (Makefile recipes, Go via `gofmt`); the filetype requirement always wins over preference — never let indentation choice break a file
+- **Every text file ends with a single trailing newline** — exceptions: `~/.claude/memory/file_ending_conventions.md`
+- **Indentation: spaces over tabs (2 default, 4 where the ecosystem standard — Python, Rust)** — tabs ONLY where the filetype requires them (Makefile recipes, Go via `gofmt`)
 
 ## Sensitive Data
 See `~/.claude/memory/sensitive_data.md` for the full credential policy, repo privacy gate, paste-service rules, and env-var overwrite categories.
@@ -143,16 +110,11 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 - Never poll harness-tracked work (task-notifications resume it) · bounded polling only · no open-ended sleeps · no `nohup`/`setsid`/`disown` (use run_in_background) · `&` requires `PID=$!` ownership · `tail -f`/`watch` only inside `timeout {n}`
 
 ## Verification & Safety
-- Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible
-- **Exception — project-owned temp/cache/build dirs never need confirmation:** `rm -rf` targeting a path under `${TMPDIR:-/tmp}/{project_org}/` — the recognized tempdir structure from `~/.claude/memory/tempdir_conventions.md` (build caches, module caches, test output, e.g. `/tmp/apimgr/pastebin-gocache/mod`) — is disposable, project-scoped, and already the Cleanup section's own documented `rm -rf` pattern; run it directly. This never extends to `/tmp` itself, `/tmp/*`, or any path outside the project's own `{project_org}/` subtree — those still require confirmation
-- **`dd`/`shred`/`mkfs*`/`wipefs`/`git reset` are hard-denied, not confirm-gated** — `settings.json`'s `permissions.deny` list blocks these outright with no confirm path, a stricter posture than the general "confirm before irreversible" rule above; `no-destructive-bypass.sh` enforces this deny list and correctly refuses these unconditionally rather than prompting
-- **Never run unrequested destructive ops, even to "fix"** — stop and ask
-- **A `git status` deletion is not automatically an error to fix** — `git restore`, `git checkout -- <path>`, and any additive-restore/deploy step (e.g. `install.sh` copying `home/` → `~/.claude/`) undo the user's own uncommitted change. Never run one of these on a file the user didn't ask to have restored just because it shows as deleted/modified — that deletion is more likely deliberate (e.g. manual cleanup pending regeneration via `bootstrap`) than damage. Ask first before reverting anything the user didn't report as broken. (This does not apply to the Session Start stash/pull/pop sequence — that flow's own `git stash pop` is separately pre-authorized.)
+Full rules (temp-dir confirmation exception, hard-denied destructive commands, git-status-deletion caveat, systemctl gate, kill scoping, memory safety): `~/.claude/memory/security_conventions.md`
+- Confirm before: `rm -rf`, force pushes, dropping tables/branches, anything irreversible — except disposable project-owned temp/cache dirs
+- **Never run unrequested destructive ops, even to "fix"** — stop and ask; a `git status` deletion is not automatically an error to fix
 - **Never auto-bypass a hook block** — if a PreToolUse hook returns `BLOCKED:`, tell the user; only they decide whether to proceed
 - Verify APIs/flags exist before using them; run code before calling it done; iterate until verification passes
-- **kill scoping** — `kill $PID` only when `$PID` was captured at launch in the current task (`PID=$!`)
-- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask`/`isolate`/`kill` on host services require user confirmation — `isolate` tears down every unit outside the target's dependency tree, and `kill` signals a unit's processes directly, so both carry the same blast-radius risk as `restart`/`stop`. **Exception:** under `~/Projects/local/system/**` (see "Local System Management Zone" below), `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` are pre-authorized without per-call confirmation; `mask`/`unmask`/`edit`/`set-property`/`isolate`/`kill` still require confirmation everywhere, including in the zone — `isolate`/`kill` are as blast-radius-risky as the mask/unmask/edit/set-property group, not a routine lifecycle toggle
-- Memory safety and security-by-design rules: `~/.claude/memory/security_conventions.md`
 
 ## Self-Validation
 - **Define success up front**, then **verify against ground truth** (UI → design; logic → expected output; data → spot-check a sample) and **iterate until passing** — don't stop at "compiles"
@@ -162,8 +124,8 @@ Every shell command must be bounded — enforced by `bound-shell-lifetime.sh`. F
 
 ## Build & Execution
 - Full rules: `~/.claude/memory/execution_hierarchy.md` · Hierarchy: QEMU/KVM > Incus > Docker > host
-- **Never build on the host** — always Docker. Toolchain image selection (first match): **(1)** image declared by the project in IDEA.md/SPEC.md/AI.md; **(2)** project `docker/Dockerfile.build` if it exists; **(3)** standard maintained image for the language: Go → `casjaysdev/go:latest` · Rust → `casjaysdev/rust:latest` · Android → `casjaysdev/android:latest` · Node → `node:alpine` · Python → `python:alpine` · other → official image. This tree picks the TOOLCHAIN image only — the runtime image (final stage of `docker/Dockerfile`) is the project's choice. Full decision tree: `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
-- **Go, Rust, and Android projects default to NO `docker/Dockerfile.build` or `build-toolchain.yml`** — the casjaysdev images cover virtually every need; a `Dockerfile.build` is allowed only for a genuine custom need the casjaysdev image cannot satisfy, and then it MUST be `FROM casjaysdev/go:latest` / `FROM casjaysdev/rust:latest` / `FROM casjaysdev/android:latest` (extend, never replace)
+- **Never build on the host** — always Docker. Toolchain image selection (project-declared → `Dockerfile.build` → language default, e.g. `casjaysdev/go:latest`) picks the TOOLCHAIN image only, never the runtime image. Full decision tree: `~/.claude/memory/dockerfile_conventions.md` → Toolchain Image — Decision Tree
+- **Go, Rust, and Android projects default to NO `docker/Dockerfile.build` or `build-toolchain.yml`** — the casjaysdev images cover virtually every need; a custom `Dockerfile.build` must `FROM` the casjaysdev image (extend, never replace)
 - **`$PWD` not `$(pwd)` in shell docker `-v` flags** — `$(pwd)` triggers a permission prompt; in Makefiles `$(PWD)` is correct
 - **Go Docker builds require `-e GOFLAGS=-buildvcs=false`** — mounted `.git` UID mismatch fails `go build` with "exit status 128"; full pattern: `~/.claude/memory/go_conventions.md § Docker Build Pattern`
 - **Coverage and test output never go to the project tree** — full `{project_org}/{internal_name}-XXXXXX/` tempdir structure: `~/.claude/memory/tempdir_conventions.md`
@@ -227,11 +189,11 @@ Key rules always in effect:
 - **Parallelize independent research** — spawn agents in parallel (single message, multiple Agent calls)
 
 ## Agent Usage
-- **Model routing** — route each task to the cheapest capable model; full tier table in `~/.claude/memory/model_routing.md`. Largest single lever on weekly-cap consumption
-- **Haiku for trivial tasks** — renames, format conversions, single-line edits, simple lookups, mechanical refactors
-- **Agents never commit — hard rule, no exceptions.** Every agent/subagent type, including forked agents, edits and reports back only; only the main session reviews the full diff, writes `COMMIT_MESS`, and runs `gitcommit`. Mechanically enforced by `no-subagent-commit.sh`; not a judgment call an agent can override
-- **A "research-only"/"no edits" instruction in a prompt is not enforcement — it's a request the agent can ignore.** Any agent/fork keeps whatever tools its type grants regardless of prompt wording; a fork or `general-purpose` agent told not to edit still holds Edit/Write and may use them anyway. For work that must not touch files, spawn an agent type that mechanically lacks Edit/Write (`explorer`/`Explore`) instead of trusting phrasing — that's a tool-level guarantee, not a hope. When a fork with write access is used anyway (e.g. because the task might need one), treat every edit it makes as an unreviewed proposal: diff it, verify it against the real file, and decide keep/revise/discard yourself before it's ever part of a commit — never assume "told not to edit" means it didn't
-- **Fork/subagent scope is exactly the file(s)/task named in its prompt — no drift, no self-directed coordination.** An agent must never edit a file outside what it was explicitly assigned, never spawn further agents on its own initiative, and never narrate, decide for, or report on sibling agents' work or status — orchestrating multiple agents is the invoking session's job alone. A fork inherits the full conversation, including messages to and from other agents, and can mistake that shared context for a mandate to act as coordinator; it has none. Catching this mid-task means correcting it immediately (tell the agent to stop and stay in its lane) and independently re-verifying anything it already touched outside scope
+Full rules (model routing, no-subagent-commit, "no edits" ≠ enforcement, fork/subagent scope discipline): `~/.claude/memory/agent_usage_conventions.md`
+- **Model routing** — cheapest capable model per task; Haiku for trivial tasks (renames, format conversions, mechanical refactors)
+- **Agents never commit — hard rule, no exceptions**, mechanically enforced by `no-subagent-commit.sh`
+- A "no edits" instruction in a prompt is a request, not enforcement — an agent/fork keeps Edit/Write regardless of wording; use `explorer`/`Explore` for a mechanical guarantee
+- Fork/subagent scope is exactly what its prompt names — no self-directed coordination, no editing outside scope
 
 ## Autonomy
 - Action commands ("fix all issues", "run the tests", "deploy") → execute fully without step-by-step confirmation
@@ -243,30 +205,8 @@ Key rules always in effect:
 - 3+ dependencies → document the resolved order at the top of TODO.AI.md or PLAN.AI.md
 
 ## Commit Workflow
-`git commit` and `git push` are denied. `gitcommit` (resolved from PATH) is the only commit path. **Never read the `gitcommit` script file** — it is pre-approved and trusted. **Exception:** under `~/Projects/local/system/**`, see "Local System Management Zone" above — raw git commands other than `commit`/`push` are pre-authorized there instead. Raw `git commit` and raw `git push` have no exception anywhere, including in that zone — the user signs every commit and `gitcommit` handles that signing automatically, so `gitcommit --dir {dir} all` is always the commit+push path, zone or not. A zone repo that must never publish keeps a `.no_push` file instead of relying on a raw-push carve-out.
+`gitcommit --dir {dir} all` (`{dir}` = absolute project root, `all` is the only command, never `-m`/`--message`) is the **only** commit/push path — raw `git commit`/`git push` are denied everywhere, including under the Local System Management Zone's raw-git exception (that exception covers other git commands, never `commit`/`push`; a zone repo that must never publish keeps `.no_push` instead). Never read the `gitcommit` script file — pre-approved and trusted. Creates the remote automatically if missing.
 
-**Only valid invocation:** `gitcommit --dir {dir} all`
-- `{dir}` = absolute path to the project root · `all` is the only command · never use `-m`/`--message`
-- If the GitHub remote does not exist, `gitcommit` creates it automatically — no manual `gh repo create` needed
+**Pre-commit gates (test, lint, the override escape hatch), COMMIT_MESS format/emoji map, commit-grouping decision order, who-commits, and push behavior:** `~/.claude/memory/gitcommit_conventions.md` — follow it exactly; never commit with a failing test or a NEW lint violation.
 
-**Test/lint gate override:** `enforce-test-lint-gate.sh` blocks `gitcommit` unless the test and lint gates ran and passed this session (via `test-lint-mark.sh`'s marker, or its `transcript_path` fallback). A confirmed upstream Claude Code bug (`anthropics/claude-code#6305`, open) means the `PostToolUse`/`Bash` marker sometimes never fires even for a genuinely passing run, and the fallback doesn't always see it either. If that happens: prefix the command with `TEST_LINT_GATE_OVERRIDE=1`, e.g. `TEST_LINT_GATE_OVERRIDE=1 gitcommit --dir {dir} all` — but only when the user's own message explicitly directs a bypass after confirming they already personally verified the test/lint run passed. Never set this on Claude's own initiative just because the gate blocked ("never auto-bypass a hook block" still applies — this is a user-authorized escape hatch, not a way around that rule).
-
-**Pre-commit sequence:**
-1. `git status --porcelain` + `git diff --stat` — see actual changes
-2. **Run `make test`** (or language equivalent; for `script-collection` projects — see `~/.claude/memory/project_type_conventions.md` — run `bash -n` plus the `script-lint` Agent (spawn it via the Agent tool — it is not a shell command) instead, no Makefile required; for `spec-collection` projects, re-read the edited file(s) instead — there is no test runner) — every test must pass; never commit with a failing test
-3. Run the lint gate (see below) — never commit with NEW violations (issues on lines this session's own changes touch); pre-existing violations elsewhere in the file must be logged to `TODO.AI.md`, not fixed as an out-of-scope drive-by, and do not block the gate
-4. Write `{dir}/.git/COMMIT_MESS` from that output — every changed file described; never write from memory
-5. Re-read `COMMIT_MESS` and compare against the diff — rewrite if anything is missing or wrong
-6. Run `gitcommit --dir {dir} all`
-
-**Message format, emoji map, no-bare-`@` rule, grouping decision order, and cadence:** `~/.claude/memory/gitcommit_conventions.md` — `{emoji} Title (≤64 chars) {emoji}` + body + `- path: change` bullets. **Grouping is decided in this order, first match wins:** (1) user says or implies "single commit" → everything for that request in one commit, overriding every rule below it; (2) ad hoc "fix X and anything else you find" → one commit for the whole request; (3) multi-file bug fixes → one commit per independently-fixable coupling group, split when files are unrelated; (4) findings-based work (audits, reviews, numbered fix-lists) → one commit per finding by default, batched only when genuinely inseparable; (5) feature work → one commit for the entire feature plus directly-related bugs, never split per part. Unrelated bugs found mid-feature go to `TODO.AI.md`, except app-breaking bugs, which must be fixed immediately. **Only the main session ever commits or pushes — agents/subagents never do, no exceptions, mechanically enforced by `no-subagent-commit.sh`.**
-
-**Test gate:** `make test` (or language equivalent: `go test ./...`, `cargo test`, `pytest`, `npm test`; `script-collection` projects use `bash -n` plus the `script-lint` Agent instead; `spec-collection` projects have no runnable test — verify by re-reading the changed content) must pass before every commit — no exceptions; never skip tests to "save time".
-
-**Lint gate:** the `script-lint` (shell) / `go-lint` (Go) / `rust-lint` (Rust) Agents — spawn each via the Agent tool, never as a shell command, there is no CLI binary by that name · `npm run lint` (Node/TS) · `ruff check` + `ruff format --check` (Python) · per-format linters for `packaging` projects (`~/.claude/memory/project_type_conventions.md § Type: packaging`) — never commit with NEW violations. The `script-lint`/`go-lint`/`rust-lint` Agents classify each finding as NEW (on a line this session's own uncommitted changes touch) or pre-existing; only NEW findings block — a report ending `0 new issue(s) found` passes even with pre-existing findings listed, which still must be logged to `TODO.AI.md` before moving on. `npm run lint`/`ruff check` have no such split — any output from those still blocks as before.
-
-**Workflow gate and creation order:** `~/.claude/memory/cicd_conventions.md` — staged `.github/workflows/` files need `act --list -W {file}` passing; third-party Actions pinned to a full commit SHA, never a tag; create security-only workflows first, `ci.yml`/`release.yml` last.
-
-**Push is immediate and irreversible.** To skip: `touch .no_push` (confirm with user first). If push fails offline: run `gitcommit push` later — do NOT recreate `COMMIT_MESS`.
-
-**Post-push CI check:** if the project has CI config, check the triggered run's status after every push (`~/.claude/memory/cicd_conventions.md` § Post-Push CI Verification) — a failing build is a bug to fix immediately, not a note for later; never report the task done while the pushed build is red or still running.
+**Post-push CI check:** if the project has CI config, check the triggered run's status after every push — a failing build is fixed immediately, never left for later; never report a task done while the pushed build is red or still running. Full check and the workflow gate/creation order: `~/.claude/memory/cicd_conventions.md`.

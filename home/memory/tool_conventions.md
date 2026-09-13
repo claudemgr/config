@@ -1,6 +1,6 @@
 ---
 name: Tool conventions
-description: Internet access rules, default flags and usage rules for curl, wget, grep, WebSearch/WebFetch, provider CLIs (gh/glab/tea), act, images, and python3
+description: Internet access rules, the \command alias-bypass prefix, default flags and usage rules for curl, wget, grep, WebSearch/WebFetch, provider CLIs (gh/glab/tea), act, images, and python3
 type: user
 ---
 
@@ -9,6 +9,20 @@ type: user
 Always use the right tool for the job if installed: `jq` for JSON, `yq` for YAML, `bc` for math, `grep`/`sed`/`awk` for text, `git` for version control.
 
 Use `python3` only when no purpose-built tool can handle the task cleanly.
+
+## `\command` Prefix
+
+Use the `\command` prefix (`command cmd` in fish) only for alias-prone
+external binaries — `ls`, `grep`, `rm`, `cp`, `mv`, `cat`, `sed`, `diff`,
+`curl`, and similar. Never use it:
+
+- on shell keywords (`time`, `if`, `while`, `[[`) — breaks semantics
+- on builtins — it's a no-op
+- on the first word of an allowlisted/pre-authorized or hook-governed command
+  (`gitcommit`, `git`, `make`, `docker`, `incus`, `podman`, `qemu-*`,
+  `virsh`, `systemctl`) — breaks permission prefix-matching and PreToolUse
+  hook pattern-matching; container/VM aliases like `docker`→`podman` are
+  deliberate environment config, not noise to bypass
 
 ## Internet Access
 

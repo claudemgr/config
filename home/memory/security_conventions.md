@@ -1,6 +1,6 @@
 ---
 name: Security conventions
-description: Enumeration mitigation, GeoIP, CVE/dependency scanning, blocklists, and SECURITY.md rules — operational security for server and library projects
+description: Enumeration mitigation, GeoIP, CVE/dependency scanning, blocklists, SECURITY.md rules, protected host paths, destructive-op/systemctl/kill gates, and memory safety — operational security for server and library projects
 type: user
 ---
 
@@ -273,6 +273,16 @@ Beyond the Core OS paths floor (`~/.claude/CLAUDE.md`'s "Working Directory & Pat
 - **`find -delete` / `find -exec rm`** — a `find` invocation whose action deletes matched files is a destructive op regardless of the starting path; gated the same as a direct `rm`
 
 These formalize `protect-host.sh`'s existing enforcement — they are not new restrictions, but the written source of truth the hook implements.
+
+---
+
+## Destructive Operation Gates
+
+- **Temp/cache/build dirs never need confirmation** — `rm -rf` targeting a path under `${TMPDIR:-/tmp}/{project_org}/` (the recognized tempdir structure, see `tempdir_conventions.md`) is disposable and project-scoped; run it directly. Never extends to `/tmp` itself, `/tmp/*`, or any path outside the project's own `{project_org}/` subtree — those still require confirmation
+- **`dd`/`shred`/`mkfs*`/`wipefs`/`git reset` are hard-denied, not confirm-gated** — `settings.json`'s `permissions.deny` list blocks these outright with no confirm path; `no-destructive-bypass.sh` enforces this
+- **A `git status` deletion is not automatically an error to fix** — `git restore`, `git checkout -- <path>`, and any additive-restore/deploy step (e.g. `install.sh` copying `home/` → `~/.claude/`) undo the user's own uncommitted change. Never run one of these on a file the user didn't ask to have restored just because it shows as deleted/modified — deliberate cleanup (pending regeneration via `bootstrap`) is more likely than damage. Ask first before reverting anything the user didn't report as broken. Exception: the Session Start stash/pull/pop sequence's own `git stash pop` is separately pre-authorized
+- **systemctl gate** — `status`/`is-active`/`is-enabled`/`cat`/`show` and `--user` variants are always OK; `restart`/`stop`/`start`/`reload`/`disable`/`enable`/`mask`/`isolate`/`kill` on host services require user confirmation — `isolate` tears down every unit outside the target's dependency tree, and `kill` signals a unit's processes directly, so both carry the same blast-radius risk as `restart`/`stop`. **Exception:** under `~/Projects/local/system/**`, `start`/`stop`/`restart`/`reload`/`reload-or-restart`/`try-restart`/`enable`/`disable`/`reset-failed`/`daemon-reload` are pre-authorized without per-call confirmation; `mask`/`unmask`/`edit`/`set-property`/`isolate`/`kill` still require confirmation everywhere, including in the zone
+- **kill scoping** — `kill $PID` only when `$PID` was captured at launch in the current task (`PID=$!`)
 
 ---
 

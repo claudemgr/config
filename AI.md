@@ -103,12 +103,17 @@ type: user
 |------|--------|
 | `MEMORY.md` | Index of all memory files |
 | `project_conventions.md` | `{project_dir}/AI.md` / `IDEA.md` / `CLAUDE.md` roles, placeholder system, template system, first-time setup |
+| `communication_conventions.md` | Ask-if-unsure exceptions, question-detection rules, general communication posture |
+| `drift_prevention_conventions.md` | Pre-edit self-check checklist, post-compaction lazy re-verification, project_dir resolution, `/clear` hook-bug workaround |
+| `agent_usage_conventions.md` | Model routing pointer, agents-never-commit, "no edits" ≠ enforcement, fork/subagent scope discipline |
+| `reuse_conventions.md` | Search-before-write for variables/constants, functions, UI components, and host-level system config entries |
+| `path_resolution_conventions.md` | Provider inference from git remote host, `~/Projects/local`, full Local System Management Zone conditions |
 | `local_system_zone.md` | Rules that relax under `~/Projects/local/system/**` (plaintext credentials, no LICENSE.md, systemctl pre-auth, cross-repo/host-config grants, raw git commands other than `commit`/`push`) and what never relaxes there |
 | `model_routing.md` | Route each unit of work to the cheapest capable model (Haiku/Sonnet/Opus/Fable); largest single lever on consumption |
 | `execution_hierarchy.md` | VM > Incus > Docker > host; execution scope rules |
 | `sensitive_data.md` | All public destinations equal; masking format (`key=xxxxx`); pre-flight checklist |
 | `image_conventions.md` | Convert before reading (max 1280px, WebP); fallback chain; URL image workflow |
-| `gitcommit_conventions.md` | `gitcommit` path resolution; never hardcode path |
+| `gitcommit_conventions.md` | `gitcommit` path resolution; never hardcode path; pre-commit gate sequence and `TEST_LINT_GATE_OVERRIDE=1` escape hatch |
 | `comment_conventions.md` | Comment placement rules, formats where comments are forbidden, language-specific comment syntax |
 | `file_ending_conventions.md` | Every text file ends with exactly one trailing newline; exceptions for secret/verbatim/binary files |
 | `shell_lifetime_conventions.md` | Timeout tiers, polling rules, background-process ownership, follow-mode bounds — enforced by `bound-shell-lifetime.sh` |
@@ -136,11 +141,11 @@ type: user
 | `forgejo_conventions.md` | Forgejo-specific workflow/runner/registry conventions; load only when the remote resolves to Forgejo |
 | `ui_ux_conventions.md` | Designer-level UI/UX standards — theme system, accessibility, layout, interaction |
 | `project_type_conventions.md` | Rules by project type: server, cli, script-collection, spec-collection, packaging, library, tui, desktop-gui, worker |
-| `security_conventions.md` | Enumeration mitigation, GeoIP, CVE/dependency scanning, blocklists, SECURITY.md rules |
+| `security_conventions.md` | Enumeration mitigation, GeoIP, CVE/dependency scanning, blocklists, SECURITY.md rules, protected host paths, destructive-op/systemctl/kill gates, memory safety |
 | `testing_conventions.md` | Test structure, naming, unit vs integration split, coverage gates, mock strategy |
 | `database_conventions.md` | Schema management, parameterized queries, connection pooling, SQLite vs PostgreSQL selection, transaction patterns |
 | `api_conventions.md` | REST route naming, versioning, path vs query params, response format, request ID, content negotiation, middleware ordering |
-| `tool_conventions.md` | Internet access rules, default flags for curl/wget/grep/WebSearch, provider CLI usage |
+| `tool_conventions.md` | Internet access rules, `\command` alias-bypass prefix, default flags for curl/wget/grep/WebSearch, provider CLI usage |
 | `kotlin_conventions.md` | Kotlin/Gradle (non-Android) project layout, Makefile targets, ktlint/detekt, code rules |
 | `java_conventions.md` | Java/Maven project layout, Makefile targets, Checkstyle/SpotBugs, code rules |
 | `ruby_conventions.md` | Ruby/Bundler project layout, Makefile targets, RuboCop/RSpec, code rules |
