@@ -1,10 +1,34 @@
 ---
 name: Agent usage conventions
-description: model routing, the hard no-subagent-commit rule, why a "no edits" instruction isn't enforcement, and fork/subagent scope discipline
+description: model routing, the hard no-subagent-commit rule, why a "no edits" instruction isn't enforcement, fork/subagent scope discipline, and preferring smaller scoped units of work
 type: user
 ---
 
 # Agent Usage Conventions
+
+## Prefer Smaller, Scoped Units of Work
+
+Split work into the smallest independently-reviewable units instead of one
+large task, both when delegating and when executing directly:
+
+- **Delegating to an agent** — scope each dispatch to one file, one finding,
+  or one clearly-bounded subtask rather than a single prompt covering many
+  files or many unrelated changes. A narrower prompt is easier to verify
+  against the real diff and keeps a bad edit contained to one unit instead of
+  buried in a large one.
+- **An agent's own execution** — when a task would touch many files or
+  produce a large diff/output, work and report in batches (e.g. one logical
+  group at a time) rather than accumulating one massive change before
+  surfacing anything. This applies to the invoking session too: prefer
+  several small, reviewable commits/edits over one sprawling pass, per the
+  commit-grouping rules in `gitcommit_conventions.md`.
+- **Why** — smaller units are easier to verify against ground truth, cheaper
+  to redo when wrong, and don't force reviewing (or discarding) unrelated
+  work together with a mistake.
+
+This is a general principle, not a hard size threshold — use judgment on
+where a task naturally splits; don't fragment a single coupled change just to
+hit a smaller unit count.
 
 ## Model Routing
 

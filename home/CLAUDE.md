@@ -189,7 +189,8 @@ Key rules always in effect:
 - **Parallelize independent research** — spawn agents in parallel (single message, multiple Agent calls)
 
 ## Agent Usage
-Full rules (model routing, no-subagent-commit, "no edits" ≠ enforcement, fork/subagent scope discipline): `~/.claude/memory/agent_usage_conventions.md`
+Full rules (smaller scoped units of work, model routing, no-subagent-commit, "no edits" ≠ enforcement, fork/subagent scope discipline): `~/.claude/memory/agent_usage_conventions.md`
+- **Prefer smaller, scoped units of work** — one file/finding/subtask per dispatch, batch large diffs instead of one sprawling change
 - **Model routing** — cheapest capable model per task; Haiku for trivial tasks (renames, format conversions, mechanical refactors)
 - **Agents never commit — hard rule, no exceptions**, mechanically enforced by `no-subagent-commit.sh`
 - A "no edits" instruction in a prompt is a request, not enforcement — an agent/fork keeps Edit/Write regardless of wording; use `explorer`/`Explore` for a mechanical guarantee

@@ -105,7 +105,7 @@ type: user
 | `project_conventions.md` | `{project_dir}/AI.md` / `IDEA.md` / `CLAUDE.md` roles, placeholder system, template system, first-time setup |
 | `communication_conventions.md` | Ask-if-unsure exceptions, question-detection rules, general communication posture |
 | `drift_prevention_conventions.md` | Pre-edit self-check checklist, post-compaction lazy re-verification, project_dir resolution, `/clear` hook-bug workaround |
-| `agent_usage_conventions.md` | Model routing pointer, agents-never-commit, "no edits" ≠ enforcement, fork/subagent scope discipline |
+| `agent_usage_conventions.md` | Prefer smaller scoped units of work, model routing pointer, agents-never-commit, "no edits" ≠ enforcement, fork/subagent scope discipline |
 | `reuse_conventions.md` | Search-before-write for variables/constants, functions, UI components, and host-level system config entries |
 | `path_resolution_conventions.md` | Provider inference from git remote host, `~/Projects/local`, full Local System Management Zone conditions |
 | `local_system_zone.md` | Rules that relax under `~/Projects/local/system/**` (plaintext credentials, no LICENSE.md, systemctl pre-auth, cross-repo/host-config grants, raw git commands other than `commit`/`push`) and what never relaxes there |
