@@ -8,6 +8,22 @@ out of scope for the task they were found during.
 
 ## In-repo follow-up (not fixed this session — out of scope)
 
+- [ ] `script-lint` agent (`home/agents/script-lint.md`) intermittently
+      "dies"/goes idle mid-run per user report (random, no specific
+      trigger file/project identified). Investigated: two live
+      reproduction attempts via the Agent tool against
+      `home/hooks/no-secrets.sh` (small) and `install.sh` (larger,
+      exercises naming/cross-file rules) both completed cleanly with
+      no hang (`no-secrets.sh: clean`, 53405 tokens/12 tool_uses/84768ms;
+      `install.sh: clean`, 51514 tokens/15 tool_uses/175333ms) — bug not
+      reproduced, root cause not found. Leading hypothesis (haiku model
+      undersized for the agent's 265-line ruleset) was raised and
+      rejected by the user because it directly contradicts AI.md Part 5's
+      explicit `model: haiku` classification for this agent — user
+      explicitly said keep haiku, find a different root cause. Needs
+      further diagnosis (e.g. capturing a live failure transcript when
+      it next happens) before any fix is attempted.
+
 - [ ] `block-host-toolchain.sh` (line ~167) and `no-forbidden-files.sh`
       (line ~394) each hardcode their own
       `("go.mod", "Cargo.toml", "package.json", "pyproject.toml")`
