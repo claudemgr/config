@@ -187,6 +187,15 @@ Load the matching file on demand — only when actively working in that language
 - **Node / TypeScript:** `~/.claude/memory/node_typescript_conventions.md`
 - **Python:** `~/.claude/memory/python_conventions.md`
 - **Rust:** `~/.claude/memory/rust_conventions.md`
+- **Kotlin (non-Android):** `~/.claude/memory/kotlin_conventions.md`
+- **Java:** `~/.claude/memory/java_conventions.md`
+- **Ruby:** `~/.claude/memory/ruby_conventions.md`
+- **PHP:** `~/.claude/memory/php_conventions.md`
+- **Swift:** `~/.claude/memory/swift_conventions.md`
+- **Dart / Flutter:** `~/.claude/memory/dart_conventions.md`
+- **C / C++:** `~/.claude/memory/cpp_conventions.md`
+- **C# / .NET:** `~/.claude/memory/csharp_conventions.md`
+- **Elixir:** `~/.claude/memory/elixir_conventions.md`
 
 ## Output
 - No preamble, no reflexive agreement, no closing recap

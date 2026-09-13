@@ -19,7 +19,7 @@ Read `{project_dir}/IDEA.md ## Business logic` and `## Project description` to d
 | `desktop-gui` | windowed UI, native app, desktop application |
 | `tui` | terminal UI, interactive terminal, ncurses-style |
 | `cli` | command-line tool, one-shot invocation, scripting target |
-| `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
+| `script-collection` | no compiled/interpreted-language build target (no `go.mod`/`Cargo.toml`/`package.json`/`pyproject.toml`/`build.gradle(.kts)`/`pom.xml`/`Gemfile`/`composer.json`/`Package.swift`/`pubspec.yaml`/`CMakeLists.txt`/`mix.exs`/`*.csproj`/`*.sln` at root); a set of standalone `bin/` shell scripts plus `install.sh`, typically with `completions/`, `man/`, `functions/`/`helpers/` |
 | `spec-collection` | root is entirely Markdown (spec/template/doc files consumed by AI tooling or humans) plus README.md/LICENSE.md/.gitignore; no source code directory at all — not even scripts; e.g. `claudemgr/config`, `claudemgr/go`, `claudemgr/rust`, `claudemgr/android`, `claudemgr/docker`, `claudemgr/mgr` |
 | `packaging` | distro/platform packaging — repo content is package build metadata (`debian/`, `{name}.spec`, `PKGBUILD`, `APKBUILD`, Homebrew formula, `snapcraft.yaml`, flatpak manifest, AppImage recipe, `flake.nix`) for software whose source is maintained elsewhere |
 | `library` | importable package/crate, no binary entrypoint |
@@ -155,7 +155,7 @@ Never hand-roll a parser.
 Applies to: repos that are a collection of standalone bash/sh/zsh/fish scripts with no compiled or interpreted-language build target — e.g. `casjay-dotfiles/scripts` and the `*mgr` repo family. Distinct from a single-script `cli` project: a `script-collection` has multiple entrypoints under `bin/` plus supporting `functions/`/`helpers/`/`sources/`, driven by one `install.sh`.
 
 ### Detection signals
-- No `go.mod`, `Cargo.toml`, `package.json`, or `pyproject.toml` at the project root.
+- No `go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`, `build.gradle(.kts)`, `pom.xml`, `Gemfile`, `composer.json`, `Package.swift`, `pubspec.yaml`, `CMakeLists.txt`, `mix.exs`, or `*.csproj`/`*.sln` at the project root.
 - `bin/` holding one or more standalone scripts; commonly paired with `completions/`, `man/`, `functions/`/`helpers/`, `sources/`, `applications/`.
 - `install.sh` at the root is the build/deploy step — there is no separate compile stage.
 - `IDEA.md ## Project description` / `## Business logic` describes a script collection, dotfiles/toolkit, or shell-based utility suite.
@@ -179,7 +179,7 @@ Applies to: repos whose entire content is Markdown specification/template/docume
 **Simple rule: if there are scripts, lint; if there are no scripts, don't.** A repo with any `*.sh`/`*.bash` file anywhere in its tree beyond a bare deploy-only `install.sh` (see below) is not `spec-collection` — it is `script-collection` (or a mix) and needs the test/lint gate. `claudemgr/config` is the disqualifying example: it ships dozens of scripts under `home/hooks/`, so it is **not** `spec-collection` despite being template/spec-heavy — `bash -n` plus the `script-lint` Agent apply to every `*.sh` in it.
 
 ### Detection signals
-- Root directory contains only `.md` files plus standard repo metadata (`README.md`, `LICENSE.md`, `.gitignore`, `.gitattributes`) — no `src/`, `bin/`, `cmd/`, `lib/`, or any language manifest (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`).
+- Root directory contains only `.md` files plus standard repo metadata (`README.md`, `LICENSE.md`, `.gitignore`, `.gitattributes`) — no `src/`, `bin/`, `cmd/`, `lib/`, or any language manifest (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`, `build.gradle(.kts)`, `pom.xml`, `Gemfile`, `composer.json`, `Package.swift`, `pubspec.yaml`, `CMakeLists.txt`, `mix.exs`, `*.csproj`/`*.sln`).
 - An `install.sh` at the root, if present, only copies/deploys files (no compile step) and is the *only* script in the repo — this alone does not disqualify the repo from `spec-collection`. Any additional `*.sh`/`*.bash` file anywhere else in the tree (e.g. a `hooks/`, `bin/`, or `scripts/` directory) does disqualify it — that repo needs the test/lint gate for those scripts instead.
 - `IDEA.md`/`README.md` describes the repo as a spec, template, prompt library, or documentation set — not an executable tool.
 

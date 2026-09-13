@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609111015-git
+##@Version           :  202609121200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
-# @@Changelog        :  Test and lint patterns now also match `make check` (claudemgr/android's APPLICATION.md gate for Kotlin — compile + ktlint/detekt lint + JVM unit tests) — Kotlin/Android commits had no recognized gate command, deadlocking their commits.
+# @@Changelog        :  Test/lint patterns and the script-collection manifest disqualifier list expanded to also recognize Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++, .NET, and Elixir — kept in sync with enforce-test-lint-gate.sh's MANIFESTS/TEST_CMD_RE/LINT_CMD_RE.
 # @@TODO             :  None
 # @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609111015-git"
+VERSION="202609121200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -63,6 +63,13 @@ TEST_LINT_MARK_TEST_RE='\bmake[[:space:]]+test\b|\bgo[[:space:]]+test\b'
 TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bcargo[[:space:]]+test\b|\bpytest\b"
 TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bnpm[[:space:]]+(run[[:space:]]+)?test\b"
 TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bmake[[:space:]]+check\b"
+# Must stay in sync with enforce-test-lint-gate.sh's TEST_CMD_RE.
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bgradle[[:space:]]+test\b|\./gradlew[[:space:]]+test\b|\bmvn[[:space:]]+test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\brspec\b|\bbundle[[:space:]]+exec[[:space:]]+rspec\b|\brake[[:space:]]+test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bphpunit\b|\bcomposer[[:space:]]+test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bswift[[:space:]]+test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bflutter[[:space:]]+test\b|\bdart[[:space:]]+test\b"
+TEST_LINT_MARK_TEST_RE="${TEST_LINT_MARK_TEST_RE}|\bctest\b|\bdotnet[[:space:]]+test\b|\bmix[[:space:]]+test\b"
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- "$TEST_LINT_MARK_TEST_RE" \
   && TEST_LINT_MARK_IS_TEST=1
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- '\bbash[[:space:]]+-n\b' \
@@ -83,6 +90,16 @@ TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bmake[[:space:]]+check\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\blintian\b|\brpmlint\b|\bnamcap\b|\bapkbuild-lint\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bbrew[[:space:]]+(audit|style)\b|\bsnapcraft[[:space:]]+lint\b"
 TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bflatpak-builder-lint\b|\bappimagelint\b|\bnix[[:space:]]+flake[[:space:]]+check\b|\bstatix\b"
+# Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++,
+# .NET, Elixir — must stay in sync with enforce-test-lint-gate.sh's
+# LINT_CMD_RE, and each has its own ~/.claude/memory/{lang}_conventions.md.
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bgradle[[:space:]]+(lint|ktlintCheck|detekt)\b|\./gradlew[[:space:]]+(lint|ktlintCheck|detekt)\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bmvn[[:space:]]+checkstyle:check\b|\bmvn[[:space:]]+spotbugs:check\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\brubocop\b|\bphpcs\b|\bphp-cs-fixer\b|\bphpstan\b|\bswiftlint\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bflutter[[:space:]]+analyze\b|\bdart[[:space:]]+analyze\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bclang-tidy\b|\bcppcheck\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bdotnet[[:space:]]+format[[:space:]]+--verify-no-changes\b"
+TEST_LINT_MARK_LINT_RE="${TEST_LINT_MARK_LINT_RE}|\bmix[[:space:]]+credo\b|\bmix[[:space:]]+format[[:space:]]+--check-formatted\b"
 printf '%s' "$TEST_LINT_MARK_CMD" | grep -qE -- "$TEST_LINT_MARK_LINT_RE" \
   && TEST_LINT_MARK_IS_LINT=1
 
@@ -99,14 +116,26 @@ TEST_LINT_MARK_PROJECT=$(realpath -- "$TEST_LINT_MARK_PROJECT" 2>/dev/null) || :
 
 # `bash -n` only satisfies the test gate for script-collection projects
 # (home/CLAUDE.md's Test gate line) — a project with a real test runner
-# (go.mod/Cargo.toml/package.json/pyproject.toml, project_type_conventions.md's
-# authoritative manifest set) must not have its test gate satisfied by
-# syntax-checking an unrelated script.
+# (project_type_conventions.md's authoritative manifest set) must not have
+# its test gate satisfied by syntax-checking an unrelated script. Must stay
+# in sync with enforce-test-lint-gate.sh's MANIFESTS tuple.
 if [ "$TEST_LINT_MARK_IS_BASHN" = "1" ] && [ "$TEST_LINT_MARK_IS_TEST" != "1" ]; then
   TEST_LINT_MARK_IS_SCRIPT_COLLECTION=1
-  for TEST_LINT_MARK_MANIFEST in go.mod Cargo.toml package.json pyproject.toml; do
+  for TEST_LINT_MARK_MANIFEST in \
+    go.mod Cargo.toml package.json pyproject.toml \
+    build.gradle build.gradle.kts pom.xml \
+    Gemfile composer.json Package.swift pubspec.yaml \
+    CMakeLists.txt mix.exs; do
     [ -f "$TEST_LINT_MARK_PROJECT/$TEST_LINT_MARK_MANIFEST" ] && TEST_LINT_MARK_IS_SCRIPT_COLLECTION=0 && break
   done
+  if [ "$TEST_LINT_MARK_IS_SCRIPT_COLLECTION" = "1" ] \
+    && compgen -G "$TEST_LINT_MARK_PROJECT/*.csproj" >/dev/null 2>&1; then
+    TEST_LINT_MARK_IS_SCRIPT_COLLECTION=0
+  fi
+  if [ "$TEST_LINT_MARK_IS_SCRIPT_COLLECTION" = "1" ] \
+    && compgen -G "$TEST_LINT_MARK_PROJECT/*.sln" >/dev/null 2>&1; then
+    TEST_LINT_MARK_IS_SCRIPT_COLLECTION=0
+  fi
   if [ "$TEST_LINT_MARK_IS_SCRIPT_COLLECTION" = "1" ]; then
     TEST_LINT_MARK_IS_TEST=1
   fi

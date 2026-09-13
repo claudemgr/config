@@ -3,7 +3,23 @@
 All findings from the 2026-08-30 hook-vs-rules audit have been fixed and
 removed. What remains below are upstream Claude Code environment bugs —
 tracked here because they affect sessions on this machine, but not fixable
-by any change in this repo.
+by any change in this repo — plus in-repo follow-ups discovered but ruled
+out of scope for the task they were found during.
+
+## In-repo follow-up (not fixed this session — out of scope)
+
+- [ ] `block-host-toolchain.sh` (line ~167) and `no-forbidden-files.sh`
+      (line ~394) each hardcode their own
+      `("go.mod", "Cargo.toml", "package.json", "pyproject.toml")`
+      4-manifest tuple for unrelated purposes (host-toolchain-invocation
+      detection and the forbidden-root-file directory check) — found
+      while expanding `enforce-test-lint-gate.sh`'s/`test-lint-mark.sh`'s
+      manifest detection to Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift,
+      Dart/Flutter, C/C++, .NET, and Elixir (2026-09-12). Left unchanged
+      because the user's request was specifically about the test/lint
+      gate's "not covered" error, not these two hooks; expanding them
+      needs its own verification pass (each hook's own detection logic
+      and test coverage) rather than being folded into this fix.
 
 ## Environment bug, not fixable in this repo
 

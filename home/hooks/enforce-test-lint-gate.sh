@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609111015-git
+##@Version           :  202609121200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  TEST_CMD_RE/LINT_CMD_RE now also match `make check` (claudemgr/android's APPLICATION.md gate for Kotlin — compile + ktlint/detekt lint + JVM unit tests) — Kotlin/Android commits had no recognized gate command, deadlocking their commits.
+# @@Changelog        :  MANIFESTS/TEST_CMD_RE/LINT_CMD_RE expanded to also recognize Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++, .NET, and Elixir manifests and gate commands, each with its own ~/.claude/memory/{lang}_conventions.md — projects in those languages previously fell through to spec-collection or had no recognized gate command, deadlocking their commits with an unhelpful "not covered" block.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback). TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> bypasses the gate for that one call — user-directed only, never Claude's own initiative.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609111015-git"
+VERSION="202609121200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -169,6 +169,14 @@ def marked(marker_file, project):
 TEST_CMD_RE = re.compile(
     r"\bmake\s+test\b|\bgo\s+test\b|\bcargo\s+test\b|\bpytest\b|\bnpm\s+(run\s+)?test\b"
     r"|\bmake\s+check\b"
+    r"|\bgradle\s+test\b|\./gradlew\s+test\b|\bmvn\s+test\b"
+    r"|\brspec\b|\bbundle\s+exec\s+rspec\b|\brake\s+test\b"
+    r"|\bphpunit\b|\bcomposer\s+test\b"
+    r"|\bswift\s+test\b"
+    r"|\bflutter\s+test\b|\bdart\s+test\b"
+    r"|\bctest\b"
+    r"|\bdotnet\s+test\b"
+    r"|\bmix\s+test\b"
 )
 BASHN_RE = re.compile(r"\bbash\s+-n\b")
 # Must stay in sync with test-lint-mark.sh's TEST_LINT_MARK_LINT_RE: the lint
@@ -185,7 +193,21 @@ LINT_CMD_RE = re.compile(
     r"|\blintian\b|\brpmlint\b|\bnamcap\b|\bapkbuild-lint\b"
     r"|\bbrew\s+(audit|style)\b|\bsnapcraft\s+lint\b|\bflatpak-builder-lint\b"
     r"|\bappimagelint\b|\bnix\s+flake\s+check\b|\bstatix\b|\bmake\s+check\b"
+    r"|\bgradle\s+(lint|ktlintCheck|detekt)\b|\./gradlew\s+(lint|ktlintCheck|detekt)\b"
+    r"|\bmvn\s+checkstyle:check\b|\bmvn\s+spotbugs:check\b"
+    r"|\brubocop\b"
+    r"|\bphpcs\b|\bphp-cs-fixer\b|\bphpstan\b"
+    r"|\bswiftlint\b"
+    r"|\bflutter\s+analyze\b|\bdart\s+analyze\b"
+    r"|\bclang-tidy\b|\bcppcheck\b"
+    r"|\bdotnet\s+format\s+--verify-no-changes\b"
+    r"|\bmix\s+credo\b|\bmix\s+format\s+--check-formatted\b"
 )
+# No new lint-agent subagent_types are added for the languages below —
+# coverage is via TEST_CMD_RE/LINT_CMD_RE direct-command matching plus a
+# dedicated ~/.claude/memory/{lang}_conventions.md reference file per
+# language (see home/CLAUDE.md's Language Constraints section), the same
+# pattern already used for Node/TS (npm run lint) and Python (ruff).
 # The lint agents are as often launched via the Agent tool (subagent_type
 # script-lint/go-lint/rust-lint) as via a literal Bash command — the Bash-only
 # scan above missed every Agent-tool run entirely, permanently false-blocking
@@ -313,12 +335,37 @@ def has_shell_scripts(root):
     return False
 
 
+# Authoritative manifest set from project_type_conventions.md's
+# script-collection/spec-collection detection signals — one fixed
+# filename per language/build-system, each with a documented test/lint
+# gate command in TEST_CMD_RE/LINT_CMD_RE above and its own
+# ~/.claude/memory/{lang}_conventions.md reference file (home/CLAUDE.md's
+# Language Constraints section). dotnet's *.csproj/*.sln are not fixed
+# filenames, so they use the has_dotnet_manifest() glob check instead.
+MANIFESTS = (
+    "go.mod", "Cargo.toml", "package.json", "pyproject.toml",
+    "build.gradle", "build.gradle.kts", "pom.xml",
+    "Gemfile", "composer.json", "Package.swift", "pubspec.yaml",
+    "CMakeLists.txt", "mix.exs",
+)
+
+
+def has_dotnet_manifest(root):
+    try:
+        return any(f.endswith((".csproj", ".sln")) for f in os.listdir(root))
+    except OSError:
+        return False
+
+
+def has_any_manifest(root):
+    return (
+        any(os.path.isfile(os.path.join(root, m)) for m in MANIFESTS)
+        or has_dotnet_manifest(root)
+    )
+
+
 def is_spec_collection(root):
-    # Authoritative manifest set from project_type_conventions.md's
-    # script-collection detection signals: go.mod/Cargo.toml/package.json/
-    # pyproject.toml only — Makefile/setup.py are not part of that list.
-    manifests = ("go.mod", "Cargo.toml", "package.json", "pyproject.toml")
-    if any(os.path.isfile(os.path.join(root, m)) for m in manifests):
+    if has_any_manifest(root):
         return False
     return not has_shell_scripts(root)
 
@@ -338,10 +385,7 @@ for target in targets:
             )
         continue
 
-    manifests_present = any(
-        os.path.isfile(os.path.join(project, m))
-        for m in ("go.mod", "Cargo.toml", "package.json", "pyproject.toml")
-    )
+    manifests_present = has_any_manifest(project)
     transcript_test_ok, transcript_lint_ok = transcript_pass(
         transcript_path, project, allow_bashn_as_test=not manifests_present
     )
@@ -352,8 +396,10 @@ for target in targets:
     # Every manifest language has a documented lint gate — go-lint/rust-lint/
     # script-lint agents for Go/Rust/shell, `npm run lint` for Node/TS
     # (node_typescript_conventions.md), `ruff check` + `ruff format --check`
-    # for Python (python_conventions.md) — so any manifest or shell script in
-    # the tree means the lint gate is both defined and satisfiable.
+    # for Python (python_conventions.md), and the direct lint commands in
+    # LINT_CMD_RE above for every other manifest language — so any manifest
+    # or shell script in the tree means the lint gate is both defined and
+    # satisfiable.
     has_defined_lint_target = manifests_present or has_shell_scripts(project)
     if (
         has_defined_lint_target

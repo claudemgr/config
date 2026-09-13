@@ -140,6 +140,15 @@ type: user
 | `database_conventions.md` | Schema management, parameterized queries, connection pooling, SQLite vs PostgreSQL selection, transaction patterns |
 | `api_conventions.md` | REST route naming, versioning, path vs query params, response format, request ID, content negotiation, middleware ordering |
 | `tool_conventions.md` | Internet access rules, default flags for curl/wget/grep/WebSearch, provider CLI usage |
+| `kotlin_conventions.md` | Kotlin/Gradle (non-Android) project layout, Makefile targets, ktlint/detekt, code rules |
+| `java_conventions.md` | Java/Maven project layout, Makefile targets, Checkstyle/SpotBugs, code rules |
+| `ruby_conventions.md` | Ruby/Bundler project layout, Makefile targets, RuboCop/RSpec, code rules |
+| `php_conventions.md` | PHP/Composer project layout, Makefile targets, PHPStan/phpcs/PHPUnit, code rules |
+| `swift_conventions.md` | Swift/SwiftPM project layout, Makefile targets, SwiftLint, code rules |
+| `dart_conventions.md` | Dart/Flutter/pub project layout, Makefile targets, dart analyze/flutter analyze, code rules |
+| `cpp_conventions.md` | C/C++/CMake project layout, Makefile targets, clang-tidy/cppcheck, code rules |
+| `csharp_conventions.md` | C#/.NET project layout, Makefile targets, dotnet format/Roslyn analyzers, code rules |
+| `elixir_conventions.md` | Elixir/Mix project layout, Makefile targets, Credo/Dialyzer, code rules |
 
 **Adding a new memory file:**
 1. Create `home/memory/{topic}.md` with frontmatter
