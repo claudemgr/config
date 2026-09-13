@@ -459,6 +459,8 @@ Channels differ ONLY in context, never in steps:
 
 Never fork the pipeline logic per channel — one skeleton, parameterized by context.
 
+Every workflow (CI and every release channel) must also support an on-demand manual run in addition to its normal trigger, so it can be re-run without a dummy commit — `workflow_dispatch` on GitHub/Gitea/Forgejo; GitLab and Jenkins pipelines are already manually runnable from their own UI with no extra config.
+
 ## Release Checklist
 
 Before tagging a release:

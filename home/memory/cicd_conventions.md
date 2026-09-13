@@ -435,6 +435,7 @@ jobs:
 | **Workflow permissions** | Default to read-only / least privilege; grant write only to the specific release/publish job that needs it |
 | **Use build image — never install tools inline** | Workflows pull `{project_org}/{project_name}:build` for all build/test/lint/scan steps. Never `apk add`, `apt-get`, `go install`, `cargo install`, or any inline tool install in a workflow step. All tooling lives in `docker/Dockerfile.build`, rebuilt monthly |
 | **Workflow portability — no hardcoded values** | Org name, project name, registry, official site: never hardcoded. Use provider-supplied variables so the workflow works after a fork without edits. GitHub: `github.repository_owner` / `github.event.repository.name`. GitLab: `$CI_REGISTRY_IMAGE` / `$CI_PROJECT_NAMESPACE` / `$CI_PROJECT_NAME`. Jenkins: parse from `${env.GIT_URL}` |
+| **Manual trigger on every workflow** | Every workflow must be runnable on demand, in addition to its normal trigger(s), so it can be re-run without a dummy commit. GitHub/Gitea/Forgejo: add `workflow_dispatch:` to every `on:` block (`ci.yml`, `release.yml` — with a tag input, `build-toolchain.yml` — already required). GitLab: pipelines are always manually runnable from the UI; add a `when: manual` rule only for a stage that should NOT run automatically. Jenkins: declarative pipelines are always manually triggerable ("Build with Parameters") — no extra config needed |
 
 ## Workflow Permissions
 
@@ -498,7 +499,7 @@ ensure-build-image
 └── upload-artifacts  (needs: build; skipped on schedule)
 ```
 
-`ci.yml` triggers on push to `main`, pull_request, and a weekly schedule (`cron: '0 6 * * 1'`). On the schedule event, `lint`, `test`, `build`, `coverage`, `image-scan`, and `upload-artifacts` skip via `if: github.event_name != 'schedule'` — only the security jobs (`secret-scan`, `workflow-policy`, `vuln-scan`) run. This ensures the security posture is checked weekly even without a code push.
+`ci.yml` triggers on push to `main`, pull_request, a weekly schedule (`cron: '0 6 * * 1'`), and `workflow_dispatch` for manual re-runs. On the schedule event, `lint`, `test`, `build`, `coverage`, `image-scan`, and `upload-artifacts` skip via `if: github.event_name != 'schedule'` — only the security jobs (`secret-scan`, `workflow-policy`, `vuln-scan`) run. This ensures the security posture is checked weekly even without a code push. `workflow_dispatch` runs are treated like a push event (nothing skips) since they are an explicit manual request for a full run.
 
 `ensure-build-image` always runs regardless of trigger — it is the gate for all other jobs. Security jobs (`secret-scan`, `workflow-policy`, `vuln-scan`) each independently `needs: ensure-build-image`, giving them parallelism among themselves while all depending on the gate. They do not depend on each other.
 
