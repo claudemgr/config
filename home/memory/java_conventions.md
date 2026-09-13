@@ -150,6 +150,7 @@ lint:
 - **`Optional<T>`** for a method's return type when "no value" is a valid outcome — never return `null` from a method whose signature doesn't make that explicit via `Optional`
 - **Records** (`record Point(int x, int y) {}`) for immutable data carriers — never a hand-written class with only getters, equals, hashCode, toString
 - **`var`** for local-variable type inference only when the right-hand side already makes the type obvious; never for public API surfaces
+- **Visibility**: package-private/`private` by default; a member is `public` only when it is genuinely part of the module's external API
 
 ```java
 public Optional<Version> parseVersion(String raw) {

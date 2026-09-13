@@ -146,6 +146,10 @@ kotlin {
 - Data classes for plain data holders — never a class with only fields and no behavior
 - Sealed classes/interfaces for closed hierarchies (state machines, result types) instead of open inheritance
 - Coroutines (`kotlinx.coroutines`) for async work — never raw `Thread` unless interfacing with blocking Java code that requires it
+- **Structured concurrency**: never `GlobalScope.launch` — every coroutine is scoped to an explicit `CoroutineScope` tied to the lifecycle of the component/resource that owns it, and cancelled with it
+- **Visibility**: `private`/`internal` by default; a member is `public` only when it is genuinely part of the module's external API
+- **Scope functions**: `let`/`run`/`with`/`apply`/`also` used for their idiomatic purpose (null-check unwrap, object configuration, side effects) — never chained more than two deep, and never used to smuggle multi-statement logic into what reads like a one-liner
+- **Naming**: standard Kotlin conventions — `UpperCamelCase` types, `lowerCamelCase` members/functions, `SCREAMING_SNAKE_CASE` top-level/companion `const val`s; no Hungarian notation, no `m`/`s` prefixes
 
 ```kotlin
 fun parseVersion(raw: String?): Triple<Int, Int, Int>? {
@@ -226,7 +230,6 @@ Pass via `--build-arg` in Docker or `-e` at container run time.
 ## Code Rules
 
 - **No `lateinit var`** without a comment stating the initialization guarantee — prefer constructor injection or a nullable + lazy pattern
-- **No `GlobalScope.launch`** — coroutines always launch in a scoped `CoroutineScope` tied to a lifecycle
 - **No `Thread.sleep()` in coroutine code** — use `delay()` instead, it doesn't block the underlying thread
 - **Extension functions** over utility classes with static-style methods
 - **`when` must be exhaustive** on sealed types — no `else -> {}` catch-all that silently swallows a future case
