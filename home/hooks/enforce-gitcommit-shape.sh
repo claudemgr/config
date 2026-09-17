@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 19:00 EDT
 # @@File             :  enforce-gitcommit-shape.sh
 # @@Description      :  PreToolUse Bash hook: blocks any commit-wrapper invocation not exactly `--dir <path> all` or the documented push-retry form (CLAUDE.md's Commit Workflow).
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Ignore shell redirections (2>&1, >/dev/null, >> log) after a valid invocation — they were counted as extra args and falsely blocked; decode stdin as UTF-8 with replacement and fail open on any parse exception.
 # @@TODO             :  None
 # @@Other              :  Does not apply to raw git commit/push (governed by zone-git-commit-push.sh instead); the commit wrapper has no zone exception anywhere.
 # @@Resource         :  CLAUDE.md - Commit Workflow
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -42,11 +42,11 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block
@@ -160,7 +160,20 @@ for sub_cmd in re.split(r"[\n;]|&&|\|\||[|&]", cmd):
     if not clean or clean[0] != "gitcommit":
         continue
 
-    args = clean[1:]
+    # Drop shell redirections (`2>&1`, `>/dev/null`, `>> log`, `< in`, a bare
+    # `>` plus its target) so a valid invocation whose output is merely
+    # redirected or piped is not reported as a disallowed argument shape.
+    args = []
+    skip_target = False
+    for tok in clean[1:]:
+        if skip_target:
+            skip_target = False
+            continue
+        redir = re.match(r"^(\d*|&)(>>?|<)(&?\d*|.*)$", tok)
+        if redir:
+            skip_target = not redir.group(3)
+            continue
+        args.append(tok)
 
     # Documented push-retry form: `gitcommit push` (CLAUDE.md Commit Workflow,
     # "If push fails offline: run `gitcommit push` later").

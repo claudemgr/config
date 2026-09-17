@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302345-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Wednesday, May 14, 2026 00:00 EDT
 # @@File             :  block-host-toolchain.sh
 # @@Description      :  Claude Code PreToolUse hook — block direct host toolchain invocations and suggest the Docker equivalent
-# @@Changelog        :  TODO.AI.md items 23 through 32 fixed in one pass: resource limits added to every suggested
+# @@Changelog        :  __split_subcommands now reads the command over stdin instead of argv — a very long command line exceeded the kernel argv limit and the hook silently skipped enforcement.
 #                        docker run; gradle/gradlew and the Android SDK tools now dispatch to
 #                        casjaysdev/android:latest; suggested commands now honor the toolchain-image decision tree
 #                        (project-declared image, then docker/Dockerfile.build, then the language default); the
@@ -40,7 +40,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302345-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -303,7 +303,9 @@ def first_word(sub):
 
 SQ = chr(39)
 DQ = chr(34)
-cmd = sys.argv[1]
+# stdin, never argv: a very long command line would exceed the kernel per-argument
+# limit, python3 would fail to launch, and the hook would silently skip enforcement.
+cmd = sys.stdin.buffer.read().decode("utf-8", "replace")
 # join backslash-newline continuations into one logical line
 cmd = re.sub(r"\\\n\s*", " ", cmd)
 # drop heredoc BODY lines so data is not treated as sub-commands; (?<!<)(?!<) avoids matching here-strings <<<
@@ -385,7 +387,7 @@ for sub in subs:
     sub = sub.strip()
     if sub:
         sys.stdout.write(first_word(sub) + "\x1f" + sub + "\0")
-' "$1"
+'
 }
 
 BLOCK_HOST_TOOLCHAIN_INPUT="$(cat)"
@@ -1108,6 +1110,6 @@ case "$BLOCK_HOST_TOOLCHAIN_FIRST_BASE" in
 
 esac
 
-done < <(__split_subcommands "$BLOCK_HOST_TOOLCHAIN_FULL_CMD")
+done < <(printf '%s' "$BLOCK_HOST_TOOLCHAIN_FULL_CMD" | __split_subcommands)
 
 exit 0

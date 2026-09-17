@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609031200-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  drift-guard-read.sh
 # @@Description      :  PreToolUse Read+Bash hook: block reading ~/.claude/ deployed copies when a home/ source exists
-# @@Changelog        :  Adds a DRIFT_GUARD_ALLOW=1 Bash env-var prefix so an explicit user-directed read of the deployed copy is not blocked; the Read tool has no field to carry it, so an explicit deployed-copy read must go through Bash.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error.
 # @@TODO             :
 # @@Other            :  Fires only when inside a claudemgr/config project (detected by presence of home/CLAUDE.md); fails open if the home/ source doesn't exist; DRIFT_GUARD_ALLOW=1 <cmd> bypasses the block for that one Bash call
 # @@Resource         :  home/hooks/no-read-gitcommit.sh
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609031200-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -38,11 +38,11 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block

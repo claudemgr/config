@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609080001-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  no-force-push.sh
 # @@Description      :  PreToolUse hook: block git push --force/-f/+refspec (gitcommit is the only sanctioned push path)
-# @@Changelog        :  Repointed the "Still hard" list resource reference to local_system_zone.md, where that list now actually lives after being extracted out of CLAUDE.md.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error.
 # @@TODO             :  None
 # @@Other            :  Blocks everywhere, including the zone — force-push has no zone exception.
 # @@Resource         :  local_system_zone.md - "Still hard - no exception, ever"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609080001-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -43,11 +43,11 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block

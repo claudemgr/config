@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609090035-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  lint-agent-mark.sh
 # @@Description      :  SubagentStop hook: records the lint gate satisfied when script-lint/go-lint/rust-lint reports a clean result.
-# @@Changelog        :  Contract now distinguishes NEW (blocking) from pre-existing (non-blocking) findings — marks pass on `: clean` or `: 0 new issue(s) found`, skips only on a nonzero `: N new issue(s) found`; a report with only pre-existing findings no longer false-blocks the gate.
+# @@Changelog        :  realpath-normalise the recorded project path so it matches enforce-test-lint-gate.sh's realpath comparison under symlinked checkouts.
 # @@TODO             :  None
 # @@Other            :  Lint agents always end their report `: clean`, `: 0 new issue(s) found (M pre-existing...)`, or `: N new issue(s) found` — last_assistant_message is checked against that; a nonzero new-issue count skips the marker, pre-existing-only never does.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Lint gate), home/hooks/test-lint-mark.sh, home/hooks/enforce-test-lint-gate.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609090035-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -63,6 +63,9 @@ printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [1-9][0-9]* new issue\(s\) f
 
 LINT_AGENT_MARK_PROJECT=$(git -C "${LINT_AGENT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
   || LINT_AGENT_MARK_PROJECT="$LINT_AGENT_MARK_CWD"
+# Symlink-normalise so the line matches what enforce-test-lint-gate.sh compares
+# against (os.path.realpath of the gitcommit --dir target), exactly.
+LINT_AGENT_MARK_PROJECT=$(realpath -- "$LINT_AGENT_MARK_PROJECT" 2>/dev/null) || :
 [ -z "$LINT_AGENT_MARK_PROJECT" ] && exit 0
 
 # This marker must be a deterministic, reconstructable path so

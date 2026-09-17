@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,14 +10,14 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  enforce-docker-rm.sh
 # @@Description      :  PreToolUse hook: block docker run without --rm/--name and incus launch/init without an instance name (prevents orphaned/untargetable containers)
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error. Never elide a heredoc body on a line with a pipe, $( or backtick (cat <<EOF | bash routes the body into a host shell), matching the other heredoc-aware hooks.
 # @@TODO             :  None
 # @@Other            :  --rm is exempt for detached (-d/--detach) containers so tests can inspect a crashed container's logs before teardown; --name stays mandatory either way
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -46,13 +46,13 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 # strict=False accepts raw control characters (tabs/newlines) inside strings
 # so a payload with an embedded tab cannot bypass the hook via a parse failure
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block
@@ -110,7 +110,13 @@ def strip_heredoc_bodies(text):
             line = lines[i]
             out.append(line)
             delims = []
+            # A pipe, command substitution, or backtick on the line can route
+            # a "data" heredoc body into a shell downstream of a non-shell
+            # head (e.g. `cat <<EOF | bash`) - never elide on such lines.
+            risky_line = bool(re.search(r"\||\$\(|`", line))
             for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                if risky_line:
+                    continue
                 head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
                 if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
                     delims.append(m.group(2))

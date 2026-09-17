@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, Jul 03, 2026 12:30 EDT
 # @@File             :  bound-shell-lifetime.sh
 # @@Description      :  Claude Code PreToolUse hook — block unbounded shell lifetimes (infinite poll loops, open-ended sleeps/follows, untracked daemonization)
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error. Never elide a heredoc body on a line with a pipe, $( or backtick (cat <<EOF | bash routes the body into a host shell), matching the other heredoc-aware hooks.
 # @@TODO             :  None
 # @@Other            :  `timeout N`-wrapped and container-mediated commands are exempt; bounded loops (counters, seq, {1..N}, SECONDS) are allowed.
 # @@Resource         :  ~/.claude/memory/execution_hierarchy.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -48,11 +48,11 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block
@@ -114,7 +114,13 @@ def strip_heredoc_bodies(text):
             line = lines[i]
             out.append(line)
             delims = []
+            # A pipe, command substitution, or backtick on the line can route
+            # a "data" heredoc body into a shell downstream of a non-shell
+            # head (e.g. `cat <<EOF | bash`) - never elide on such lines.
+            risky_line = bool(re.search(r"\||\$\(|`", line))
             for m in re.finditer(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1", line):
+                if risky_line:
+                    continue
                 head = {t.rsplit("/", 1)[-1].lstrip("\\") for t in line[: m.start()].split()}
                 if head & HEREDOC_CONTAINER_TOOLS or not (head & HEREDOC_SHELLS):
                     delims.append(m.group(2))

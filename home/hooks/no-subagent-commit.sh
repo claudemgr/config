@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 12:00 EDT
 # @@File             :  no-subagent-commit.sh
 # @@Description      :  PreToolUse hook: blocks the commit wrapper/git commit/git push when the top-level agent_id field is present, enforcing the "agents never commit" rule.
-# @@Changelog        :  Normalizes every documented-string payload field, so a list/numeric command, cwd or file_path fails open instead of raising TypeError.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error.
 # @@TODO             :  None
 # @@Other            :  Applies everywhere including the zone — the zone's raw-git exception bypasses the commit wrapper for the main session, not a subagent's own authority.
 # @@Resource         :  CLAUDE.md - Agent Usage - "Agents never commit"
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -46,10 +46,10 @@ import shlex
 import sys
 
 try:
-    with open(sys.argv[1], "r") as _f:
+    with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
         raw = _f.read()
     d = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block

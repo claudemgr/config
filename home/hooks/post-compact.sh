@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302205-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,18 +10,22 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  post-compact.sh
 # @@Description      :  SessionStart(compact) hook: re-inject project-dir and global context after compaction
-# @@Changelog        :  Cleanup path moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard, matching spec-guard-mark.sh's new write path.
+# @@Changelog        :  Fail open (exit 0) when python3 is missing instead of surfacing a hook error under set -e.
 # @@TODO             :
 # @@Other            :  Compaction drops old context; this re-anchors Claude to the project without a full re-read, which previously re-triggered compaction in a loop.
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302205-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
 
 # Drain stdin (session-start payload) — must consume it
 POST_COMPACT_INPUT="$(cat)"
+
+# Fail open (exit 0, no context) when the JSON emitter is missing — under
+# set -e a missing python3 would otherwise surface as a hook error.
+command -v python3 >/dev/null 2>&1 || exit 0
 
 # Clear this session's spec-guard marker so AI.md/SPEC.md must be re-read after compaction
 # The `type == "object"` probe fails open on an empty, malformed, or non-object

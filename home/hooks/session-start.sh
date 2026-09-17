@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608301800-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,15 +10,21 @@
 # @@Created          :  Friday, May 16, 2026 00:00 EDT
 # @@File             :  session-start.sh
 # @@Description      :  SessionStart hook: inject project-dir context to anchor every session
-# @@Changelog        :  Noted project CLAUDE.md as loader and SPEC.md as override tier; fixed the license header field to WTFPL.
+# @@Changelog        :  Drain stdin and fail open (exit 0) when python3 is missing instead of surfacing a hook error under set -e.
 # @@TODO             :
 # @@Other            :  Silently exits if not inside a git repo with a project CLAUDE.md or AI.md
 # @@Resource         :
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608301800-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
+
+# Drain the payload so Claude Code never sees a broken pipe, and fail open
+# (exit 0, no context) when the JSON emitter is missing — under set -e a
+# missing python3 would otherwise surface as a hook error on every start.
+cat >/dev/null || :
+command -v python3 >/dev/null 2>&1 || exit 0
 
 project=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || exit 0
 

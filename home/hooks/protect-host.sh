@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609160001-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Added Rule 10 exemption for container/VM runtime daemon lifecycle (systemctl start/stop/restart/enable/disable/daemon-reload on docker, containerd, incus, lxd, libvirtd, virtlogd, virtlockd, virtnetworkd, virtstoraged, virtqemud, podman) — these engines are the same execution tier as already-exempted exec/run commands, not host application services, so they no longer require confirmation. Fixed __strip_container_subcmds and __strip_heredoc_bodies to tolerate flags between a container binary and its exec/run sub-command (incus -q exec), a sudo wrapper (sudo incus exec), and repeated whitespace (incus  exec) — these previously fell through the container/VM exemption and left legitimate test commands (including systemctl) inside containers/VMs blocked.
+# @@Changelog        :  Rule 5 redirect check now reads the command over stdin and blocks only on a printed match — a very long command line exceeded the kernel argv limit, python3 failed to launch, and the non-zero status was misread as a match, blocking harmless calls. Synced VERSION with the header.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609040001-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -336,13 +336,18 @@ fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Rule 5: shell redirect (> or >>) to auth-critical files or core binary paths.
 # /dev/null, /dev/std{in,out,err}, /dev/tty, /dev/fd/N, /dev/pts/N are always safe.
+# The command travels over stdin, never argv: a very long command line would
+# exceed the kernel's per-argument limit, python3 would fail to launch, and the
+# non-zero status would read as a match — blocking the call for no reason.
+# A match prints the offending target and exits 0; the caller blocks only on
+# non-empty output, so any interpreter failure is silent and fails open.
 __check_redirects() {
-  python3 - "$1" <<'PYSCRIPT'
+  printf '%s' "$1" | python3 -c '
 import re, sys
 # Any unexpected exception must fail OPEN (exit 0) — the documented design is
-# that a broken hook never blocks every Bash call; only a real match exits 1.
+# that a broken hook never blocks every Bash call; only a real match prints.
 sys.excepthook = lambda *a: sys.exit(0)
-cmd = sys.argv[1]
+cmd = sys.stdin.buffer.read().decode("utf-8", "replace")
 auth_critical = re.compile(
     r"^/etc/(passwd|shadow|gshadow|group|sudoers|master\.passwd)$"
 )
@@ -353,18 +358,17 @@ safe_pseudo = re.compile(
     r"^/dev/(null|stdin|stdout|stderr|tty|fd/\d+|pts/\d+)$"
 )
 for m in re.finditer(r"(?:^|[\s;|&`(])(?:\d+|&)?>>?\s*([^\s;|&`()<>]+)", cmd):
-    target = m.group(1).strip("\"'")
+    target = m.group(1).strip(chr(34) + chr(39))
     if safe_pseudo.match(target):
         continue
     if auth_critical.match(target) or core_binary.match(target):
         print(target)
-        sys.exit(1)
+        break
 sys.exit(0)
-PYSCRIPT
+' 2>/dev/null || :
 }
-if PROTECT_HOST_BAD_REDIRECT="$(__check_redirects "$PROTECT_HOST_CMD")"; then
-  :
-else
+PROTECT_HOST_BAD_REDIRECT="$(__check_redirects "$PROTECT_HOST_CMD")"
+if [[ -n "$PROTECT_HOST_BAD_REDIRECT" ]]; then
   __block "shell redirect to protected path: $PROTECT_HOST_BAD_REDIRECT"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

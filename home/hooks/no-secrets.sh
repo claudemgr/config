@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609020139-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Thursday, May 15, 2026 00:00 EDT
 # @@File             :  no-secrets.sh
 # @@Description      :  Claude Code PreToolUse hook — scan Write/Edit content for high-confidence secret patterns and block if found
-# @@Changelog        :  Fails open on a non-string file_path instead of raising TypeError and surfacing a hook error.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error. Parse with strict=False like every other hook so raw control characters inside content strings never abort the scan.
 # @@TODO             :  None
 # @@Other            :  Applies to Write (content) and Edit (new_string); .env.example/.sample templates and placeholder-text matches (changeme, your_key_here) are skipped.
 # @@Resource         :  ~/.claude/memory/sensitive_data.md
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609020139-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -uo pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -46,10 +46,10 @@ import sys
 
 # Fail-open on malformed payloads — a broken hook must never block every Write/Edit call.
 try:
-    with open(sys.argv[1], "r") as _f:
+    with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
         raw = _f.read()
-    d = json.loads(raw)
-except json.JSONDecodeError:
+    d = json.loads(raw, strict=False)
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block

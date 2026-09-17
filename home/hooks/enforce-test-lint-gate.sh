@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609121200-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  enforce-test-lint-gate.sh
 # @@Description      :  PreToolUse Bash hook: blocks the commit wrapper's `--dir <path> all` form unless the test and lint gates ran and passed this session for that project.
-# @@Changelog        :  MANIFESTS/TEST_CMD_RE/LINT_CMD_RE expanded to also recognize Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++, .NET, and Elixir manifests and gate commands, each with its own ~/.claude/memory/{lang}_conventions.md — projects in those languages previously fell through to spec-collection or had no recognized gate command, deadlocking their commits with an unhelpful "not covered" block.
+# @@Changelog        :  Decode the stdin payload file as UTF-8 with replacement and fail open on any parse exception (not only JSONDecodeError) — a non-UTF-8 byte previously raised UnicodeDecodeError and surfaced as a hook error.
 # @@TODO             :  None
 # @@Other            :  Pairs with test-lint-mark.sh's per-session markers; a project-type heuristic picks the test path (manifest, script-collection re-read, or *.md fallback). TEST_LINT_GATE_OVERRIDE=1 <gitcommit ...> bypasses the gate for that one call — user-directed only, never Claude's own initiative.
 # @@Resource         :  CLAUDE.md - Commit Workflow, home/hooks/test-lint-mark.sh, home/hooks/spec-guard.sh
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609121200-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -43,11 +43,11 @@ import re
 import shlex
 import sys
 
-with open(sys.argv[1], "r") as _f:
+with open(sys.argv[1], "r", encoding="utf-8", errors="replace") as _f:
     raw = _f.read()
 try:
     payload = json.loads(raw, strict=False)
-except json.JSONDecodeError:
+except Exception:
     sys.exit(0)
 
 # A JSON scalar or array parses cleanly but has no .get(), so the block
@@ -249,7 +249,7 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                     continue
                 try:
                     entry = json.loads(line)
-                except json.JSONDecodeError:
+                except Exception:
                     continue
                 if not isinstance(entry, dict):
                     continue

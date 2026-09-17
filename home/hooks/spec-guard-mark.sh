@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608302205-git
+##@Version           :  202609170001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,12 +10,12 @@
 # @@Created          :  Monday, July 20, 2026 00:00 EDT
 # @@File             :  spec-guard-mark.sh
 # @@Description      :  PostToolUse hook: record that AI.md/SPEC.md was read this session, per project
-# @@Changelog        :  Marker dir moved from unnamespaced claude-spec-guard to claude-hooks/spec-guard — a shared infra namespace, not a project/repo name, since this hook is deployed globally.
+# @@Changelog        :  realpath-normalise the recorded project path so it matches enforce-test-lint-gate.sh's realpath comparison under symlinked checkouts.
 # @@TODO             :
 # @@Other              :  Pairs with spec-guard.sh (checks this marker) and enforce-test-lint-gate.sh (reuses it for the spec-collection branch).
 # @@Resource         :  ~/.claude/memory/project_conventions.md
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202608302205-git"
+VERSION="202609170001-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
 set -euo pipefail
@@ -45,6 +45,10 @@ SPEC_GUARD_MARK_DIRNAME="${SPEC_GUARD_MARK_FILE_PATH%/*}"
 
 SPEC_GUARD_MARK_PROJECT=$(git -C "$SPEC_GUARD_MARK_DIRNAME" rev-parse --show-toplevel 2>/dev/null) \
   || SPEC_GUARD_MARK_PROJECT="$SPEC_GUARD_MARK_DIRNAME"
+# Symlink-normalise so the line matches what enforce-test-lint-gate.sh compares
+# against (os.path.realpath of the gitcommit --dir target), exactly.
+SPEC_GUARD_MARK_PROJECT=$(realpath -- "$SPEC_GUARD_MARK_PROJECT" 2>/dev/null) || :
+[ -z "$SPEC_GUARD_MARK_PROJECT" ] && exit 0
 
 # Mark on AI.md or SPEC.md directly - the two files spec-guard.sh gates on.
 # Template-repo fallback: a project with neither AI.md nor SPEC.md at its root
