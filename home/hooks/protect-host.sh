@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609040001-git
+##@Version           :  202609160001-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,7 +10,7 @@
 # @@Created          :  Friday, May 01, 2026 10:22 EDT
 # @@File             :  protect-host.sh
 # @@Description      :  Claude Code PreToolUse hook - block truly destructive Bash ops on host
-# @@Changelog        :  Fixed __strip_container_subcmds and __strip_heredoc_bodies to tolerate flags between a container binary and its exec/run sub-command (incus -q exec), a sudo wrapper (sudo incus exec), and repeated whitespace (incus  exec) — these previously fell through the container/VM exemption and left legitimate test commands (including systemctl) inside containers/VMs blocked.
+# @@Changelog        :  Added Rule 10 exemption for container/VM runtime daemon lifecycle (systemctl start/stop/restart/enable/disable/daemon-reload on docker, containerd, incus, lxd, libvirtd, virtlogd, virtlockd, virtnetworkd, virtstoraged, virtqemud, podman) — these engines are the same execution tier as already-exempted exec/run commands, not host application services, so they no longer require confirmation. Fixed __strip_container_subcmds and __strip_heredoc_bodies to tolerate flags between a container binary and its exec/run sub-command (incus -q exec), a sudo wrapper (sudo incus exec), and repeated whitespace (incus  exec) — these previously fell through the container/VM exemption and left legitimate test commands (including systemctl) inside containers/VMs blocked.
 # @@TODO             :  See project issues
 # @@Other            :  Container-mediated commands (docker/incus/podman/kubectl exec) are exempted
 # @@Resource         :  github.com/casapps/claude-code-hooks
@@ -413,10 +413,20 @@ fi
 # status/is-active/is-enabled/cat/show and --user variants are always safe.
 # Local System Management Zone exception: under ~/Projects/local/system/**, the
 # lifecycle subset (excluding mask/unmask/isolate/kill) is pre-authorized (see CLAUDE.md).
+# Container/VM runtime daemon exception: docker/containerd/incus/lxd/libvirtd/
+# virtlogd/virtlockd/virtnetworkd/virtstoraged/virtqemud/podman lifecycle is the
+# same execution tier as the already-exempted exec/run commands (the engine is
+# infrastructure, not a host application service), so it never requires
+# confirmation, in or out of the zone.
 PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(status|is-active|is-enabled|cat|show"
 PROTECT_HOST_SYSTEMCTL_READONLY="${PROTECT_HOST_SYSTEMCTL_READONLY}|list-units|list-unit-files|list-sockets|list-timers|help)([[:space:]]|\$)"
 PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart"
 PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE="${PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE}|try-restart|disable|enable|reset-failed|daemon-reload)([[:space:]]|\$)"
+PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES="(docker(\.socket)?|containerd|incus(\.socket)?|lxd(\.socket)?"
+PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES="${PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES}|libvirtd(\.socket)?|virtlogd|virtlockd|virtnetworkd|virtstoraged|virtqemud"
+PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES="${PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES}|podman(\.socket)?)"
+PROTECT_HOST_SYSTEMCTL_RUNTIME="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart"
+PROTECT_HOST_SYSTEMCTL_RUNTIME="${PROTECT_HOST_SYSTEMCTL_RUNTIME}|try-restart|enable|disable|reset-failed|daemon-reload)[[:space:]]+${PROTECT_HOST_SYSTEMCTL_RUNTIME_NAMES}([[:space:]]|\$)"
 PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_WORD_START}systemctl[[:space:]]+(restart|stop|start|reload|reload-or-restart|try-restart"
 PROTECT_HOST_SYSTEMCTL_MUTATION="${PROTECT_HOST_SYSTEMCTL_MUTATION}|disable|enable|mask|unmask|isolate|kill|reset-failed|daemon-reload|edit|set-property)([[:space:]]|\$)"
 if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
@@ -428,6 +438,9 @@ if __match "${PROTECT_HOST_WORD_START}systemctl[[:space:]]"; then
     :
   elif [ "$PROTECT_HOST_IN_ZONE" = 1 ] && __match "$PROTECT_HOST_SYSTEMCTL_ZONE_LIFECYCLE"; then
     # zone-scoped lifecycle command — pre-authorized, no confirmation needed
+    :
+  elif __match "$PROTECT_HOST_SYSTEMCTL_RUNTIME"; then
+    # container/VM runtime daemon lifecycle — same tier as exec/run, no confirmation needed
     :
   elif __match "$PROTECT_HOST_SYSTEMCTL_MUTATION"; then
     __block "systemctl host-service mutation requires user confirmation — run manually after approval"
