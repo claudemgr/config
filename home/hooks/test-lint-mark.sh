@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202609121200-git
+##@Version           :  202609171200-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -10,9 +10,9 @@
 # @@Created          :  Sunday, August 30, 2026 22:00 EDT
 # @@File             :  test-lint-mark.sh
 # @@Description      :  PostToolUse Bash hook: records per session/project that a test-gate or lint-gate command exited 0, pairing with enforce-test-lint-gate.sh.
-# @@Changelog        :  Test/lint patterns and the script-collection manifest disqualifier list expanded to also recognize Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++, .NET, and Elixir — kept in sync with enforce-test-lint-gate.sh's MANIFESTS/TEST_CMD_RE/LINT_CMD_RE.
+# @@Changelog        :  Fixed a bug where this hook never wrote a marker for any command, pass or fail: the success check read a nonexistent .tool_response.exit_code field, which jq always defaulted to 1 via `// 1`. Replaced with a check of whether tool_response is an object (success) vs. a bare error string (nonzero exit) — the field Bash's tool_response actually carries, confirmed live. Previously test/lint patterns and the script-collection manifest disqualifier list were expanded to also recognize Kotlin/Gradle, Java/Maven, Ruby, PHP, Swift, Dart/Flutter, C/C++, .NET, and Elixir — kept in sync with enforce-test-lint-gate.sh's MANIFESTS/TEST_CMD_RE/LINT_CMD_RE.
 # @@TODO             :  None
-# @@Other              :  Only marks on exit_code == 0 and interrupted == false — a failed or timed-out run must never count as passing.
+# @@Other              :  Only marks when tool_response is an object and interrupted == false — a failed or timed-out run must never count as passing.
 # @@Resource         :  CLAUDE.md - Commit Workflow (Test gate, Lint gate), home/hooks/spec-guard-mark.sh
 # @@Terminal App     :  no
 # @@sudo/root        :  no
@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-VERSION="202609121200-git"
+VERSION="202609171200-git"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 set -euo pipefail
 
@@ -43,11 +43,17 @@ fi
 TEST_LINT_MARK_TOOL=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_name) catch "" // ""')
 [ "$TEST_LINT_MARK_TOOL" = "Bash" ] || exit 0
 
-# `try ... catch` guards against tool_response arriving as a string rather than
-# an object — indexing a string is a jq error, not a null, and would abort here
-TEST_LINT_MARK_EXIT=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_response.exit_code) catch 1 // 1')
+# Bash's tool_response has no exit_code field at all (confirmed against live
+# transcript data and by triggering a real nonzero-exit command): on success
+# it's an object {stdout, stderr, interrupted, isImage, ...}; on a nonzero
+# exit it's a bare string like "Error: Exit code 7". A prior version of this
+# check read .tool_response.exit_code, which is always absent, so it always
+# fell through jq's `// 1` default and the gate below never once matched —
+# no marker was ever written, on any command, pass or fail. Object-vs-string
+# is the actual, reliable success signal.
+TEST_LINT_MARK_RESPONSE_TYPE=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r '(.tool_response | type) // "null"')
+[ "$TEST_LINT_MARK_RESPONSE_TYPE" = "object" ] || exit 0
 TEST_LINT_MARK_INTERRUPTED=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_response.interrupted) catch false // false')
-[ "$TEST_LINT_MARK_EXIT" = "0" ] || exit 0
 [ "$TEST_LINT_MARK_INTERRUPTED" = "false" ] || exit 0
 
 TEST_LINT_MARK_CMD=$(printf '%s' "$TEST_LINT_MARK_INPUT" | jq -r 'try (.tool_input.command) catch "" // ""')
