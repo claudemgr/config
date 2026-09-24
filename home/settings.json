@@ -1,8 +1,6 @@
 {
-  "model": "claude-sonnet-5",
-  "fallbackModel": [
-    "claude-haiku-4-5"
-  ],
+  "model": "",
+  "fallbackModel": [ "" ],
   "agent": "general",
   "language": "english",
   "autoCompactWindow": 200000,
