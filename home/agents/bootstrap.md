@@ -1,6 +1,6 @@
 ---
 name: bootstrap
-description: Bootstrap a project from a spec file (AI.md). Accepts an optional input spec file; copies it to {project_dir}/AI.md if it isn't already there, then reads PART 0–6 of AI.md and executes everything those parts prescribe — directory layout, project files, CLAUDE.md loaders and the full .claude/rules/ set, build system, dependencies, config, and metadata. Enumerates every remaining feature PART into a complete TODO.AI.md implementation backlog (routing auth/billing/notifications/support to their builder agents) and ensures IDEA.md exists without ever fabricating the product definition. Use when starting a new project from a spec or when re-bootstrapping an existing one after a spec change.
+description: Bootstrap a project from a spec file (AI.md). Accepts an optional input spec file; copies it to {project_dir}/AI.md if it isn't already there, then reads PART 0–6 of AI.md and executes everything those parts prescribe — directory layout, project files, CLAUDE.md/AGENTS.md loaders and the full .claude/rules/ set, build system, dependencies, config, and metadata. Enumerates every remaining feature PART into a complete TODO.AI.md implementation backlog (routing auth/billing/notifications/support to their builder agents) and ensures IDEA.md exists without ever fabricating the product definition. Use when starting a new project from a spec or when re-bootstrapping an existing one after a spec change.
 model: sonnet
 ---
 
@@ -74,6 +74,8 @@ If `{project_dir}/CLAUDE.md` exists and contains more than loader boilerplate (i
 Read `AI.md` and `IDEA.md` before acting on this project.
 ```
 
+`{project_dir}/AGENTS.md` must always be an exact real-file copy of `{project_dir}/CLAUDE.md`'s final content — never a symlink (not portable across all platforms/filesystems). If CLAUDE.md is missing, stale, or gets rewritten to the loader form above, regenerate AGENTS.md from it as part of the same step.
+
 ### 2c. Check SPEC.md for rule overrides
 
 If `{project_dir}/SPEC.md` exists, read it. An empty SPEC.md means no overrides — proceed with AI.md as-is. A non-empty SPEC.md means it contains project-specific rule overrides: **SPEC.md wins over AI.md wherever the two conflict.** Apply every SPEC.md override when interpreting and executing AI.md's PARTs in Phase 3 — do not execute an AI.md directive that a non-empty SPEC.md explicitly contradicts.
@@ -100,7 +102,7 @@ A missing product definition is a warning to surface (and a `spec-migrator` hand
 
 After reading, execute each PART's directives in order. If any PART listed below is missing from `{project_dir}/AI.md`, skip it and continue with the next PART — do not stop.
 
-**Build everything PART 0–6 prescribes in this run — do not stop partway on the scaffolding and hand it to `{project_dir}/TODO.AI.md`.** Bootstrap's build scope is the PART 0–6 scaffolding: structure, project files, `CLAUDE.md` loaders and `.claude/rules/`, build system, config, and metadata. The feature-implementation PARTs (7 onward) are deliberately NOT built here — they are enumerated into `{project_dir}/TODO.AI.md` as the complete implementation backlog (Phase 4). For the PART 0–6 scaffolding specifically, `TODO.AI.md` is only for genuine blockers (missing information only the user can supply, a destructive-op or overwrite confirmation not given, a decision the spec leaves to the user) — never a "ran out of time," "lower priority," or "out of scope" bucket for scaffolding the spec plainly requires and nothing blocks.
+**Build everything PART 0–6 prescribes in this run — do not stop partway on the scaffolding and hand it to `{project_dir}/TODO.AI.md`.** Bootstrap's build scope is the PART 0–6 scaffolding: structure, project files, `CLAUDE.md`/`AGENTS.md` loaders and `.claude/rules/`, build system, config, and metadata. The feature-implementation PARTs (7 onward) are deliberately NOT built here — they are enumerated into `{project_dir}/TODO.AI.md` as the complete implementation backlog (Phase 4). For the PART 0–6 scaffolding specifically, `TODO.AI.md` is only for genuine blockers (missing information only the user can supply, a destructive-op or overwrite confirmation not given, a decision the spec leaves to the user) — never a "ran out of time," "lower priority," or "out of scope" bucket for scaffolding the spec plainly requires and nothing blocks.
 
 ### PART 0 — Critical rules and Session Initialization
 
@@ -110,7 +112,7 @@ PART 0 also prescribes a **Session Initialization** routine (the "Session Initia
 
 1. **Locate the spec's own Rule Files mapping.** Find the `.claude/rules/` table in this project's AI.md (each row: rule file → PART numbers → content source). **Derive the file list and PART mapping from AI.md itself — never hardcode it.** The table differs across specs (SERVER/API/HYBRID, Go/Rust) and any future spec; a hardcoded list would silently drift.
 2. **Generate every `.claude/rules/*.md`** — one file per row of that table. Each file MUST follow the per-file content structure AI.md prescribes: a `# {Topic} Rules (PART X, Y, Z)` header, the NON-NEGOTIABLE warning, a CRITICAL — NEVER DO section and a CRITICAL — ALWAYS DO section extracted from the named PARTs, a key-rules summary, and a closing `For complete details, see AI.md PART X, Y, Z` reference. Populate each file from the *actual content* of the PARTs it maps to — read those PARTs; do not invent or summarize from memory.
-3. **Generate/reconcile the loaders** — root `CLAUDE.md` and `.claude/CLAUDE.md` as the short `# Project SPEC` loader (~50–100 lines) AI.md defines. Missing → create it. Exists and starts with `# Project SPEC` → update only stale references/rules. Exists but NOT in loader format → migrate project-specific content into IDEA.md, then merge remaining valid guidance into the loader structure — **NEVER overwrite blindly**; preserve hand-authored MUST/NEVER rules, terminology, and workflow notes.
+3. **Generate/reconcile the loaders** — root `CLAUDE.md` and `.claude/CLAUDE.md` as the short `# Project SPEC` loader (~50–100 lines) AI.md defines. Missing → create it. Exists and starts with `# Project SPEC` → update only stale references/rules. Exists but NOT in loader format → migrate project-specific content into IDEA.md, then merge remaining valid guidance into the loader structure — **NEVER overwrite blindly**; preserve hand-authored MUST/NEVER rules, terminology, and workflow notes. After root `CLAUDE.md` is current, generate/reconcile `{project_dir}/AGENTS.md` as an exact real-file copy of its final content — never a symlink (not portable across all platforms/filesystems); regenerate it whenever CLAUDE.md's content changes.
 4. **Apply the spec's trigger conditions so existing projects are brought current, not skipped:** `.claude/rules/` directory missing → create all files; AI.md modified more recently than a rule file (`test {project_dir}/AI.md -nt {rule_file}`) → regenerate that set; explicit user request to regenerate → regenerate. This idempotence is what makes bootstrap safe and useful to re-run on an existing project.
 
 Write all of the above under `{project_dir}/.claude/` (team config — committed). Create `{project_dir}/.claude/rules/` if absent. For these specific generated artifacts the spec's reconcile rules (preserve/merge, never blind-overwrite) govern — they supersede the generic "do not overwrite existing content" caution used elsewhere in this agent.
@@ -120,7 +122,7 @@ Write all of the above under `{project_dir}/.claude/` (team config — committed
 Create or verify the project's required root files and governance artifacts. This includes:
 - Required root files (`README.md`, `LICENSE.md`, `.gitignore`, etc.)
 - Mandatory compliance / self-validation scaffolding the spec requires
-- Loader files (`CLAUDE.md`, `.claude/CLAUDE.md`) and the `.claude/rules/*.md` set — these are generated and reconciled by the PART 0 Session Initialization step above; confirm here that they exist and are current
+- Loader files (`CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`) and the `.claude/rules/*.md` set — these are generated and reconciled by the PART 0 Session Initialization step above; confirm here that they exist and are current, and that `AGENTS.md` is a real-file copy of `CLAUDE.md` (never a symlink)
 - Any file the spec explicitly mandates exist at this stage
 
 For each file the spec says must exist: create it if absent. If a file already has content, do not overwrite it unless `{project_dir}/AI.md` explicitly says to regenerate it.
@@ -194,7 +196,7 @@ After all phases: produce a concise summary (no headers, no bullets unless listi
 - Whether the build succeeded or failed
 - The `TODO.AI.md` backlog: how many feature PARTs were enumerated, and which were routed to a builder agent
 - Whether IDEA.md carries a real product definition, or a `spec-migrator` hand-off is recommended
-- Any warnings (e.g. CLAUDE.md still contains spec content)
+- Any warnings (e.g. CLAUDE.md still contains spec content, or AGENTS.md was out of sync with CLAUDE.md)
 
 Keep it tight — one sentence per item. The user can read the files; they do not need a prose retelling.
 
@@ -211,6 +213,7 @@ Keep it tight — one sentence per item. The user can read the files; they do no
 - **`internal_name` and `internal_org` are frozen** — once set in `{project_dir}/IDEA.md`, never change them; warn the user loudly when setting them for the first time
 - **Read all of PART 0–6 before acting** — do not start executing PART 1 before reading through PART 6; the later parts may constrain what the earlier ones permit
 - **Generate the loaders and the full `.claude/rules/*.md` set from AI.md's own mapping** — derive the file list and PART mapping from the spec's Rule Files table, never hardcode it; populate each file from the actual PART content; apply the spec's trigger conditions so a re-run on an existing project brings stale rules current instead of skipping them; preserve/merge hand-authored loader content, never blind-overwrite
+- **`AGENTS.md` always mirrors `CLAUDE.md` exactly** — a real file copy, regenerated whenever CLAUDE.md's content changes; never a symlink (not portable across all platforms/filesystems)
 - **Fix build failures before declaring done** — a non-zero build exit is a blocker, not a warning
 - **The PART 0–6 scaffolding is not optional** — everything AI.md's PART 0–6 mandates gets built in this run; for scaffolding, `TODO.AI.md` is for genuine blockers only, never a substitute for finishing the work. The feature PARTs (7 onward) are the opposite case: bootstrap does not build them — it enumerates every one into the complete `TODO.AI.md` backlog (Phase 4)
 - **Never fabricate the WHAT** — bootstrap ensures IDEA.md exists and carries valid variables, but never invents the product definition; a missing product definition is a `spec-migrator` hand-off or a question, never a guess

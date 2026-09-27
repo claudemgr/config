@@ -99,6 +99,7 @@ security assumptions, and any exceptions.)
 - `AI.md` is read-only during routine work
 - `IDEA.md` is where project-specific values and product rules live
 - Loader files (`CLAUDE.md`, `.claude/CLAUDE.md`) stay short and point back to `AI.md`
+- `AGENTS.md` at the project root is a real-file copy of `CLAUDE.md`'s exact content, kept in sync whenever `CLAUDE.md` changes — never a symlink (not portable across all platforms/filesystems)
 - If a loader file and `AI.md` disagree, `AI.md` wins
 - `.claude/memory/` holds durable, project-specific knowledge discovered during
   development — decisions, gotchas, conventions unique to this codebase — distinct
@@ -201,8 +202,9 @@ Update these when their subject changes:
 | Tool | Primary Loader | Alternate Loader |
 |------|----------------|------------------|
 | Claude Code | `CLAUDE.md` | `.claude/CLAUDE.md` |
+| Other agents (Codex, Copilot, etc.) | `AGENTS.md` | - |
 
-**Loader rule:** loader files stay short. Long-form content belongs in `IDEA.md` (product) and `AI.md` (implementation policy).
+**Loader rule:** loader files stay short. Long-form content belongs in `IDEA.md` (product) and `AI.md` (implementation policy). `AGENTS.md` is always generated/reconciled as an exact real-file copy of root `CLAUDE.md` — never a symlink (not portable across all platforms/filesystems).
 
 ## Reuse Before Creating
 
@@ -516,6 +518,7 @@ Must contain:
 - [ ] `IDEA.md` created with all required sections and variables
 - [ ] `AI.md` in place (this file, or a language-specific upgrade)
 - [ ] `CLAUDE.md` is a short loader pointing at `AI.md` and `IDEA.md`
+- [ ] `AGENTS.md` exists at project root as an exact copy of `CLAUDE.md` (real file, not a symlink)
 - [ ] `.claude/memory/` directory exists (with an empty `MEMORY.md` index if no entries yet) and is committed, not gitignored
 - [ ] `README.md` created
 - [ ] `LICENSE.md` created (MIT + dependency attribution)
