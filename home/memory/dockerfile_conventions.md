@@ -644,7 +644,8 @@ Rules:
 - **Network name is always `{project_name}`** (base file) or the bare proxy name `traefik`/`cloudflare` (external, in the alternates) — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match in the base file.
 - **DB services join only the project network** — never `traefik` or `cloudflare`, in any of the three files
 - **Healthcheck cadence** — `interval: 30s`, `timeout: 10s`, `retries: 3` for all DB services
-- **Port comment** is the FIRST line of every file: `# nginx proxy address - http://172.17.0.1:{port}` — nothing above it, not even a description comment
+- **Port comment** is the FIRST line of `docker-compose.yaml` only: `# nginx proxy address - http://172.17.0.1:{port}` — nothing above it, not even a description comment. `{port}` must match the actual `ports:` publish on the `app` service exactly (the external/host-side port, not the internal one).
+- **`docker-compose.traefik.yaml`/`docker-compose.tunnel.yaml` never carry this comment** — they don't publish a port, so there's no external port for it to reference
 - **`pull_policy: always`** on every service — ensures latest image on each `docker compose up`
 - **`restart: always`** on every service
 - **`x-logging` anchor** — apply to all services via `logging: *default-logging`
