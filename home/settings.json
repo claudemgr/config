@@ -316,6 +316,11 @@
           },
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/enforce-doc-sync.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/no-read-gitcommit.sh",
             "timeout": 10
           },

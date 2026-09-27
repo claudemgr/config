@@ -153,6 +153,7 @@ Hook scripts in `home/hooks/` run synchronously before or after a matching tool 
 | `enforce-gitcommit-shape.sh` | PreToolUse Bash | Blocks any `gitcommit` invocation that isn't exactly `--dir <path> all` or `push` |
 | `enforce-test-lint-gate.sh` | PreToolUse Bash | Blocks `gitcommit` unless the test and lint gates ran and passed this session |
 | `enforce-commit-mess-coverage.sh` | PreToolUse Bash | Blocks `gitcommit` when changed files have no matching bullet in `COMMIT_MESS` |
+| `enforce-doc-sync.sh` | PreToolUse Bash | Blocks `gitcommit` unless `COMMIT_MESS` carries an explicit `IDEA.md`/`README.md` status line for whichever of those files exists at the target repo's root |
 | `test-lint-mark.sh` | PostToolUse Bash | Records that a test/lint command exited 0 this session |
 | `lint-agent-mark.sh` | SubagentStop | Records the lint gate satisfied when a lint subagent finishes clean |
 | `validate-workflows.sh` | PreToolUse Bash | Blocks staged workflow files unless third-party Actions are SHA-pinned and `act --list` passes |
