@@ -37,6 +37,30 @@ out of scope for the task they were found during.
       needs its own verification pass (each hook's own detection logic
       and test coverage) rather than being folded into this fix.
 
+- [ ] `enforce-test-lint-gate.sh`'s spec-collection path requires a
+      `spec-guard/{session_id}/read` marker for the project, but that
+      marker is only ever written by `spec-guard.sh` — which explicitly
+      exits 0 without writing anything when the project has none of
+      `AI.md`/`SPEC.md`/`CLAUDE.md` (line 71-73 of `spec-guard.sh`).
+      Found 2026-09-27 committing a one-line spelling fix in
+      `composemgr/template` (a template repo with only `README.md` at
+      its root, no `AI.md`/`SPEC.md`/`CLAUDE.md`): `is_spec_collection()`
+      correctly classified it, but the required marker can never exist
+      for this exact project shape, permanently blocking every commit
+      regardless of how thoroughly the spec substitute was actually
+      re-read. `enforce-test-lint-gate.sh`'s own block message already
+      promises this case is covered ("for a template repo with neither,
+      its root-level *.md spec file") — the promise isn't backed by any
+      marker-writing path. Needs either: `spec-guard.sh` gains a
+      README.md-substitute branch that writes the marker for projects
+      with none of the three gating files, or `enforce-test-lint-gate.sh`
+      accepts a lighter signal (e.g. a transcript scan for a Read of the
+      project's root README.md this session, mirroring the existing
+      `transcript_pass()` test/lint fallback) for this specific shape.
+      Worked around this occurrence with a user-authorized
+      `TEST_LINT_GATE_OVERRIDE=1`, after independently re-reading
+      README.md and validating the changed YAML file this session.
+
 ## Environment bug, not fixable in this repo
 
 - [ ] 68 (OPEN, not a claudemgr/config code issue): live long-running

@@ -523,7 +523,15 @@ networks:
 
 ### Deployment Compose (third-party services, e.g. composemgr)
 
-For deploying an external service rather than your own built image. Network is always `{project_name}` — never `{project_name}-net`, `{project_name}-app`, or any other suffix. DB/backend services join only the project network; the app service also joins `proxy` and `cloudflare` when a reverse proxy is in front. Labels (traefik, cloudflare) are optional — omit when not needed.
+For deploying an external service rather than your own built image. **Three separate, standalone files — never one file with conditional network membership.** Each file is a complete compose stack a user runs on its own; they are deployment-mode alternatives, not layers meant to be combined with `-f`. Reference layout: `composemgr/template`.
+
+| File | Reverse-proxy mode | Network | Labels | Port publish |
+|---|---|---|---|---|
+| `docker-compose.yaml` | none — plain nginx reverse proxy on the host | `{project_name}` only | none | yes — `172.17.0.1:{port}:{internal_port}` |
+| `docker-compose.traefik.yaml` | traefik | `traefik` (external) | traefik routing labels | no |
+| `docker-compose.tunnel.yaml` | Cloudflare tunnel | `cloudflare` (external) | cloudflare labels | no |
+
+**`docker-compose.yaml` is the default and is the one nginx proxies to** — host-port-published, no reverse-proxy labels, no external network. `docker-compose.traefik.yaml` and `docker-compose.tunnel.yaml` swap the app service's networking for their respective proxy and drop the port publish; everything else (image, environment, volumes, DB service if any) stays identical across all three files.
 
 ```yaml
 # nginx proxy address - http://172.17.0.1:{port}
@@ -544,10 +552,6 @@ services:
     logging: *default-logging
     networks:
       - {project_name}
-      # omit if no reverse proxy
-      - proxy
-      # omit if not using cloudflare tunnel
-      - cloudflare
     ports:
       - "172.17.0.1:{port}:{internal_port}"
     environment:
@@ -570,7 +574,7 @@ services:
     restart: always
     logging: *default-logging
     networks:
-      # DB on project network only — never proxy/cloudflare
+      # DB on project network only — never traefik/cloudflare
       - {project_name}
     environment:
       TZ: ${TZ:-America/New_York}
@@ -590,21 +594,61 @@ networks:
   {project_name}:
     name: {project_name}
     external: false
-  proxy:
+```
+
+`docker-compose.traefik.yaml` — same file, app service's `networks`/`ports` replaced:
+
+```yaml
+    networks:
+      - traefik
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik'
+      - 'traefik.http.routers.{project_name}-app.entrypoints=http'
+      - 'traefik.http.routers.{project_name}-app-secure.tls=true'
+      - 'traefik.http.routers.{project_name}-app.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.middlewares.{project_name}-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.{project_name}-app.middlewares={project_name}-app-https-redirect'
+      - 'traefik.http.routers.{project_name}-app-secure.entrypoints=https'
+      - 'traefik.http.routers.{project_name}-secure.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.routers.{project_name}-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.{project_name}-secure.service={project_name}'
+      - 'traefik.http.services.{project_name}.loadbalancer.server.port={internal_port}'
+# (no ports: block — traefik owns ingress)
+
+networks:
+  traefik:
     external: true
+```
+
+`docker-compose.tunnel.yaml` — same file, app service's `networks`/`ports` replaced:
+
+```yaml
+    networks:
+      - cloudflare
+    labels:
+      - 'cloudflare.enable=true'
+      - 'cloudflare.service=http://{project_name}-app:{internal_port}'
+      - 'cloudflare.hostname={project_name}.${CLOUDFLARE_ZONE_NAME:-}'
+# (no ports: block — the tunnel owns ingress)
+
+networks:
   cloudflare:
     external: true
 ```
 
 Rules:
 - **No `version:` field** — the top-level `version:` key is deprecated and ignored by all current Docker Compose versions; never include it
-- **Network name is always `{project_name}`** — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match.
-- **DB services join only the project network** — never `proxy` or `cloudflare`
+- **Three standalone files, never one file with conditional/optional network membership** — `docker-compose.yaml` (default, nginx-proxied via host port publish), `docker-compose.traefik.yaml`, `docker-compose.tunnel.yaml`. A repo only needs the alternates it actually supports — omit `docker-compose.traefik.yaml`/`docker-compose.tunnel.yaml` entirely rather than leaving an empty/unused variant.
+- **Spell it `traefik`, never `traefix`** — filename, network name, and every `traefik.*` label key
+- **Network name is always `{project_name}`** (base file) or the bare proxy name `traefik`/`cloudflare` (external, in the alternates) — never `{project_name}-net`, `{project_name}-app`, or any other suffix. The `name:` field under the network must match in the base file.
+- **DB services join only the project network** — never `traefik` or `cloudflare`, in any of the three files
 - **Healthcheck cadence** — `interval: 30s`, `timeout: 10s`, `retries: 3` for all DB services
-- **Port comment** is the FIRST line of the file: `# nginx proxy address - http://172.17.0.1:{port}` — nothing above it, not even a description comment
+- **Port comment** is the FIRST line of every file: `# nginx proxy address - http://172.17.0.1:{port}` — nothing above it, not even a description comment
 - **`pull_policy: always`** on every service — ensures latest image on each `docker compose up`
 - **`restart: always`** on every service
 - **`x-logging` anchor** — apply to all services via `logging: *default-logging`
+- **Only the base `docker-compose.yaml` publishes a port** — `docker-compose.traefik.yaml`/`docker-compose.tunnel.yaml` never carry a `ports:` block on the app service; the proxy owns ingress instead
 
 ### Test Compose (`docker-compose.test.yml`)
 
