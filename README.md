@@ -14,11 +14,11 @@ Global Claude Code configuration — agents, memory, hooks, and settings deploye
 | `home/scripts/` | Standalone scripts run by Claude Code itself, e.g. `statusline.sh` |
 | `home/memory/` | Convention and standards files loaded on demand |
 | `home/TEMPLATES/` | Authoritative feature specs (`BASE.md`, `BILLING.md`, `NOTIFICATIONS.md`, `SUPPORT.md`) |
-| `install.sh` | Syncs `home/` → `~/.claude/` and registers plugins + MCP servers |
+| `install.sh` | Syncs `home/` → `~/.claude/` |
 
 ## 🚀 Install
 
-> Clones this repo, copies all config to `~/.claude/`, and installs the plugins and MCP servers listed below. Safe to re-run — fully idempotent.
+> Clones this repo and copies all config to `~/.claude/`. Installs no plugins or MCP servers. Safe to re-run — fully idempotent.
 >
 > 📄 [View the raw install script](https://raw.githubusercontent.com/claudemgr/config/main/install.sh) before running.
 
@@ -32,13 +32,6 @@ curl -fsSL https://raw.githubusercontent.com/claudemgr/config/main/install.sh | 
 |------|----------|-------|
 | `claude` | ✅ Yes | [Claude Code CLI](https://claude.ai/code) |
 | `git` | ✅ Yes | For cloning and updating |
-| `npx` | ⚠️ Optional | Required for the fetch MCP server; skipped if absent |
-
-### Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `GITHUB_TOKEN` | GitHub personal access token for the GitHub MCP server |
 
 ---
 
@@ -271,21 +264,6 @@ config/
 ├── README.md
 └── LICENSE.md
 ```
-
-## 🔌 Plugins Installed
-
-| Plugin | Language Server |
-|--------|----------------|
-| `gopls-lsp` | Go |
-| `rust-analyzer-lsp` | Rust |
-| `typescript-lsp` | TypeScript / JavaScript |
-
-## 🔗 MCP Servers Configured
-
-| Server | Transport | Purpose |
-|--------|-----------|---------|
-| `github` | HTTP | GitHub API — PRs, issues, repo search, code review |
-| `fetch` | stdio (`npx`) | Fetch web content and documentation |
 
 ## 🔄 Updating
 
