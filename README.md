@@ -18,7 +18,7 @@ Global Claude Code configuration — agents, memory, hooks, and settings deploye
 
 ## 🚀 Install
 
-> Clones this repo and copies all config to `~/.claude/`. Installs no plugins or MCP servers. Safe to re-run — fully idempotent.
+> Clones this repo and copies all config to `~/.claude/`. Installs no plugins or MCP servers, and removes the `github`/`fetch` MCP servers and the LSP/`security-guidance` plugins earlier versions installed, if present. Safe to re-run — fully idempotent.
 >
 > 📄 [View the raw install script](https://raw.githubusercontent.com/claudemgr/config/main/install.sh) before running.
 

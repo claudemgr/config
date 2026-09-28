@@ -84,6 +84,17 @@ if [ "$INSTALL_SH_EXIT_STATUS" = 0 ]; then
   cp -R "$CLAUDE_LOCAL_REPO/home/." "$HOME/.claude/"
   find "$HOME/.claude/hooks" -name '*.sh' -exec chmod 755 {} \;
   find "$HOME/.claude/scripts" -name '*.sh' -exec chmod 755 {} \;
+  # Plugins and MCP servers earlier versions installed; they duplicate the rules in home/ (gh CLI, curl/WebFetch, security conventions), so remove them where present
+  for mcp_server in github fetch; do
+    if \claude mcp get "$mcp_server" >/dev/null 2>&1; then
+      \claude mcp remove --scope user "$mcp_server" >/dev/null 2>&1 || true
+    fi
+  done
+  for plugin_name in gopls-lsp rust-analyzer-lsp typescript-lsp pyright-lsp security-guidance; do
+    if \claude plugin list 2>/dev/null | grep -q -- "${plugin_name}@claude-plugins-official"; then
+      \claude plugin uninstall "${plugin_name}@claude-plugins-official" >/dev/null 2>&1 || true
+    fi
+  done
   python3 -c "
 import json, pathlib
 p = pathlib.Path.home() / '.claude.json'
