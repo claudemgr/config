@@ -1,0 +1,1 @@
+[ ] fix: This repo has no AI.md/SPEC.md and no other root-level *.md besides README.md/LICENSE.md, both of which are hard-excluded from satisfying the spec-guard marker. The gate can never pass through normal means for this project. How should I proceed with the commit? → Use TEST_LINT_GATE_OVERRIDE=1
