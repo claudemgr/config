@@ -61,12 +61,57 @@ LINT_AGENT_MARK_MSG=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.last_a
 printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': clean\b|: 0 new issue\(s\) found\b' || exit 0
 printf '%s' "$LINT_AGENT_MARK_MSG" | grep -qE -- ': [1-9][0-9]* new issue\(s\) found\b' && exit 0
 
-LINT_AGENT_MARK_PROJECT=$(git -C "${LINT_AGENT_MARK_CWD:-.}" rev-parse --show-toplevel 2>/dev/null) \
-  || LINT_AGENT_MARK_PROJECT="$LINT_AGENT_MARK_CWD"
-# Symlink-normalise so the line matches what enforce-test-lint-gate.sh compares
-# against (os.path.realpath of the gitcommit --dir target), exactly.
-LINT_AGENT_MARK_PROJECT=$(realpath -- "$LINT_AGENT_MARK_PROJECT" 2>/dev/null) || :
-[ -z "$LINT_AGENT_MARK_PROJECT" ] && exit 0
+# The lint agent is routinely pointed at a repo other than the session cwd
+# (e.g. a session run from a parent dir linting parent/{a,b,c}). Keying the
+# marker on cwd alone recorded the wrong project and the gate then reported
+# "lint gate has not run" for the repo that was actually linted. Collect every
+# distinct git toplevel the agent demonstrably worked on: the cwd's, plus each
+# existing absolute path named in the agent's own prompt (first entry of its
+# transcript) or in its final report. Symlink-normalised so each line matches
+# what enforce-test-lint-gate.sh compares against (os.path.realpath of the
+# gitcommit --dir target), exactly.
+LINT_AGENT_MARK_PROJECTS=()
+
+__lint_agent_mark_add() {
+  local p="$1" d top e
+  [ -e "$p" ] || return 0
+  if [ -d "$p" ]; then d="$p"; else d="${p%/*}"; fi
+  [ -d "$d" ] || return 0
+  top=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null) || return 0
+  top=$(realpath -- "$top" 2>/dev/null) || return 0
+  [ -n "$top" ] || return 0
+  for e in "${LINT_AGENT_MARK_PROJECTS[@]:-}"; do
+    [ "$e" = "$top" ] && return 0
+  done
+  LINT_AGENT_MARK_PROJECTS+=("$top")
+}
+
+__lint_agent_mark_scan() {
+  local text="$1" p n=0
+  while IFS= read -r p; do
+    p="${p%%.}"
+    [ -n "$p" ] || continue
+    n=$((n + 1))
+    [ "$n" -gt 60 ] && break
+    __lint_agent_mark_add "$p"
+  done < <(printf '%s' "$text" | grep -oE -- '/[A-Za-z0-9._+@%~-]+(/[A-Za-z0-9._+@%~-]+)*' | sort -u)
+}
+
+if [ -n "$LINT_AGENT_MARK_CWD" ]; then
+  __lint_agent_mark_add "$LINT_AGENT_MARK_CWD"
+fi
+
+LINT_AGENT_MARK_AGENT_TRANSCRIPT=$(printf '%s' "$LINT_AGENT_MARK_INPUT" | jq -r 'try (.agent_transcript_path) catch "" // ""')
+if [ -n "$LINT_AGENT_MARK_AGENT_TRANSCRIPT" ] && [ -f "$LINT_AGENT_MARK_AGENT_TRANSCRIPT" ]; then
+  LINT_AGENT_MARK_PROMPT=$(head -n 3 -- "$LINT_AGENT_MARK_AGENT_TRANSCRIPT" 2>/dev/null \
+    | jq -r 'try (select(.type == "user") | .message.content | if type == "array" then map(.text? // "") | join(" ") else . end) catch ""' 2>/dev/null \
+    | head -c 20000) || LINT_AGENT_MARK_PROMPT=""
+  [ -n "$LINT_AGENT_MARK_PROMPT" ] && __lint_agent_mark_scan "$LINT_AGENT_MARK_PROMPT"
+fi
+
+__lint_agent_mark_scan "$LINT_AGENT_MARK_MSG"
+
+[ "${#LINT_AGENT_MARK_PROJECTS[@]}" -eq 0 ] && exit 0
 
 # This marker must be a deterministic, reconstructable path so
 # enforce-test-lint-gate.sh's reader can look it up again by session_id
@@ -82,7 +127,8 @@ chmod 700 "${TMPDIR:-/tmp}/claude-hooks/test-lint-guard" "$LINT_AGENT_MARK_DIR" 
 find "${TMPDIR:-/tmp}/claude-hooks/test-lint-guard" -maxdepth 1 -type d -mtime +1 -exec rm -rf -- {} + 2>/dev/null || true
 
 LINT_AGENT_MARK_MARKER="$LINT_AGENT_MARK_DIR/lint"
-grep -qxF -- "$LINT_AGENT_MARK_PROJECT" "$LINT_AGENT_MARK_MARKER" 2>/dev/null \
-  || printf '%s\n' "$LINT_AGENT_MARK_PROJECT" >>"$LINT_AGENT_MARK_MARKER"
+for LINT_AGENT_MARK_PROJECT in "${LINT_AGENT_MARK_PROJECTS[@]}"; do
+  grep -qxF -- "$LINT_AGENT_MARK_PROJECT" "$LINT_AGENT_MARK_MARKER" 2>/dev/null || printf '%s\n' "$LINT_AGENT_MARK_PROJECT" >>"$LINT_AGENT_MARK_MARKER"
+done
 
 exit 0

@@ -8,6 +8,18 @@ out of scope for the task they were found during.
 
 ## In-repo follow-up (not fixed this session — out of scope)
 
+- [ ] Auto-mode classifier vetoes the documented
+      `TEST_LINT_GATE_OVERRIDE=1 gitcommit --dir <dir> all` escape hatch
+      even after explicit user consent ("judged this action dangerous (it
+      gave no explanation)"), reported 2026-09-28 from a session linting
+      `casjay-base/{debian,ubuntu,fedora,raspbian,arch,alpine}`. The
+      false-block that led there (marker keyed on session cwd instead of
+      the linted repo, plus transcript fallback skipping results whose
+      cwd differed, plus async hand-back never read) is fixed in
+      `lint-agent-mark.sh`/`enforce-test-lint-gate.sh`. The classifier veto
+      is server-side, not fixable in this repo — re-check whether the
+      override is still vetoed once the gate stops false-blocking.
+
 - [ ] `home/scripts/statusline.sh` line 29 uses `payload="$(cat 2>/dev/null || true)"`
       to read stdin — flagged pre-existing (not touched by this session)
       by the `script-lint` gate run 2026-09-27: the UUOC exception for

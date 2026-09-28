@@ -234,11 +234,18 @@ def _agent_result_text(content):
     return ""
 
 
+def _mentions(text, project):
+    if not text or not project:
+        return False
+    return re.search(re.escape(project) + r"(?![\w.\-])", text) is not None
+
+
 def transcript_pass(transcript_path, project, allow_bashn_as_test):
     if not transcript_path or not os.path.isfile(transcript_path):
         return False, False
     tool_use_cmds = {}
     lint_agent_ids = {}
+    agent_prompts = {}
     test_ok = False
     lint_ok = False
     try:
@@ -275,15 +282,20 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                             inp = c.get("input")
                             subagent_ = inp.get("subagent_type", "") if isinstance(inp, dict) else ""
                             if subagent_ in LINT_AGENT_TYPES:
-                                lint_agent_ids[c.get("id")] = subagent_
+                                prompt_ = inp.get("prompt", "") if isinstance(inp, dict) else ""
+                                lint_agent_ids[c.get("id")] = prompt_ if isinstance(prompt_, str) else ""
                 elif etype == "user":
                     entry_cwd = entry.get("cwd", "")
                     try:
                         entry_project = os.path.realpath(entry_cwd) if entry_cwd else ""
                     except OSError:
                         entry_project = ""
-                    if entry_project != project:
-                        continue
+                    # A session is routinely run from a parent directory while
+                    # linting/testing a sibling repo, so the entry's cwd alone
+                    # cannot decide relevance: a result also counts for this
+                    # project when the command / agent prompt / report names
+                    # the project path.
+                    cwd_match = entry_project == project
                     tur = entry.get("toolUseResult") or {}
                     if not isinstance(tur, dict):
                         tur = {}
@@ -291,14 +303,36 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                         continue
                     msg = entry.get("message")
                     content = msg.get("content") if isinstance(msg, dict) else None
+                    if isinstance(content, str):
+                        content = [{"type": "text", "text": content}]
                     for c in content or []:
                         if not isinstance(c, dict):
+                            continue
+                        if c.get("type") == "text":
+                            # Async Agent-tool runs only return a "launched"
+                            # tool_result; the real report arrives later as a
+                            # hand-back message keyed by the agent id.
+                            text_ = c.get("text", "")
+                            if not isinstance(text_, str) or "hand-back" not in text_.lower():
+                                continue
+                            from_ = re.search(r'from="(\w+)"', text_)
+                            prompt_ = agent_prompts.get(from_.group(1), "") if from_ else ""
+                            if not (cwd_match or _mentions(prompt_, project) or _mentions(text_, project)):
+                                continue
+                            if LINT_AGENT_CLEAN_RE.search(text_) and not LINT_AGENT_ISSUES_RE.search(text_):
+                                lint_ok = True
                             continue
                         if c.get("type") != "tool_result" or c.get("is_error"):
                             continue
                         tool_use_id_ = c.get("tool_use_id")
                         if tool_use_id_ in lint_agent_ids:
                             report_ = _agent_result_text(c.get("content"))
+                            prompt_ = lint_agent_ids[tool_use_id_]
+                            launched_ = re.search(r"agentId:\s*(\w+)", report_)
+                            if launched_:
+                                agent_prompts[launched_.group(1)] = prompt_
+                            if not (cwd_match or _mentions(prompt_, project) or _mentions(report_, project)):
+                                continue
                             if LINT_AGENT_CLEAN_RE.search(report_) and not LINT_AGENT_ISSUES_RE.search(
                                 report_
                             ):
@@ -306,6 +340,8 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                             continue
                         cmd_ = tool_use_cmds.get(tool_use_id_)
                         if not cmd_:
+                            continue
+                        if not (cwd_match or _mentions(cmd_, project)):
                             continue
                         if TEST_CMD_RE.search(cmd_):
                             test_ok = True
