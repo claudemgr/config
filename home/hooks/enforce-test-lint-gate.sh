@@ -248,6 +248,13 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
     agent_prompts = {}
     test_ok = False
     lint_ok = False
+    # Async hand-back delivery is NOT a "user" transcript entry — confirmed
+    # against a live transcript (2.1.277): it lands as a "type":"attachment"
+    # entry whose rendered[].content carries the "<agent-message from=...>
+    # [Subagent hand-back]" text, with no cwd field of its own. Track the
+    # most recently seen cwd from any entry so those attachment entries can
+    # still be judged cwd_match, same as a "user" entry would be.
+    last_cwd_project = ""
     try:
         with open(transcript_path, errors="ignore") as f:
             for line in f:
@@ -284,10 +291,27 @@ def transcript_pass(transcript_path, project, allow_bashn_as_test):
                             if subagent_ in LINT_AGENT_TYPES:
                                 prompt_ = inp.get("prompt", "") if isinstance(inp, dict) else ""
                                 lint_agent_ids[c.get("id")] = prompt_ if isinstance(prompt_, str) else ""
+                elif etype == "attachment":
+                    rendered = entry.get("rendered")
+                    text_ = ""
+                    if isinstance(rendered, list) and rendered:
+                        first_ = rendered[0]
+                        text_ = first_.get("content", "") if isinstance(first_, dict) else ""
+                    if not isinstance(text_, str) or "hand-back" not in text_.lower():
+                        continue
+                    from_ = re.search(r'from="(\w+)"', text_)
+                    prompt_ = agent_prompts.get(from_.group(1), "") if from_ else ""
+                    cwd_match = bool(last_cwd_project) and last_cwd_project == project
+                    if not (cwd_match or _mentions(prompt_, project) or _mentions(text_, project)):
+                        continue
+                    if LINT_AGENT_CLEAN_RE.search(text_) and not LINT_AGENT_ISSUES_RE.search(text_):
+                        lint_ok = True
                 elif etype == "user":
                     entry_cwd = entry.get("cwd", "")
                     try:
                         entry_project = os.path.realpath(entry_cwd) if entry_cwd else ""
+                        if entry_project:
+                            last_cwd_project = entry_project
                     except OSError:
                         entry_project = ""
                     # A session is routinely run from a parent directory while

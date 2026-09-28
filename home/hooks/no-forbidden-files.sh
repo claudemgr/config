@@ -329,6 +329,14 @@ LOCATION_RESTRICTED_DOCKER_BASENAMES = {
     "docker-compose.yml", "docker-compose.yaml",
     "docker-compose.override.yml", "docker-compose.override.yaml",
 }
+# project_files.md's documented exception scope is glob-based (Dockerfile*,
+# *compose*.y?ml), wider than the flat basename set above (e.g. it also
+# covers Dockerfile.build/Dockerfile.10-dev variant names and compose.yml
+# without the docker- prefix) — matched separately so a name only this
+# pattern catches still goes through the same root/docker-dir gate below.
+DOCKER_BASENAME_PATTERN = re.compile(
+    r"^(dockerfile(\..+)?|containerfile(\..+)?|[a-z0-9._-]*compose[a-z0-9._-]*\.ya?ml)$"
+)
 
 def is_allowed(fp, bn):
     if bn in ALWAYS_ALLOW_BASENAMES:
@@ -398,27 +406,16 @@ LANGUAGE_PROJECT_MANIFESTS = {
     "build.sbt", "project.clj", "deps.edn", "*.csproj", "*.sln",
 }
 
-def is_docker_image_project(root):
-    # dockersrc (base image) and casjaysdevdocker (app image) repos are
-    # docker-specific projects — the whole repo IS the docker build context,
-    # so gen-dockerfile places Dockerfile/Dockerfile.{ver}/.dockerignore and
-    # any docker-compose.yml at the REPO ROOT by design (DOCKERSRC.md PART 1:
-    # Standard tree), never under a docker/ subdirectory. .env.scripts is the
-    # generated marker unique to this template family; a Dockerfile.{ver}
-    # variant file is the base-repo-specific signal (dockersrc-bootstrap.md's
-    # REPO_TYPE detection uses the same signal).
-    if not root or not os.path.isdir(root):
-        return False
-    try:
-        entries = os.listdir(root)
-    except OSError:
-        return False
-    if ".env.scripts" in entries:
-        return True
-    for name in entries:
-        if name.lower().startswith("dockerfile."):
-            return True
-    return False
+def is_docker_root_project(root):
+    # Generic, name-agnostic signal: a repo whose root has NO language-project
+    # manifest (is_language_project() below — go.mod, package.json, etc.) has
+    # no docker/ subdirectory convention to conflict with, so its Dockerfile/
+    # compose files legitimately live at the repo root. This covers any repo
+    # whose entire purpose is a Docker image/compose build living at root —
+    # dockersrc/casjaysdevdocker/composemgr-style repos and any third-party
+    # equivalent — without hardcoding org or repo names, so it holds for any
+    # user of this public convention, not just this machine's own repos.
+    return not is_language_project(root)
 
 def is_language_project(root):
     if not root or not os.path.isdir(root):
@@ -520,12 +517,16 @@ if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOC_BASENAME
         matched_name, reason = basename, "doc file only auto-allowed under .github/ or docs/"
 
 # Docker/Container files belong under docker/ (project_files.md) — anywhere
-# else, including repo root, needs confirmation. Exception: docker-specific
-# projects (dockersrc/casjaysdevdocker image repos) legitimately place these
-# files at the repo root itself — see is_docker_image_project() above.
-if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOCKER_BASENAMES:
+# else, including repo root, needs confirmation. Exception: repos with no
+# language-project manifest at root legitimately place these files at the
+# repo root itself — see is_docker_root_project() above.
+_docker_basename_match = (
+    basename.lower() in LOCATION_RESTRICTED_DOCKER_BASENAMES
+    or DOCKER_BASENAME_PATTERN.match(basename.lower())
+)
+if matched_name is None and _docker_basename_match:
     at_repo_root = root_rel_path is not None and "/" not in root_rel_path
-    docker_project_root_exempt = at_repo_root and is_docker_image_project(hook_cwd)
+    docker_project_root_exempt = at_repo_root and is_docker_root_project(hook_cwd)
     if not re.search(r"(^|/)docker/", norm_path) and not docker_project_root_exempt:
         matched_name, reason = basename, "Dockerfile/compose file only allowed under docker/"
 

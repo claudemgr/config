@@ -34,8 +34,8 @@ The only exception: report-only files created by AI itself during the current se
 | `CODE_OF_CONDUCT.md` in root | Belongs in `.github/` (allowed there) |
 | `SECURITY.md` in root | Belongs in `.github/` (allowed there) |
 | `PULL_REQUEST_TEMPLATE.md` in root | Belongs in `.github/` (allowed there) |
-| `Dockerfile` in root | Belongs in `docker/Dockerfile` |
-| `docker-compose.yml` in root | Belongs in `docker/docker-compose.yml` |
+| `Dockerfile` in root | Belongs in `docker/Dockerfile`. **Exception:** `{project_dir}/Dockerfile*` (e.g. `Dockerfile`, `Dockerfile.build`, `Dockerfile.10-dev`) is allowed at root when the repo has no language-project manifest at root (no `go.mod`, `package.json`, `Cargo.toml`, etc.) — such a repo has no `docker/` convention to conflict with, since the whole repo IS the Docker build context. This holds for any repo shaped that way, not a fixed list of names |
+| `docker-compose.yml` in root | Belongs in `docker/docker-compose.yml`. **Exception:** `{project_dir}/*compose*.y?ml` (e.g. `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`) is allowed at root under the same no-language-manifest exception as `Dockerfile*` above |
 | `*.example.*`, `*.sample.*` | No example files — defaults are embedded in the binary. **Exception:** `.env.example`, `.env.sample`, `app.env.example`, `app.env.sample`, `default.env.example`, `default.env.sample` are allowed — they are safe templates for users to copy |
 | `server.yml`, `cli.yml` | Config files are runtime-generated, never in repo |
 | `.env`, `app.env`, `default.env` | Never committed — must always be in `.gitignore`. Use `.env.example` / `.env.sample` variants for committed templates |
