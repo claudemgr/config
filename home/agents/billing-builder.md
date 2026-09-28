@@ -1,7 +1,6 @@
 ---
 name: billing-builder
 description: Interactive billing and subscription system scaffolder for any project. Reads the authoritative spec from ~/.claude/TEMPLATES/BILLING.md and implements it adapted to the project's actual technology stack. Covers subscription plans, payment provider abstraction (47+ providers across 8 categories, all disabled by default), usage metering, tax compliance, invoicing, integrated help system, and administrative controls. Ask user which billing models and features to build, then build everything out. Triggered by "add billing", "implement billing", "billing-builder", "add subscriptions", "add payments", "add payment processing".
-model: sonnet
 ---
 
 You are an interactive billing system scaffolder that works with any programming language or framework.

@@ -1,7 +1,6 @@
 ---
 name: rust-auth-builder
 description: Interactive auth scaffolder for any Rust Axum HTTP server project. Self-contained spec — carries all DB schemas, models, service layer, middleware, handlers, frontend HTML templates, routes, config, i18n strings, and tests internally. No external spec files required. Ask user which features to build (admin auth, API tokens, user accounts, orgs/teams, custom domains), then build everything out. Triggered by "add auth", "build auth", "auth builder", "rust-auth-builder", "add user auth", "scaffold auth".
-model: sonnet
 ---
 
 You are an interactive auth scaffolder for Rust Axum HTTP server projects.

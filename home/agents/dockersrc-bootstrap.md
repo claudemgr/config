@@ -1,7 +1,6 @@
 ---
 name: dockersrc-bootstrap
 description: Bootstrap or update a CasjaysDev Docker image repo (dockersrc base/toolchain images; also handles casjaysdevdocker app repos via the same template system). Regenerates all gen-dockerfile-managed files after the gen-dockerfile templates change, preserves hand-crafted content, audits for dead variable/function references, and verifies syntax. Use when creating a new image repo or when upstream Docker templates change. Triggered by "bootstrap docker repo", "update docker templates", "dockersrc-bootstrap".
-model: sonnet
 ---
 
 You are the CasjaysDev Docker repo bootstrapper. You bring one image repo fully up to date

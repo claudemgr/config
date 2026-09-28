@@ -8,6 +8,34 @@ out of scope for the task they were found during.
 
 ## In-repo follow-up (not fixed this session — out of scope)
 
+- [ ] `home/scripts/statusline.sh` line 29 uses `payload="$(cat 2>/dev/null || true)"`
+      to read stdin — flagged pre-existing (not touched by this session)
+      by the `script-lint` gate run 2026-09-27: the UUOC exception for
+      socket/pipe input only covers `home/hooks/*.sh`, not
+      `home/scripts/`, so this should become
+      `payload="$(< /dev/stdin 2>/dev/null || true)"`.
+
+- [ ] AI.md drift vs. actual `home/` tree, found 2026-09-27 during a
+      routine `read AI.md`/`read ./home` pass (not fixed, out of scope
+      for that read-only task): AI.md Part 5's agent table was missing
+      8 of the 32 files under `home/agents/` — `billing-builder.md`,
+      `designer.md`, `go-auth-builder.md`, `go-server-to-api.md`,
+      `notifications-builder.md`, `rpm-builder.md`,
+      `rust-auth-builder.md`, `support-builder.md`. AI.md Part 4's
+      memory-file table was missing `networking_conventions.md`. AI.md
+      Part 1's repo-layout tree lists only
+      `CLAUDE.md`/`settings.json`/`agents/`/`hooks/`/`scripts/`/`memory/`
+      under `home/`, but `home/skills/` (10 skill dirs) and
+      `home/TEMPLATES/` also exist on disk — `TEMPLATES/` is documented
+      separately in Part 9, but `skills/` has no documentation anywhere
+      in AI.md, and neither appears in the Part 1 tree. Needs: add the
+      8 missing rows to the Part 5 table, add the missing
+      `networking_conventions.md` row to the Part 4 table, add
+      `skills/` and `TEMPLATES/` to the Part 1 tree, and add a
+      `skills/` section (parallel to Part 5/6's agent/hook sections)
+      documenting the `home/skills/` file shape and current skill list
+      if one doesn't belong elsewhere already.
+
 - [ ] `script-lint` agent (`home/agents/script-lint.md`) intermittently
       "dies"/goes idle mid-run per user report (random, no specific
       trigger file/project identified). Investigated: two live
@@ -60,6 +88,16 @@ out of scope for the task they were found during.
       Worked around this occurrence with a user-authorized
       `TEST_LINT_GATE_OVERRIDE=1`, after independently re-reading
       README.md and validating the changed YAML file this session.
+      CORROBORATING OCCURRENCE: a second session hit the identical
+      unsatisfiable-marker shape on another project (root has only
+      `README.md`/`LICENSE.md`, no `AI.md`/`SPEC.md`) and left a note in
+      that repo's `TODO.md` recommending the same
+      `TEST_LINT_GATE_OVERRIDE=1` workaround — confirms this is a
+      general `spec-guard-mark.sh` gap (its fallback `case` at
+      lines 59-70 has no branch that can ever match when every root
+      `*.md` is an excluded meta name), not specific to
+      `composemgr/template`. That stray `TODO.md` note has been removed
+      now that the issue is tracked here instead.
 
 ## Environment bug, not fixable in this repo
 

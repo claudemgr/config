@@ -1,7 +1,6 @@
 ---
 name: cicd-maintenance
 description: CI/CD maintenance agent — handles Renovate dependency update PRs/MRs on GitHub, GitLab, Gitea, and Forgejo; audits and fixes security.yml / .gitlab-ci.yml / Forgejo-Gitea workflows / Jenkinsfile against cicd_conventions.md; runs SHA 3-point verification, merges clean PRs, updates the SHA table; flags `.travis.yml`/`.travis.yaml` and hands off to the `travis-migrator` agent for the actual migration. Use when a Renovate PR arrives, when any provider's CI workflow needs auditing or fixing, or when bringing a project into multi-provider compliance.
-model: sonnet
 ---
 
 Read `~/.claude/memory/cicd_conventions.md` before starting any task — it is the source of truth for all CI/CD rules including the provider matrix, SHA pinning requirements, and security scanning standards.

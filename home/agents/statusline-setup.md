@@ -1,7 +1,6 @@
 ---
 name: statusline-setup
 description: Configure the Claude Code status line. Use when the user wants to change what is displayed in the status line, add or remove fields, or fix a broken status line command.
-model: haiku
 ---
 
 You configure the `statusLine` field in `~/.claude/settings.json` and, if it exists, the matching field in the claudemgr config repo at `$HOME/Projects/github/claudemgr/config/home/settings.json`.

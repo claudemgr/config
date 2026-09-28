@@ -171,7 +171,6 @@ Each agent is a markdown file with YAML frontmatter followed by the agent's inst
 ---
 name: agent-name
 description: When to invoke this agent — used by Claude to decide routing
-model: haiku   # or sonnet or opus; omit to inherit from parent
 ---
 
 Instructions for the agent...
@@ -179,39 +178,39 @@ Instructions for the agent...
 
 **Rules:**
 - `description` must be precise — Claude routes to agents based on it; vague descriptions cause mis-routing
-- `model: haiku` for mechanical tasks (linting, renaming, lookups); omit for judgment tasks
+- No `model:` frontmatter field — every agent inherits the parent session's model
 - Agent instructions follow the same conventions as `home/CLAUDE.md` — no preamble, no AI attribution
 - Agent name in the filename must match the `name:` frontmatter field
 
 **Current agents:**
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| `architect.md` | opus | System design, API design, data modeling, architectural tradeoffs |
-| `audit.md` | opus | Full project health audit — security, quality, logic, docs, line-by-line AI.md compliance |
-| `beta-tester.md` | sonnet | Structured beta testing — exploratory testing, edge cases, UAT against specs |
-| `bootstrap.md` | sonnet | Bootstrap a project from a spec (`{project_dir}/AI.md`); builds PART 0–6 scaffolding incl. loaders + `.claude/rules/`, enumerates feature PARTs into a complete `TODO.AI.md`, ensures IDEA.md without fabricating it |
-| `cicd-maintenance.md` | sonnet | Renovate PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix; flags Travis configs and hands off to `travis-migrator` |
-| `claude-code-guide.md` | sonnet | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
-| `code-reviewer.md` | sonnet | Review diffs, PRs, or files before committing or merging |
-| `commit-prep.md` | haiku | Prepare `COMMIT_MESS` without polluting main conversation with diff output |
-| `debugger.md` | sonnet | Root cause analysis for bugs, crashes, hangs, unexpected behavior |
-| `devops.md` | sonnet | Infrastructure, CI/CD, containers, orchestration, deployment strategies |
-| `doc-sync.md` | haiku | Sync `__help()`, man page, and completions triple after a script changes |
-| `dockersrc-bootstrap.md` | sonnet | Bootstrap or update a CasjaysDev Docker image repo against the current gen-dockerfile templates |
-| `explorer.md` | haiku | Fast read-only codebase search — files by pattern, symbol definitions, keywords |
-| `general.md` | sonnet | Catch-all for everyday tasks when no specialist agent fits |
-| `go-lint.md` | haiku | Lint Go projects for CasjaysDev convention violations |
-| `implement.md` | opus | Read a spec from its first word and implement everything in order (following refs); orchestrates scaffold-then-build-all, delegates to scoped builders, never commits or runs the gate |
-| `planner.md` | sonnet | Design an implementation plan before writing code; flags risks |
-| `researcher.md` | sonnet | Multi-step research spanning multiple files or requiring web + code reading |
-| `rust-lint.md` | haiku | Lint Rust projects for CasjaysDev convention violations |
-| `script-lint.md` | haiku | Lint bash/sh scripts for CasjaysDev convention violations |
-| `security-auditor.md` | opus | Threat modeling, OWASP audits, secrets scanning, auth flows, hardening |
-| `spec-migrator.md` | sonnet | Migrate SPEC.md/CLAUDE.md/AI.md to standard structure; bootstrap wizard |
-| `statusline-setup.md` | haiku | Configure Claude Code status line fields |
-| `test-writer.md` | sonnet | Write unit, integration, table-driven, and fuzz tests for existing code |
-| `travis-migrator.md` | sonnet | Read an existing `.travis.yml`/`.travis.yaml`, generate the equivalent native workflow for the real CI/CD provider under `cicd_conventions.md`; never touches the Travis file itself; supports single-project and fleet-wide bulk sweeps |
+| Agent | Purpose |
+|-------|---------|
+| `architect.md` | System design, API design, data modeling, architectural tradeoffs |
+| `audit.md` | Full project health audit — security, quality, logic, docs, line-by-line AI.md compliance |
+| `beta-tester.md` | Structured beta testing — exploratory testing, edge cases, UAT against specs |
+| `bootstrap.md` | Bootstrap a project from a spec (`{project_dir}/AI.md`); builds PART 0–6 scaffolding incl. loaders + `.claude/rules/`, enumerates feature PARTs into a complete `TODO.AI.md`, ensures IDEA.md without fabricating it |
+| `cicd-maintenance.md` | Renovate PR review (SHA 3-point verification, merge, SHA table update) and `security.yml` audit/fix; flags Travis configs and hands off to `travis-migrator` |
+| `claude-code-guide.md` | Answers questions about Claude Code CLI, hooks, MCP servers, Claude API |
+| `code-reviewer.md` | Review diffs, PRs, or files before committing or merging |
+| `commit-prep.md` | Prepare `COMMIT_MESS` without polluting main conversation with diff output |
+| `debugger.md` | Root cause analysis for bugs, crashes, hangs, unexpected behavior |
+| `devops.md` | Infrastructure, CI/CD, containers, orchestration, deployment strategies |
+| `doc-sync.md` | Sync `__help()`, man page, and completions triple after a script changes |
+| `dockersrc-bootstrap.md` | Bootstrap or update a CasjaysDev Docker image repo against the current gen-dockerfile templates |
+| `explorer.md` | Fast read-only codebase search — files by pattern, symbol definitions, keywords |
+| `general.md` | Catch-all for everyday tasks when no specialist agent fits |
+| `go-lint.md` | Lint Go projects for CasjaysDev convention violations |
+| `implement.md` | Read a spec from its first word and implement everything in order (following refs); orchestrates scaffold-then-build-all, delegates to scoped builders, never commits or runs the gate |
+| `planner.md` | Design an implementation plan before writing code; flags risks |
+| `researcher.md` | Multi-step research spanning multiple files or requiring web + code reading |
+| `rust-lint.md` | Lint Rust projects for CasjaysDev convention violations |
+| `script-lint.md` | Lint bash/sh scripts for CasjaysDev convention violations |
+| `security-auditor.md` | Threat modeling, OWASP audits, secrets scanning, auth flows, hardening |
+| `spec-migrator.md` | Migrate SPEC.md/CLAUDE.md/AI.md to standard structure; bootstrap wizard |
+| `statusline-setup.md` | Configure Claude Code status line fields |
+| `test-writer.md` | Write unit, integration, table-driven, and fuzz tests for existing code |
+| `travis-migrator.md` | Read an existing `.travis.yml`/`.travis.yaml`, generate the equivalent native workflow for the real CI/CD provider under `cicd_conventions.md`; never touches the Travis file itself; supports single-project and fleet-wide bulk sweeps |
 
 ---
 

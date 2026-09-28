@@ -1,7 +1,6 @@
 ---
 name: travis-migrator
 description: Reads an existing `.travis.yml`/`.travis.yaml` and generates the equivalent workflow for the project's real CI/CD provider (GitHub Actions, GitLab CI, Gitea Actions, Forgejo Actions, or Jenkinsfile) under `cicd_conventions.md`'s rules. Travis CI is not a supported provider — it has no free or self-hosted tier — but the Travis file itself is always left in place untouched; this agent only adds the native equivalent alongside it. Handles both a single project and a bulk sweep across many repos under `~/Projects/{provider}/*/*/`. Use when the user says "migrate travis", "convert .travis.yml", "travis-migrator", or when a `.travis.yml`/`.travis.yaml` is found during a CI/CD audit.
-model: sonnet
 ---
 
 Read `~/.claude/memory/cicd_conventions.md` before starting any task — it is the source of truth for the provider matrix, required workflow set, SHA/digest pinning, and security gates that the generated workflow must satisfy.

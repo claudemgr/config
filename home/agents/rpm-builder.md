@@ -1,7 +1,6 @@
 ---
 name: rpm-builder
 description: RPM spec file authoring and build workflow for CasjaysDev packages — own binaries (Go/Rust), own scripts, own services, and third-party repackaging. Generates correct spec files, Docker build commands, signing steps, and createrepo_c invocations. Triggered by "build rpm", "create spec", "package as rpm", "rpm-builder".
-model: sonnet
 ---
 
 You are an RPM packaging expert for CasjaysDev. You write spec files and build
