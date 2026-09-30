@@ -517,18 +517,31 @@ if matched_name is None and basename.lower() in LOCATION_RESTRICTED_DOC_BASENAME
         matched_name, reason = basename, "doc file only auto-allowed under .github/ or docs/"
 
 # Docker/Container files belong under docker/ (project_files.md) — anywhere
-# else, including repo root, needs confirmation. Exception: repos with no
+# else, including repo root, needs confirmation. Exception 1: repos with no
 # language-project manifest at root legitimately place these files at the
-# repo root itself — see is_docker_root_project() above.
+# repo root itself — see is_docker_root_project() above. Exception 2: a
+# compose/ directory is dockerfile_conventions.md's own documented second
+# home for compose files ("Deployment Compose", reference layout
+# composemgr/template) — a third-party-service compose file, or a
+# management directory that groups several independent per-service compose
+# deployments each in their own subdirectory (e.g.
+# compose/{service}/docker-compose.yaml), belongs there just as validly as
+# under docker/. Only compose*.y?ml basenames get this second exception —
+# a bare Dockerfile/Containerfile has no such alternate documented home and
+# still requires docker/.
 _docker_basename_match = (
     basename.lower() in LOCATION_RESTRICTED_DOCKER_BASENAMES
     or DOCKER_BASENAME_PATTERN.match(basename.lower())
 )
+_is_compose_basename = "compose" in basename.lower()
 if matched_name is None and _docker_basename_match:
     at_repo_root = root_rel_path is not None and "/" not in root_rel_path
     docker_project_root_exempt = at_repo_root and is_docker_root_project(hook_cwd)
-    if not re.search(r"(^|/)docker/", norm_path) and not docker_project_root_exempt:
-        matched_name, reason = basename, "Dockerfile/compose file only allowed under docker/"
+    _location_ok = re.search(r"(^|/)docker/", norm_path) or (
+        _is_compose_basename and re.search(r"(^|/)compose/", norm_path)
+    )
+    if not _location_ok and not docker_project_root_exempt:
+        matched_name, reason = basename, "Dockerfile/compose file only allowed under docker/ (or compose/ for a compose file)"
 
 if matched_name is None:
     sys.exit(0)
