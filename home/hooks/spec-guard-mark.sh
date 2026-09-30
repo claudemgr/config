@@ -58,7 +58,29 @@ SPEC_GUARD_MARK_PROJECT=$(realpath -- "$SPEC_GUARD_MARK_PROJECT" 2>/dev/null) ||
 # well-known non-spec meta filenames.
 case "$SPEC_GUARD_MARK_BASENAME" in
   AI.md | SPEC.md) ;;
-  README.md | LICENSE.md | CLAUDE.md | IDEA.md | TODO.AI.md | TODO.md | PLAN.AI.md | PLAN.md)
+  README.md)
+    # Last-resort substitute: only counts when there is truly nothing else
+    # at the project root that could serve as a spec - no AI.md/SPEC.md,
+    # and no other non-meta root-level *.md file either. This is the
+    # common shape of a minimal deployment repo (e.g. a composemgr/*
+    # app repo, which ships only README.md + LICENSE.md) - without this,
+    # such a repo could never satisfy enforce-test-lint-gate.sh's
+    # spec-collection check at all, no matter what was read, permanently
+    # forcing TEST_LINT_GATE_OVERRIDE=1 on every commit. A repo that also
+    # has a genuine other spec file (APPLICATION.md, COMPOSEMGR.md, ...)
+    # still requires reading that file - README.md never substitutes for it.
+    [ "$SPEC_GUARD_MARK_DIRNAME" = "$SPEC_GUARD_MARK_PROJECT" ] || exit 0
+    [ ! -f "$SPEC_GUARD_MARK_PROJECT/AI.md" ] || exit 0
+    [ ! -f "$SPEC_GUARD_MARK_PROJECT/SPEC.md" ] || exit 0
+    for SPEC_GUARD_MARK_CANDIDATE in "$SPEC_GUARD_MARK_PROJECT"/*.md; do
+      [ -e "$SPEC_GUARD_MARK_CANDIDATE" ] || continue
+      case "${SPEC_GUARD_MARK_CANDIDATE##*/}" in
+        README.md | LICENSE.md | CLAUDE.md | IDEA.md | TODO.AI.md | TODO.md | PLAN.AI.md | PLAN.md) ;;
+        *) exit 0 ;;
+      esac
+    done
+    ;;
+  LICENSE.md | CLAUDE.md | IDEA.md | TODO.AI.md | TODO.md | PLAN.AI.md | PLAN.md)
     exit 0
     ;;
   *.md)
