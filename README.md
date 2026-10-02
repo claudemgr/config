@@ -2,6 +2,8 @@
 
 Global Claude Code configuration — agents, memory, hooks, and settings deployed to `~/.claude/` on every machine. One installer gets any machine to the same baseline.
 
+> The `climgr` org is strictly for CLI tool configuration repos — mostly AI CLIs, but any CLI tool is in scope. It's unrelated to the `claudemgr` org, which holds only the `{lang|type}` template repos (`go`, `rust`, `android`, `docker`, `mgr`) this repo's agents consume — those stay in `claudemgr`.
+
 ## 📦 What's Included
 
 | Path | Purpose |

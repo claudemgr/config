@@ -190,7 +190,7 @@ Applies to: repos whose entire content is Markdown specification/template/docume
 
 ### What replaces the standard gates
 - **Verification:** re-read the edited file(s) and diff against the intended content per the Self-Validation rule — the "test" for a spec repo is that the prose is correct and internally consistent (cross-references resolve, terminology matches across sibling files), not that a command exits 0.
-- **Consistency sweep:** when a rule changes in one file that has sibling copies (e.g. a `home/**` rule that also appears in `{lang}/AI.md` templates), grep every sibling for the same pattern and update them together — see `~/Projects/github/claudemgr/config/AI.md § Part 9` for the claudemgr-specific alignment rule.
+- **Consistency sweep:** when a rule changes in one file that has sibling copies (e.g. a `home/**` rule that also appears in `{lang}/AI.md` templates), grep every sibling for the same pattern and update them together — see `~/Projects/github/climgr/claude/AI.md § Part 9` for the claudemgr-specific alignment rule.
 - If `install.sh` exists, it still follows `~/.claude/memory/script_conventions.md` for its own code style, but that does not make the surrounding repo a `script-collection`.
 
 ---

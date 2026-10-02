@@ -2,10 +2,12 @@
 
 climgr/claude is the source repository for global Claude Code configuration — agents, hooks, memory files, and settings deployed to `~/.claude/` on every machine where Claude Code is used. It is the single source of truth for how Claude Code behaves across all projects and sessions. The `home/` directory mirrors `~/.claude/` exactly; `install.sh` syncs it to the live location.
 
+The `climgr` org is strictly for CLI tool configuration repos — mostly AI CLIs (this repo is Claude Code's), but any CLI tool is in scope. It is unrelated to the `claudemgr` org, which holds only the `{lang|type}` template repos (`go`, `rust`, `android`, `docker`, `mgr`) consumed by this repo's agents — those stay in `claudemgr` and are not moving.
+
 ## Project variables
 
-project_name: config
-project_org: claudemgr
+project_name: claude
+project_org: climgr
 internal_name: config
 internal_org: claudemgr
 deploy_target: ~/.claude

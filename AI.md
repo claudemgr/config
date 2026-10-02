@@ -362,7 +362,9 @@ Controls Claude Code permissions and hook wiring. Structure:
 
 ## Part 9: Template Repositories (../{lang|type}/{TYPE}.md)
 
-"Templates" refers to the sibling repos next to this one — `~/Projects/github/claudemgr/{lang|type}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`. The repo-name segment is not always a programming language — `go`/`rust` are languages, `android` is a device/platform target — so read `{lang|type}` as "whatever the repo is named," never assume it parses as a language.
+**Org split:** the `claudemgr` org holds only the `{lang|type}` template repos below — it does not hold this repo. This repo (`climgr/claude`) lives in the separate `climgr` org, which is strictly for CLI tool configuration repos — mostly AI CLIs (Claude Code, etc.), but any CLI tool is in scope. The two orgs are unrelated in content; `climgr/claude` is not a sibling of the template repos on GitHub or on disk, and template repos will never move into `climgr`.
+
+"Templates" refers to the `{lang|type}` spec repos under the `claudemgr` org — `~/Projects/github/claudemgr/{lang|type}/{TYPE}.md` — each a master `AI.md`-style spec copied verbatim into a generated project as that project's `AI.md`. The repo-name segment is not always a programming language — `go`/`rust` are languages, `android` is a device/platform target — so read `{lang|type}` as "whatever the repo is named," never assume it parses as a language.
 
 **Default referent:** an unqualified "the templates" (e.g. "why do the templates say/have/miss X") always means these template repos — `go/`, `rust/`, `android/`, `docker/`, and `home/TEMPLATES/*.md` — and the search/fix scope is all of them. It never means `home/**`/`./home/*`/`./home` (this repo's deployed dotfiles/memory tree) unless the user names one of those paths explicitly.
 
@@ -378,9 +380,10 @@ Controls Claude Code permissions and hook wiring. Structure:
 Not every repo ships every category — `android` is app-only (`APPLICATION.md` only, no `API.md`/`SERVER.md`/`HYBRID.md`), since there's no server-side Android target.
 
 ```
+~/Projects/github/climgr/
+└── claude/                      # this repo — source of ~/.claude/ (github.com/climgr/claude)
+
 ~/Projects/github/claudemgr/
-├── config/                      # this repo — source of ~/.claude/ (github.com/climgr/claude;
-│                                #   kept locally alongside the claudemgr/ templates by choice)
 ├── go/                           # github.com/claudemgr/go — language
 │   ├── API.md                    # REST/JSON API server template
 │   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template
