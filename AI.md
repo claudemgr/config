@@ -1,4 +1,4 @@
-# claudemgr/config — Implementation Spec (THE HOW)
+# climgr/claude — Implementation Spec (THE HOW)
 
 This file is read-only during routine work. Placeholders like `{deploy_target}` resolve from `IDEA.md → ## Project variables`.
 
@@ -379,7 +379,8 @@ Not every repo ships every category — `android` is app-only (`APPLICATION.md` 
 
 ```
 ~/Projects/github/claudemgr/
-├── config/                      # this repo — source of ~/.claude/
+├── config/                      # this repo — source of ~/.claude/ (github.com/climgr/claude;
+│                                #   kept locally alongside the claudemgr/ templates by choice)
 ├── go/                           # github.com/claudemgr/go — language
 │   ├── API.md                    # REST/JSON API server template
 │   ├── APPLICATION.md            # GUI/TUI/CLI, no server, template

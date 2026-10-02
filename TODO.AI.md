@@ -113,7 +113,7 @@ out of scope for the task they were found during.
 
 ## Environment bug, not fixable in this repo
 
-- [ ] 68 (OPEN, not a claudemgr/config code issue): live long-running
+- [ ] 68 (OPEN, not a climgr/claude code issue): live long-running
       session (5b02732a-98bc-4e4b-86ff-94fff4d9ca97) has PreToolUse
       hooks firing correctly (enforce-test-lint-gate.sh blocks as
       designed) but PostToolUse hooks (test-lint-mark.sh) silently not

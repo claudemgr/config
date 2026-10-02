@@ -54,7 +54,7 @@ PRINTF_SET_WHITE='\033[1;37m'
 PRINTF_SET_RESET='\033[0m'
 INSTALL_SH_EXIT_STATUS=0
 CLAUDE_LOCAL_REPO="$HOME/.local/dotfiles/claude"
-CLAUDE_CONFIG_REPO="https://github.com/claudemgr/config"
+CLAUDE_CONFIG_REPO="https://github.com/climgr/claude"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Main application
 if ! __cmd_exists git; then

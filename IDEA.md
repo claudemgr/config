@@ -1,6 +1,6 @@
 ## Project description
 
-claudemgr/config is the source repository for global Claude Code configuration — agents, hooks, memory files, and settings deployed to `~/.claude/` on every machine where Claude Code is used. It is the single source of truth for how Claude Code behaves across all projects and sessions. The `home/` directory mirrors `~/.claude/` exactly; `install.sh` syncs it to the live location.
+climgr/claude is the source repository for global Claude Code configuration — agents, hooks, memory files, and settings deployed to `~/.claude/` on every machine where Claude Code is used. It is the single source of truth for how Claude Code behaves across all projects and sessions. The `home/` directory mirrors `~/.claude/` exactly; `install.sh` syncs it to the live location.
 
 ## Project variables
 

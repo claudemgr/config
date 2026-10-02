@@ -95,9 +95,10 @@ norm_path = file_path.replace("\\", "/")
 # git repo root, never the session's process cwd — payload["cwd"] can be a
 # parent directory (e.g. a manager repo cwd'd one level above the project),
 # which misidentifies the project's own root-level directory name (e.g. a
-# repo literally named "config", like claudemgr/config) as the forbidden
-# config/ root dir. Resolve via `git -C <file_dir> rev-parse --show-toplevel`
-# first; fall back to payload["cwd"] only when the file isn't inside a git
+# repo whose local checkout dir is literally named "config", as this
+# repo's used to be) as the forbidden config/ root dir. Resolve via
+# `git -C <file_dir> rev-parse --show-toplevel` first; fall back to
+# payload["cwd"] only when the file isn't inside a git
 # repo (e.g. a not-yet-initialized project).
 import subprocess
 

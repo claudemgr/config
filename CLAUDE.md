@@ -1,4 +1,4 @@
-# claudemgr/config
+# climgr/claude
 
 Read `AI.md` (THE HOW) and `IDEA.md` (THE WHAT) before acting on this project.
 

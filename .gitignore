@@ -90,7 +90,7 @@ $RECYCLE.BIN/
 .claude/plans/
 .claude/statsFile
 .claude/*.lock
-# claudemgr/config specific — home/ maps to ~/.claude/; ignore runtime dirs there too
+# climgr/claude specific — home/ maps to ~/.claude/; ignore runtime dirs there too
 home/backups/
 home/cache/
 home/file-history/

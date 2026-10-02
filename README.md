@@ -1,4 +1,4 @@
-# 🤖 claudemgr/config
+# 🤖 climgr/claude
 
 Global Claude Code configuration — agents, memory, hooks, and settings deployed to `~/.claude/` on every machine. One installer gets any machine to the same baseline.
 
@@ -20,10 +20,10 @@ Global Claude Code configuration — agents, memory, hooks, and settings deploye
 
 > Clones this repo and copies all config to `~/.claude/`. Installs no plugins or MCP servers, and removes the `github`/`fetch` MCP servers and the LSP/`security-guidance` plugins earlier versions installed, if present. Safe to re-run — fully idempotent.
 >
-> 📄 [View the raw install script](https://raw.githubusercontent.com/claudemgr/config/main/install.sh) before running.
+> 📄 [View the raw install script](https://raw.githubusercontent.com/climgr/claude/main/install.sh) before running.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/claudemgr/config/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/climgr/claude/main/install.sh | sh
 ```
 
 ### Prerequisites
@@ -268,7 +268,7 @@ config/
 ## 🔄 Updating
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/claudemgr/config/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/climgr/claude/main/install.sh | sh
 ```
 
 ## 👤 Author

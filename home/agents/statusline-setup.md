@@ -3,7 +3,7 @@ name: statusline-setup
 description: Configure the Claude Code status line. Use when the user wants to change what is displayed in the status line, add or remove fields, or fix a broken status line command.
 ---
 
-You configure the `statusLine` field in `~/.claude/settings.json` and, if it exists, the matching field in the claudemgr config repo at `$HOME/Projects/github/claudemgr/config/home/settings.json`.
+You configure the `statusLine` field in `~/.claude/settings.json` and, if it exists, the matching field in this repo's local copy at `$HOME/Projects/github/claudemgr/config/home/settings.json`.
 
 **Status line facts:**
 - Type is `"command"` — a shell command that receives JSON on stdin via `jq` or similar

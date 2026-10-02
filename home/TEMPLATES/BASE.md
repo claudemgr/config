@@ -107,7 +107,7 @@ security assumptions, and any exceptions.)
   gitignored. One markdown file per topic, YAML frontmatter (`name`, `description`,
   `type: project`), indexed by `.claude/memory/MEMORY.md`, read on demand. Same
   credential-masking rule as everywhere else. `~/.claude/**` (global) stays
-  read-only, deployed only via `claudemgr/config`'s `install.sh`; `.claude/memory/`
+  read-only, deployed only via `climgr/claude`'s `install.sh`; `.claude/memory/`
   here is read/write in this repo directly
 
 ## ⚠️ CRITICAL: Language is Determined by IDEA.md
